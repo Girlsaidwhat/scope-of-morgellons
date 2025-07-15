@@ -1,35 +1,53 @@
 import { useState } from 'react';
-import { uploadImage } from '../utils/uploadImage';
+import { supabase } from '../utils/supabaseClient';
 
-export default function UploadPage() {
+export default function Upload() {
   const [file, setFile] = useState(null);
-  const [status, setStatus] = useState('');
-  const userId = 'test-user'; // 🔐 Replace this with the logged-in user's ID once auth is set up
+  const [message, setMessage] = useState('');
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
 
   const handleUpload = async () => {
-    if (!file) {
-      setStatus('Please select a file to upload.');
-      return;
+    if (!file) return setMessage('No file selected');
+
+    // Get the currently signed-in user
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return setMessage('You must be signed in to upload.');
     }
 
-    try {
-      setStatus('Uploading...');
-      const path = await uploadImage(file, userId);
-      setStatus(`Upload successful! File path: ${path}`);
-    } catch (error) {
-      setStatus('Upload failed: ' + error.message);
+    const filePath = `${user.id}/${file.name}`;
+
+    const { error } = await supabase.storage
+      .from('images')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (error) {
+      console.error(error);
+      setMessage('Upload failed.');
+    } else {
+      setMessage('Upload successful!');
     }
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Upload Microscopy Image</h1>
-      <input type="file" accept="image/*" onChange={e => setFile(e.target.files[0])} />
+    <div style={{ padding: '2rem' }}>
+      <h1>Upload Image</h1>
+      <input type="file" accept="image/*" onChange={handleFileChange} />
       <br />
-      <button onClick={handleUpload} style={{ marginTop: 10 }}>
+      <button onClick={handleUpload} style={{ marginTop: '1rem' }}>
         Upload
       </button>
-      <p>{status}</p>
+      <p>{message}</p>
     </div>
   );
 }
