@@ -1,4 +1,5 @@
 export default function Home() {
-  return <h1>Welcome to Scope of Morgellons</h1> ;
+  return <h1>Welcome to <em>The Scope of Morgellons</em></h1>
+ ;
 }
 
