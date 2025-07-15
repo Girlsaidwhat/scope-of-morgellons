@@ -1,3 +1,3 @@
 export default function Upload() {
-  return <h1>Upload page test works!</h1>;
+  return <h1>Upload test page works again!</h1>;
 }
