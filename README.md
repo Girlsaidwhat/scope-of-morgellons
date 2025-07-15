@@ -1,3 +1,7 @@
-# Scope of Morgellons
+# The Scope of Morgellons
 
-Frontend placeholder for initial deployment.
+This project is a website where people with Morgellons can upload microscopy images to help research and awareness.
+
+---
+
+Trigger Vercel redeploy
