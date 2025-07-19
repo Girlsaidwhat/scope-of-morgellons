@@ -4,8 +4,8 @@ import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
 
 const supabase = createClient(
-  'https://your-project-ref.supabase.co',
-  'your-anon-key'
+  'https://your-project-id.supabase.co', // 🔁 replace with your project URL
+  'your-anon-key' // 🔁 replace with your anon key
 )
 
 export default function Home() {
@@ -40,5 +40,3 @@ export default function Home() {
     />
   )
 }
-
-
