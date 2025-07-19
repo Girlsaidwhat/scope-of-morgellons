@@ -1,5 +1,4 @@
 // pages/signin.js
-import { Auth } from '@supabase/auth-ui-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useEffect, useState } from 'react'
 
@@ -13,10 +12,12 @@ export default function SignIn() {
 
   if (!supabaseClient) return <p>Loading...</p>
 
+  // Placeholder UI for sign in
   return (
     <div style={{ maxWidth: '400px', margin: '2rem auto' }}>
       <h1>Sign In</h1>
-      <Auth supabaseClient={supabaseClient} />
+      <p>Supabase client is ready. Implement your auth UI here.</p>
     </div>
   )
 }
+
