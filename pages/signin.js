@@ -1,16 +1,8 @@
-import { Auth } from '@supabase/auth-ui-react';
-import { ThemeSupa } from '@supabase/auth-ui-shared';
-import { supabase } from '../utils/supabaseClient';
-
 export default function SignIn() {
   return (
-    <div style={{ maxWidth: '400px', margin: '2rem auto' }}>
-      <h2>Sign In</h2>
-      <Auth
-        supabaseClient={supabase}
-        appearance={{ theme: ThemeSupa }}
-        providers={[]}
-      />
+    <div style={{ padding: 40 }}>
+      <h1>Sign In</h1>
+      <p>This is a placeholder sign-in page. Authentication will be added soon.</p>
     </div>
   );
 }
