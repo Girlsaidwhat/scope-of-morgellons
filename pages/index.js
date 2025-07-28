@@ -1,3 +1,3 @@
 export default function Home() {
-  return <h1>Scope of Morgellons</h1>;
+  return <h1>The Scope of Morgellons</h1>;
 }
