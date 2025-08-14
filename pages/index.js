@@ -13,6 +13,7 @@ const supabase =
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 const BUCKET = "images";
+const META_TABLE = "image_metadata";
 
 const styles = {
   page: {
@@ -216,6 +217,7 @@ export default function HomePage() {
     setStatus({ kind: "success", msg: "Signed out." });
   }
 
+  // Upload with validations and faux progress, then record to image_metadata
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -250,7 +252,7 @@ export default function HomePage() {
 
     const path = `${userId}/${file.name}`;
 
-    const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
       cacheControl: "3600",
       upsert: true,
       contentType: file.type,
@@ -263,12 +265,19 @@ export default function HomePage() {
     setProgress(100);
     setUploading(false);
 
-    if (error) {
-      setStatus({ kind: "error", msg: error.message || "Upload failed." });
+    if (uploadError) {
+      setStatus({ kind: "error", msg: uploadError.message || "Upload failed." });
       return;
     }
 
-    setStatus({ kind: "success", msg: "Upload complete." });
+    // Insert metadata row (non-blocking for the user)
+    try {
+      await supabase.from(META_TABLE).insert([{ user_id: userId, path }]);
+      setStatus({ kind: "success", msg: "Upload complete. Saved to library." });
+    } catch (err) {
+      setStatus({ kind: "success", msg: "Upload complete. Could not save metadata." });
+    }
+
     await refreshList();
     e.target.value = "";
     setTimeout(() => setProgress(0), 600);
@@ -390,7 +399,7 @@ export default function HomePage() {
                       loading="lazy"
                       style={styles.thumb}
                     />
-                    <figcaption style={styles.listItem}>{f.name}</figcaption>
+                      <figcaption style={styles.listItem}>{f.name}</figcaption>
                   </figure>
                 ))}
               </div>
@@ -401,4 +410,5 @@ export default function HomePage() {
     </main>
   );
 }
+
 
