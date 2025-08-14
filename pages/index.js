@@ -266,16 +266,21 @@ export default function HomePage() {
     setUploading(false);
 
     if (uploadError) {
+      console.error("upload error", uploadError);
       setStatus({ kind: "error", msg: uploadError.message || "Upload failed." });
       return;
     }
 
-    // Insert metadata row (non-blocking for the user)
-    try {
-      await supabase.from(META_TABLE).insert([{ user_id: userId, path }]);
-      setStatus({ kind: "success", msg: "Upload complete. Saved to library." });
-    } catch (err) {
+    // Insert metadata row and show accurate status based on the result
+    const { error: metaError } = await supabase
+      .from(META_TABLE)
+      .insert([{ user_id: userId, path }]);
+
+    if (metaError) {
+      console.error("metadata insert error", metaError);
       setStatus({ kind: "success", msg: "Upload complete. Could not save metadata." });
+    } else {
+      setStatus({ kind: "success", msg: "Upload complete. Saved to library." });
     }
 
     await refreshList();
@@ -399,7 +404,7 @@ export default function HomePage() {
                       loading="lazy"
                       style={styles.thumb}
                     />
-                      <figcaption style={styles.listItem}>{f.name}</figcaption>
+                    <figcaption style={styles.listItem}>{f.name}</figcaption>
                   </figure>
                 ))}
               </div>
