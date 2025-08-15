@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.3.4";
+const BUILD_TAG = "35.3.5";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,8 +27,10 @@ export default function Home() {
   const emailInputRef = useRef(null);
   const signBtnRef = useRef(null);
 
-  // status trace
+  // status trace + mutation trace
   const [trace, setTrace] = useState([]);
+  const [mutations, setMutations] = useState([]);
+  const statusTextRef = useRef(null);
 
   // Wrap setStatus with console log and trace
   const setStatus = (next) => {
@@ -59,6 +61,24 @@ export default function Home() {
 
     _setStatus(nextVal);
   };
+
+  // Observe DOM changes to the status text element
+  useEffect(() => {
+    const el = statusTextRef.current;
+    if (!el) return;
+    const obs = new MutationObserver(() => {
+      const entry = {
+        t: new Date().toLocaleTimeString(),
+        text: el.textContent,
+      };
+      setMutations((prev) => [entry, ...prev].slice(0, 12));
+      try {
+        console.log(`[Build ${BUILD_TAG}] status-mutation`, entry);
+      } catch {}
+    });
+    obs.observe(el, { characterData: true, subtree: true, childList: true });
+    return () => obs.disconnect();
+  }, [statusTextRef.current]);
 
   // Session management
   useEffect(() => {
@@ -376,7 +396,7 @@ export default function Home() {
               <strong style={{ display: "block", marginBottom: 4 }}>
                 {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
               </strong>
-              <div>{status.text}</div>
+              <div ref={statusTextRef}>{status.text}</div>
             </div>
           ) : null}
 
@@ -469,10 +489,10 @@ export default function Home() {
               <strong style={{ display: "block", marginBottom: 4 }}>
                 {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
               </strong>
-              <div>{status.text || " "}</div>
+              <div ref={statusTextRef}>{status.text || " "}</div>
             </div>
 
-            {/* Always-on debug lines for signed-in users */}
+            {/* Always-on debug lines */}
             <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
               <div>Status debug: kind={String(status.kind)} text={"'" + String(status.text) + "'"}</div>
               <div>Status raw: [{String(status.kind)}] {String(status.text)}</div>
@@ -489,6 +509,22 @@ export default function Home() {
                   {trace.map((e, idx) => (
                     <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
                       <code>[{e.t}] ({e.kind}) {e.text} — {e.caller}</code>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            {/* Mutation trace list */}
+            <div style={{ marginTop: 8, fontSize: 12, color: "#333", background: "#fff7ed", border: "1px dashed #f59e0b", borderRadius: 8, padding: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Status DOM mutations</div>
+              {mutations.length === 0 ? (
+                <div style={{ color: "#777" }}>No DOM changes observed.</div>
+              ) : (
+                <ol style={{ margin: 0, paddingLeft: 16 }}>
+                  {mutations.map((m, idx) => (
+                    <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
+                      <code>[{m.t}] {m.text}</code>
                     </li>
                   ))}
                 </ol>
@@ -536,6 +572,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
