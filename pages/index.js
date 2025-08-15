@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.2.2";
+const BUILD_TAG = "35.3.3";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -24,6 +24,8 @@ export default function Home() {
 
   // auth instrumentation
   const [authNote, setAuthNote] = useState("");
+  const emailInputRef = useRef(null);
+  const signBtnRef = useRef(null);
 
   // Wrap setStatus with a console.log for instrumentation
   const setStatus = (next) => {
@@ -70,33 +72,48 @@ export default function Home() {
     [session?.user?.id]
   );
 
-  async function sendMagicLink(e) {
-    e.preventDefault();
-    setAuthNote(`clicked ${isSignUp ? "sign-up" : "sign-in"} at ${new Date().toLocaleTimeString()}`);
-    console.log(`[Build ${BUILD_TAG}] auth submit`, { mode: isSignUp ? "signup" : "signin", email });
+  // Redundant native listener to guarantee clicks are handled
+  useEffect(() => {
+    const btn = signBtnRef.current;
+    if (!btn) return;
+    const handler = (ev) => {
+      console.log(`[Build ${BUILD_TAG}] native click on sign button`);
+      sendMagicLink(ev);
+    };
+    btn.addEventListener("click", handler);
+    return () => btn.removeEventListener("click", handler);
+  }, [isSignUp, email]);
 
-    if (!email) {
+  async function sendMagicLink(e) {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+
+    // Read from state, but fall back to the input ref to catch autofill cases
+    const eaddr = (email || emailInputRef.current?.value || "").trim();
+    if (eaddr !== email) setEmail(eaddr);
+
+    const mode = isSignUp ? "sign-up" : "sign-in";
+    setAuthNote(`clicked ${mode} at ${new Date().toLocaleTimeString()} email='${eaddr}'`);
+    console.log(`[Build ${BUILD_TAG}] auth submit`, { mode: isSignUp ? "signup" : "signin", email: eaddr });
+
+    if (!eaddr) {
       setStatus({ kind: "error", text: "Enter your email first." });
       return;
     }
-    setStatus({ kind: "info", text: isSignUp ? "Sending sign up link..." : "Sending sign in link..." });
+
+    setStatus({ kind: "info", text: isSignUp ? "Sending sign up link..." : "Attempting sign in..." });
 
     try {
       if (isSignUp) {
         const { error } = await supabase.auth.signUp({
-          email,
-          options: {
-            emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          },
+          email: eaddr,
+          options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
         });
         if (error) throw error;
         setStatus({ kind: "success", text: "Check your email to complete sign up." });
       } else {
         const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-          },
+          email: eaddr,
+          options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
         });
         if (error) throw error;
         setStatus({ kind: "success", text: "Magic link sent. Check your email." });
@@ -254,7 +271,7 @@ export default function Home() {
 
   return (
     <div style={{ maxWidth: 840, margin: "24px auto", padding: "0 16px", fontFamily: "system-ui, Arial, sans-serif" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, marginBottom: 16, textAlign: "center" }}>
         <h1 style={{ margin: 0 }}>The Scope of Morgellons</h1>
         <div style={{ fontSize: 12, opacity: 0.8 }}>Build {BUILD_TAG}</div>
       </header>
@@ -269,13 +286,19 @@ export default function Home() {
           }}
         >
           <h2 style={{ marginTop: 0 }}>{isSignUp ? "Sign up" : "Sign in"}</h2>
-          <form onSubmit={sendMagicLink}>
+
+          {/* Disable native submit and fire via click */}
+          <form onSubmit={(e) => e.preventDefault()}>
             <label htmlFor="email" style={{ display: "block", marginBottom: 8 }}>
               Email
             </label>
             <input
+              ref={emailInputRef}
               id="email"
+              name="email"
               type="email"
+              autoComplete="email"
+              spellCheck="false"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -288,7 +311,9 @@ export default function Home() {
               }}
             />
             <button
-              type="submit"
+              ref={signBtnRef}
+              type="button"
+              onClick={sendMagicLink}
               style={{
                 padding: "10px 14px",
                 borderRadius: 8,
@@ -315,6 +340,38 @@ export default function Home() {
               {isSignUp ? "Sign in" : "Sign up"}
             </button>
           </form>
+
+          {/* Auth status box shown while signed out */}
+          {status.text ? (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                marginTop: 12,
+                padding: 12,
+                borderRadius: 8,
+                border:
+                  status.kind === "error"
+                    ? "1px solid #ef4444"
+                    : status.kind === "success"
+                    ? "1px solid #10b981"
+                    : "1px solid #d4d4d4",
+                background:
+                  status.kind === "error"
+                    ? "#fef2f2"
+                    : status.kind === "success"
+                    ? "#f0fdf4"
+                    : "#fafafa",
+                color: "#111",
+              }}
+            >
+              <strong style={{ display: "block", marginBottom: 4 }}>
+                {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
+              </strong>
+              <div>{status.text}</div>
+            </div>
+          ) : null}
+
           <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
             Auth debug: mode={isSignUp ? "sign-up" : "sign-in"} {authNote ? `last=${authNote}` : ""}
           </div>
@@ -455,6 +512,10 @@ export default function Home() {
     </div>
   );
 }
+
+
+
+
 
 
 
