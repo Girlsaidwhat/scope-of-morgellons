@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.2";
+const BUILD_TAG = "35.2.2";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -21,6 +21,9 @@ export default function Home() {
   const [files, setFiles] = useState([]);
   const progressTimerRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // auth instrumentation
+  const [authNote, setAuthNote] = useState("");
 
   // Wrap setStatus with a console.log for instrumentation
   const setStatus = (next) => {
@@ -69,6 +72,9 @@ export default function Home() {
 
   async function sendMagicLink(e) {
     e.preventDefault();
+    setAuthNote(`clicked ${isSignUp ? "sign-up" : "sign-in"} at ${new Date().toLocaleTimeString()}`);
+    console.log(`[Build ${BUILD_TAG}] auth submit`, { mode: isSignUp ? "signup" : "signin", email });
+
     if (!email) {
       setStatus({ kind: "error", text: "Enter your email first." });
       return;
@@ -293,7 +299,7 @@ export default function Home() {
                 marginRight: 8,
               }}
             >
-              {isSignUp ? "Send sign up link" : "Send magic link"}
+              {isSignUp ? "Sign up" : "Sign in"}
             </button>
             <button
               type="button"
@@ -306,9 +312,12 @@ export default function Home() {
                 cursor: "pointer",
               }}
             >
-              {isSignUp ? "Use sign in" : "Use sign up"}
+              {isSignUp ? "Sign in" : "Sign up"}
             </button>
           </form>
+          <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
+            Auth debug: mode={isSignUp ? "sign-up" : "sign-in"} {authNote ? `last=${authNote}` : ""}
+          </div>
         </section>
       ) : (
         <>
@@ -446,6 +455,8 @@ export default function Home() {
     </div>
   );
 }
+
+
 
 
 
