@@ -14,7 +14,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 const BUCKET = "images";
 const META_TABLE = "image_metadata";
-const BUILD_TAG = "34.21"; // visible version tag
+const BUILD_TAG = "34.30";
 
 const styles = {
   page: {
@@ -77,9 +77,9 @@ const styles = {
   }),
   status: {
     base: {
-      padding: "8px 10px",
+      padding: "10px 12px",
       borderRadius: 8,
-      marginTop: 8,
+      marginTop: 10,
       fontSize: 14,
     },
     info: { background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e3a8a" },
@@ -114,6 +114,8 @@ const styles = {
     background: "#f9fafb",
   },
   listItem: { fontSize: 12, color: "#6b7280" },
+  fileLine: { fontSize: 13, color: "#374151", marginTop: 6 },
+  footer: { color: "#9ca3af", fontSize: 12, marginTop: 6 },
 };
 
 function Status({ kind = "info", children }) {
@@ -126,7 +128,12 @@ function Status({ kind = "info", children }) {
       : styles.status.info),
   };
   return (
-    <div role="status" style={style}>
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      style={style}
+    >
       {children}
     </div>
   );
@@ -141,6 +148,7 @@ export default function HomePage() {
   const [status, setStatus] = useState({ kind: "info", msg: "" });
   const [files, setFiles] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
+  const [pickedName, setPickedName] = useState("");
   const progressTimerRef = useRef(null);
   const authSubRef = useRef(null);
 
@@ -218,24 +226,36 @@ export default function HomePage() {
     setStatus({ kind: "success", msg: "Signed out." });
   }
 
+  function formatMB(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1);
+  }
+
   // Upload with validations and faux progress, then record to image_metadata
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setPickedName(file.name);
+
     if (!ALLOWED_TYPES.includes(file.type)) {
       setStatus({ kind: "error", msg: "Only JPEG and PNG are allowed." });
       e.target.value = "";
+      setPickedName("");
       return;
     }
     if (file.size > MAX_BYTES) {
-      setStatus({ kind: "error", msg: "File is too large. Max size is 10 MB." });
+      setStatus({
+        kind: "error",
+        msg: `File is too large. Max size is 10 MB. This file is ${formatMB(file.size)} MB.`,
+      });
       e.target.value = "";
+      setPickedName("");
       return;
     }
     if (!userId) {
       setStatus({ kind: "error", msg: "You need to sign in first." });
       e.target.value = "";
+      setPickedName("");
       return;
     }
 
@@ -272,9 +292,7 @@ export default function HomePage() {
       return;
     }
 
-    const { error: metaError } = await supabase
-      .from(META_TABLE)
-      .insert([{ user_id: userId, path }]);
+    const { error: metaError } = await supabase.from(META_TABLE).insert([{ user_id: userId, path }]);
 
     if (metaError) {
       console.error("metadata insert error", metaError);
@@ -285,6 +303,7 @@ export default function HomePage() {
 
     await refreshList();
     e.target.value = "";
+    setPickedName("");
     setTimeout(() => setProgress(0), 600);
   }
 
@@ -298,7 +317,7 @@ export default function HomePage() {
     <main style={styles.page}>
       <h1 style={styles.h1}>The Scope of Morgellons</h1>
       <p style={styles.subtle}>Signed uploads, per user folders, simple gallery.</p>
-      <p style={styles.subtle}>Build {BUILD_TAG}</p>
+      <p style={styles.footer}>Build {BUILD_TAG}</p>
 
       {!session ? (
         <section aria-label="authentication" style={styles.card}>
@@ -380,6 +399,8 @@ export default function HomePage() {
               />
             </div>
 
+            {pickedName ? <div style={styles.fileLine}>Selected file: {pickedName}</div> : null}
+
             {uploading || progress > 0 ? (
               <div style={styles.progressWrap} aria-label="upload progress" aria-valuenow={progress}>
                 <div style={styles.progressBar(progress)} />
@@ -410,12 +431,14 @@ export default function HomePage() {
                 ))}
               </div>
             )}
+            <div style={styles.footer}>Images load from Supabase Storage</div>
           </section>
         </>
       )}
     </main>
   );
 }
+
 
 
 
