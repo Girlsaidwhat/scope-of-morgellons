@@ -14,6 +14,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 const BUCKET = "images";
 const META_TABLE = "image_metadata";
+const BUILD_TAG = "34.21"; // visible version tag
 
 const styles = {
   page: {
@@ -23,8 +24,8 @@ const styles = {
     fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
     lineHeight: 1.45,
   },
-  h1: { fontSize: 24, fontWeight: 700, marginBottom: 8 },
-  subtle: { color: "#6b7280", fontSize: 14, marginBottom: 16 },
+  h1: { fontSize: 24, fontWeight: 700, marginBottom: 4 },
+  subtle: { color: "#6b7280", fontSize: 14, marginBottom: 12 },
   card: {
     border: "1px solid #e5e7eb",
     borderRadius: 12,
@@ -271,16 +272,15 @@ export default function HomePage() {
       return;
     }
 
-    // Insert metadata row and show accurate status based on the result
     const { error: metaError } = await supabase
       .from(META_TABLE)
       .insert([{ user_id: userId, path }]);
 
     if (metaError) {
       console.error("metadata insert error", metaError);
-      setStatus({ kind: "success", msg: "Upload complete. Could not save metadata." });
+      setStatus({ kind: "success", msg: `Upload complete. Could not save metadata. [${BUILD_TAG}]` });
     } else {
-      setStatus({ kind: "success", msg: "Upload complete. Saved to library." });
+      setStatus({ kind: "success", msg: `Upload complete. Saved to library. [${BUILD_TAG}]` });
     }
 
     await refreshList();
@@ -297,7 +297,8 @@ export default function HomePage() {
   return (
     <main style={styles.page}>
       <h1 style={styles.h1}>The Scope of Morgellons</h1>
-      <p style={styles.subtle}>Signed uploads to per user folders and a simple gallery.</p>
+      <p style={styles.subtle}>Signed uploads, per user folders, simple gallery.</p>
+      <p style={styles.subtle}>Build {BUILD_TAG}</p>
 
       {!session ? (
         <section aria-label="authentication" style={styles.card}>
@@ -415,5 +416,6 @@ export default function HomePage() {
     </main>
   );
 }
+
 
 
