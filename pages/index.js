@@ -14,7 +14,7 @@ const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 const BUCKET = "images";
 const META_TABLE = "image_metadata";
-const BUILD_TAG = "34.30";
+const BUILD_TAG = "34.38";
 
 const styles = {
   page: {
@@ -116,6 +116,7 @@ const styles = {
   listItem: { fontSize: 12, color: "#6b7280" },
   fileLine: { fontSize: 13, color: "#374151", marginTop: 6 },
   footer: { color: "#9ca3af", fontSize: 12, marginTop: 6 },
+  debug: { color: "#6b7280", fontSize: 12, marginTop: 6 },
 };
 
 function Status({ kind = "info", children }) {
@@ -128,12 +129,7 @@ function Status({ kind = "info", children }) {
       : styles.status.info),
   };
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
-      style={style}
-    >
+    <div role="status" aria-live="polite" aria-atomic="true" style={style}>
       {children}
     </div>
   );
@@ -364,6 +360,7 @@ export default function HomePage() {
           </form>
 
           {status.msg ? <Status kind={status.kind}>{status.msg}</Status> : null}
+          <div style={styles.debug}>Status debug: [{status.msg || "empty"}]</div>
         </section>
       ) : (
         <>
@@ -408,6 +405,7 @@ export default function HomePage() {
             ) : null}
 
             {status.msg ? <Status kind={status.kind}>{status.msg}</Status> : null}
+            <div style={styles.debug}>Status debug: [{status.msg || "empty"}]</div>
           </section>
 
           <section style={styles.card} aria-label="gallery">
@@ -438,6 +436,7 @@ export default function HomePage() {
     </main>
   );
 }
+
 
 
 
