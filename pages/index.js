@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.3.3";
+const BUILD_TAG = "35.3.4";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,16 +27,36 @@ export default function Home() {
   const emailInputRef = useRef(null);
   const signBtnRef = useRef(null);
 
-  // Wrap setStatus with a console.log for instrumentation
+  // status trace
+  const [trace, setTrace] = useState([]);
+
+  // Wrap setStatus with console log and trace
   const setStatus = (next) => {
     const nextVal = typeof next === "function" ? next(status) : next;
+
+    // Best effort caller hint from stack
+    let caller = "unknown";
     try {
-      console.log(`[Build ${BUILD_TAG}] setStatus`, {
-        kind: nextVal?.kind,
-        text: nextVal?.text,
-        time: new Date().toISOString(),
-      });
+      const err = new Error();
+      if (err.stack) {
+        const lines = err.stack.split("\n");
+        const hint = (lines[2] || lines[1] || "").trim().replace(/^at\s+/, "");
+        caller = hint;
+      }
     } catch {}
+
+    const entry = {
+      t: new Date().toLocaleTimeString(),
+      kind: nextVal?.kind,
+      text: String(nextVal?.text ?? ""),
+      caller,
+    };
+
+    try {
+      console.log(`[Build ${BUILD_TAG}] status-trace`, entry);
+    } catch {}
+    setTrace((prev) => [entry, ...prev].slice(0, 12));
+
     _setStatus(nextVal);
   };
 
@@ -71,18 +91,6 @@ export default function Home() {
     () => (session?.user?.id ? `${session.user.id}/` : ""),
     [session?.user?.id]
   );
-
-  // Redundant native listener to guarantee clicks are handled
-  useEffect(() => {
-    const btn = signBtnRef.current;
-    if (!btn) return;
-    const handler = (ev) => {
-      console.log(`[Build ${BUILD_TAG}] native click on sign button`);
-      sendMagicLink(ev);
-    };
-    btn.addEventListener("click", handler);
-    return () => btn.removeEventListener("click", handler);
-  }, [isSignUp, email]);
 
   async function sendMagicLink(e) {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
@@ -193,7 +201,7 @@ export default function Home() {
         throw uploadError;
       }
 
-      // Insert metadata row after successful upload
+      // Metadata insert after successful upload
       const { error: dbError } = await supabase.from("image_metadata").insert({
         user_id: session.user.id,
         bucket: "images",
@@ -470,6 +478,22 @@ export default function Home() {
               <div>Status raw: [{String(status.kind)}] {String(status.text)}</div>
               <div style={{ opacity: 0.8 }}>User prefix: {userPrefix || "(none)"}</div>
             </div>
+
+            {/* Status trace list */}
+            <div style={{ marginTop: 8, fontSize: 12, color: "#333", background: "#fafafa", border: "1px dashed #ddd", borderRadius: 8, padding: 8 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Status trace</div>
+              {trace.length === 0 ? (
+                <div style={{ color: "#777" }}>No entries yet.</div>
+              ) : (
+                <ol style={{ margin: 0, paddingLeft: 16 }}>
+                  {trace.map((e, idx) => (
+                    <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
+                      <code>[{e.t}] ({e.kind}) {e.text} — {e.caller}</code>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
           </section>
 
           <section
@@ -512,6 +536,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
