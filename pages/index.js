@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.3.5";
+const BUILD_TAG = "35.3.6";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -27,10 +27,28 @@ export default function Home() {
   const emailInputRef = useRef(null);
   const signBtnRef = useRef(null);
 
-  // status trace + mutation trace
+  // status trace + mutation trace + debug panel
   const [trace, setTrace] = useState([]);
   const [mutations, setMutations] = useState([]);
+  const [debugPanel, setDebugPanel] = useState({
+    lastStatus: "",
+    lastMutation: "",
+    overrideDetected: false,
+  });
   const statusTextRef = useRef(null);
+  const lastClickRef = useRef({ t: 0, target: "" });
+
+  // global click tracker to correlate with mutations
+  useEffect(() => {
+    const onDocClick = (e) => {
+      lastClickRef.current = {
+        t: performance.now(),
+        target: e?.target?.outerHTML?.slice(0, 120) || String(e?.target || ""),
+      };
+    };
+    document.addEventListener("click", onDocClick, true);
+    return () => document.removeEventListener("click", onDocClick, true);
+  }, []);
 
   // Wrap setStatus with console log and trace
   const setStatus = (next) => {
@@ -58,8 +76,24 @@ export default function Home() {
       console.log(`[Build ${BUILD_TAG}] status-trace`, entry);
     } catch {}
     setTrace((prev) => [entry, ...prev].slice(0, 12));
+    setDebugPanel((p) => ({ ...p, lastStatus: `${entry.kind}: ${entry.text}` }));
 
     _setStatus(nextVal);
+
+    // Post-set snapshot to detect immediate overrides
+    setTimeout(() => {
+      const nowText = statusTextRef.current?.textContent ?? "";
+      if (nextVal?.text && nowText && nowText !== nextVal.text) {
+        setDebugPanel((p) => ({
+          ...p,
+          overrideDetected: true,
+          lastMutation: `post-set snapshot saw '${nowText}' (expected '${nextVal.text}')`,
+        }));
+        try {
+          console.log(`[Build ${BUILD_TAG}] status-post-snapshot`, { expected: nextVal.text, saw: nowText });
+        } catch {}
+      }
+    }, 0);
   };
 
   // Observe DOM changes to the status text element
@@ -70,15 +104,22 @@ export default function Home() {
       const entry = {
         t: new Date().toLocaleTimeString(),
         text: el.textContent,
+        sinceClickMs: Math.round(performance.now() - (lastClickRef.current.t || 0)),
+        lastClickTarget: lastClickRef.current.target,
       };
       setMutations((prev) => [entry, ...prev].slice(0, 12));
+      setDebugPanel((p) => ({
+        ...p,
+        lastMutation: `${entry.text} (+${entry.sinceClickMs}ms after click on ${entry.lastClickTarget || "n/a"})`,
+      }));
       try {
         console.log(`[Build ${BUILD_TAG}] status-mutation`, entry);
       } catch {}
     });
     obs.observe(el, { characterData: true, subtree: true, childList: true });
     return () => obs.disconnect();
-  }, [statusTextRef.current]);
+    // Reattach when session changes view
+  }, [session?.user?.id]);
 
   // Session management
   useEffect(() => {
@@ -111,6 +152,18 @@ export default function Home() {
     () => (session?.user?.id ? `${session.user.id}/` : ""),
     [session?.user?.id]
   );
+
+  // Redundant native listener to guarantee clicks are handled
+  useEffect(() => {
+    const btn = signBtnRef.current;
+    if (!btn) return;
+    const handler = (ev) => {
+      console.log(`[Build ${BUILD_TAG}] native click on sign button`);
+      sendMagicLink(ev);
+    };
+    btn.addEventListener("click", handler);
+    return () => btn.removeEventListener("click", handler);
+  }, [isSignUp, email]);
 
   async function sendMagicLink(e) {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
@@ -167,7 +220,7 @@ export default function Home() {
     const maxBytes = 10 * 1024 * 1024; // 10 MB
     if (f.size > maxBytes) {
       setFile(null);
-      setStatus({ kind: "error", text: "File is larger than 10 MB." });
+      setStatus({ kind: "error", text: "Choose a JPEG or PNG under 10 MB." });
       e.target.value = "";
       return;
     }
@@ -297,8 +350,59 @@ export default function Home() {
     );
   }
 
+  // debug panel UI (always visible)
+  function DebugPanel() {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          bottom: 8,
+          right: 8,
+          zIndex: 9999,
+          maxWidth: 360,
+          background: "#111",
+          color: "#fff",
+          borderRadius: 12,
+          padding: 10,
+          boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+          fontSize: 12,
+          lineHeight: 1.3,
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>
+          Debug • Build {BUILD_TAG}
+        </div>
+        <div><strong>Last status:</strong> {debugPanel.lastStatus || "(none)"}</div>
+        <div><strong>Last mutation:</strong> {debugPanel.lastMutation || "(none)"}</div>
+        <div><strong>Override detected:</strong> {debugPanel.overrideDetected ? "yes" : "no"}</div>
+        <div style={{ marginTop: 6 }}>
+          <details>
+            <summary>Trace (latest 6)</summary>
+            <ul style={{ paddingLeft: 16, margin: 0 }}>
+              {trace.slice(0, 6).map((e, i) => (
+                <li key={i}><code>[{e.t}] ({e.kind}) {e.text}</code></li>
+              ))}
+            </ul>
+          </details>
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <details>
+            <summary>Mutations (latest 6)</summary>
+            <ul style={{ paddingLeft: 16, margin: 0 }}>
+              {mutations.slice(0, 6).map((m, i) => (
+                <li key={i}><code>[{m.t}] {m.text}</code></li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 840, margin: "24px auto", padding: "0 16px", fontFamily: "system-ui, Arial, sans-serif" }}>
+      <DebugPanel />
+
       <header style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, marginBottom: 16, textAlign: "center" }}>
         <h1 style={{ margin: 0 }}>The Scope of Morgellons</h1>
         <div style={{ fontSize: 12, opacity: 0.8 }}>Build {BUILD_TAG}</div>
@@ -496,7 +600,7 @@ export default function Home() {
             <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
               <div>Status debug: kind={String(status.kind)} text={"'" + String(status.text) + "'"}</div>
               <div>Status raw: [{String(status.kind)}] {String(status.text)}</div>
-              <div style={{ opacity: 0.8 }}>User prefix: {userPrefix || "(none)"}</div>
+              <div style={{ opacity: 0.8 }}>User prefix: {userPrefix || "(none)"} </div>
             </div>
 
             {/* Status trace list */}
@@ -572,6 +676,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
