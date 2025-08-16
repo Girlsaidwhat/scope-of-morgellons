@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.3.6";
+const BUILD_TAG = "35.3.8";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
+});
 
 export default function Home() {
   const [session, setSession] = useState(null);
@@ -27,7 +33,7 @@ export default function Home() {
   const emailInputRef = useRef(null);
   const signBtnRef = useRef(null);
 
-  // status trace + mutation trace + debug panel
+  // debug panel + traces
   const [trace, setTrace] = useState([]);
   const [mutations, setMutations] = useState([]);
   const [debugPanel, setDebugPanel] = useState({
@@ -35,10 +41,17 @@ export default function Home() {
     lastMutation: "",
     overrideDetected: false,
   });
+  const [urlDebug, setUrlDebug] = useState({
+    search: "",
+    hash: "",
+    handled: "",
+    error: "",
+  });
+
   const statusTextRef = useRef(null);
   const lastClickRef = useRef({ t: 0, target: "" });
 
-  // global click tracker to correlate with mutations
+  // global click tracker
   useEffect(() => {
     const onDocClick = (e) => {
       lastClickRef.current = {
@@ -54,7 +67,6 @@ export default function Home() {
   const setStatus = (next) => {
     const nextVal = typeof next === "function" ? next(status) : next;
 
-    // Best effort caller hint from stack
     let caller = "unknown";
     try {
       const err = new Error();
@@ -80,7 +92,6 @@ export default function Home() {
 
     _setStatus(nextVal);
 
-    // Post-set snapshot to detect immediate overrides
     setTimeout(() => {
       const nowText = statusTextRef.current?.textContent ?? "";
       if (nextVal?.text && nowText && nowText !== nextVal.text) {
@@ -118,7 +129,6 @@ export default function Home() {
     });
     obs.observe(el, { characterData: true, subtree: true, childList: true });
     return () => obs.disconnect();
-    // Reattach when session changes view
   }, [session?.user?.id]);
 
   // Session management
@@ -140,6 +150,75 @@ export default function Home() {
       mounted = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  // Handle magic link redirect: support both `?code=` and `#access_token=...`
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const url = new URL(window.location.href);
+    const searchParams = new URLSearchParams(url.search);
+    const hashStr = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash || "";
+    const hashParams = new URLSearchParams(hashStr);
+
+    const dbg = {
+      search: [...searchParams.entries()].map(([k, v]) => `${k}=${v}`).join("&") || "(none)",
+      hash: [...hashParams.entries()].map(([k, v]) => `${k}=${k === "access_token" || k === "refresh_token" ? "[redacted]" : v}`).join("&") || "(none)",
+      handled: "",
+      error: "",
+    };
+    setUrlDebug(dbg);
+
+    const errorDesc = searchParams.get("error_description") || searchParams.get("error");
+    if (errorDesc) {
+      setStatus({ kind: "error", text: `Auth redirect error: ${decodeURIComponent(errorDesc)}` });
+      setUrlDebug((p) => ({ ...p, error: String(errorDesc) }));
+      return;
+    }
+
+    const code = searchParams.get("code");
+    const access_token = hashParams.get("access_token");
+    const refresh_token = hashParams.get("refresh_token");
+
+    (async () => {
+      try {
+        if (code) {
+          setStatus({ kind: "info", text: "Finalizing sign in..." });
+          const { data, error } = await supabase.auth.exchangeCodeForSession({ code });
+          if (error) {
+            setStatus({ kind: "error", text: `Auth exchange error: ${error.message}` });
+            setUrlDebug((p) => ({ ...p, handled: "code: error" }));
+            return;
+          }
+          if (data?.session) {
+            setStatus({ kind: "success", text: "Signed in. You can upload now." });
+            setUrlDebug((p) => ({ ...p, handled: "code: success" }));
+          }
+        } else if (access_token && refresh_token) {
+          setStatus({ kind: "info", text: "Restoring session..." });
+          const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (error) {
+            setStatus({ kind: "error", text: `Set session error: ${error.message}` });
+            setUrlDebug((p) => ({ ...p, handled: "hash tokens: error" }));
+            return;
+          }
+          if (data?.session) {
+            setStatus({ kind: "success", text: "Signed in. You can upload now." });
+            setUrlDebug((p) => ({ ...p, handled: "hash tokens: success" }));
+          }
+        }
+      } finally {
+        // Clean URL
+        try {
+          url.searchParams.delete("code");
+          url.searchParams.delete("type");
+          url.searchParams.delete("error_description");
+          const cleaned = url.origin + url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "") + "";
+          window.history.replaceState({}, "", cleaned);
+          if (window.location.hash) window.history.replaceState({}, "", cleaned);
+        } catch {}
+      }
+    })();
   }, []);
 
   // Load gallery when signed in
@@ -168,7 +247,6 @@ export default function Home() {
   async function sendMagicLink(e) {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
 
-    // Read from state, but fall back to the input ref to catch autofill cases
     const eaddr = (email || emailInputRef.current?.value || "").trim();
     if (eaddr !== email) setEmail(eaddr);
 
@@ -208,7 +286,6 @@ export default function Home() {
     const f = e.target.files?.[0];
     if (!f) return;
 
-    // Client file type and size checks
     const isJpeg = f.type === "image/jpeg";
     const isPng = f.type === "image/png";
     if (!isJpeg && !isPng) {
@@ -217,14 +294,13 @@ export default function Home() {
       e.target.value = "";
       return;
     }
-    const maxBytes = 10 * 1024 * 1024; // 10 MB
+    const maxBytes = 10 * 1024 * 1024;
     if (f.size > maxBytes) {
       setFile(null);
       setStatus({ kind: "error", text: "Choose a JPEG or PNG under 10 MB." });
       e.target.value = "";
       return;
     }
-
     setFile(f);
     setStatus({ kind: "info", text: `Selected: ${f.name}` });
   }
@@ -274,7 +350,6 @@ export default function Home() {
         throw uploadError;
       }
 
-      // Metadata insert after successful upload
       const { error: dbError } = await supabase.from("image_metadata").insert({
         user_id: session.user.id,
         bucket: "images",
@@ -290,10 +365,8 @@ export default function Home() {
       stopFauxProgress(100);
       setStatus({ kind: "success", text: `Upload complete. Saved to library. [Build ${BUILD_TAG}]` });
 
-      // Refresh gallery
       await fetchFiles();
 
-      // Reset input
       if (fileInputRef.current) fileInputRef.current.value = "";
       setFile(null);
       setUploading(false);
@@ -318,11 +391,7 @@ export default function Home() {
         .map((it) => {
           const fullPath = `${userPrefix}${it.name}`;
           const { data: urlData } = supabase.storage.from("images").getPublicUrl(fullPath);
-          return {
-            name: it.name,
-            path: fullPath,
-            url: urlData?.publicUrl || "",
-          };
+          return { name: it.name, path: fullPath, url: urlData?.publicUrl || "" };
         });
       setFiles(withUrls);
     } catch (err) {
@@ -350,7 +419,6 @@ export default function Home() {
     );
   }
 
-  // debug panel UI (always visible)
   function DebugPanel() {
     return (
       <div
@@ -369,12 +437,10 @@ export default function Home() {
           lineHeight: 1.3,
         }}
       >
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>
-          Debug • Build {BUILD_TAG}
-        </div>
-        <div><strong>Last status:</strong> {debugPanel.lastStatus || "(none)"}</div>
-        <div><strong>Last mutation:</strong> {debugPanel.lastMutation || "(none)"}</div>
-        <div><strong>Override detected:</strong> {debugPanel.overrideDetected ? "yes" : "no"}</div>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>Debug • Build {BUILD_TAG}</div>
+        <div><strong>Last status:</strong> {debugPanel.lastStatus || "(none)"} </div>
+        <div><strong>Last mutation:</strong> {debugPanel.lastMutation || "(none)"} </div>
+        <div><strong>Override detected:</strong> {debugPanel.overrideDetected ? "yes" : "no"} </div>
         <div style={{ marginTop: 6 }}>
           <details>
             <summary>Trace (latest 6)</summary>
@@ -386,12 +452,13 @@ export default function Home() {
           </details>
         </div>
         <div style={{ marginTop: 6 }}>
-          <details>
-            <summary>Mutations (latest 6)</summary>
+          <details open>
+            <summary>URL debug</summary>
             <ul style={{ paddingLeft: 16, margin: 0 }}>
-              {mutations.slice(0, 6).map((m, i) => (
-                <li key={i}><code>[{m.t}] {m.text}</code></li>
-              ))}
+              <li>search: <code>{urlDebug.search}</code></li>
+              <li>hash: <code>{urlDebug.hash}</code></li>
+              <li>handled: <code>{urlDebug.handled}</code></li>
+              <li>error: <code>{urlDebug.error || "(none)"}</code></li>
             </ul>
           </details>
         </div>
@@ -409,21 +476,11 @@ export default function Home() {
       </header>
 
       {!session ? (
-        <section
-          style={{
-            border: "1px solid #e5e5e5",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-          }}
-        >
+        <section style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, marginBottom: 16 }}>
           <h2 style={{ marginTop: 0 }}>{isSignUp ? "Sign up" : "Sign in"}</h2>
 
-          {/* Disable native submit and fire via click */}
           <form onSubmit={(e) => e.preventDefault()}>
-            <label htmlFor="email" style={{ display: "block", marginBottom: 8 }}>
-              Email
-            </label>
+            <label htmlFor="email" style={{ display: "block", marginBottom: 8 }}>Email</label>
             <input
               ref={emailInputRef}
               id="email"
@@ -434,69 +491,31 @@ export default function Home() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                marginBottom: 12,
-              }}
+              style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #ccc", marginBottom: 12 }}
             />
             <button
               ref={signBtnRef}
               type="button"
               onClick={sendMagicLink}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid #333",
-                background: "#111",
-                color: "#fff",
-                cursor: "pointer",
-                marginRight: 8,
-              }}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #333", background: "#111", color: "#fff", cursor: "pointer", marginRight: 8 }}
             >
               {isSignUp ? "Sign up" : "Sign in"}
             </button>
             <button
               type="button"
               onClick={() => setIsSignUp((s) => !s)}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                background: "#fafafa",
-                cursor: "pointer",
-              }}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ccc", background: "#fafafa", cursor: "pointer" }}
             >
               {isSignUp ? "Sign in" : "Sign up"}
             </button>
           </form>
 
-          {/* Auth status box shown while signed out */}
           {status.text ? (
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 8,
-                border:
-                  status.kind === "error"
-                    ? "1px solid #ef4444"
-                    : status.kind === "success"
-                    ? "1px solid #10b981"
-                    : "1px solid #d4d4d4",
-                background:
-                  status.kind === "error"
-                    ? "#fef2f2"
-                    : status.kind === "success"
-                    ? "#f0fdf4"
-                    : "#fafafa",
-                color: "#111",
-              }}
-            >
+            <div role="status" aria-live="polite" style={{
+              marginTop: 12, padding: 12, borderRadius: 8,
+              border: status.kind === "error" ? "1px solid #ef4444" : status.kind === "success" ? "1px solid #10b981" : "1px solid #d4d4d4",
+              background: status.kind === "error" ? "#fef2f2" : status.kind === "success" ? "#f0fdf4" : "#fafafa", color: "#111",
+            }}>
               <strong style={{ display: "block", marginBottom: 4 }}>
                 {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
               </strong>
@@ -510,121 +529,57 @@ export default function Home() {
         </section>
       ) : (
         <>
-          <section
-            style={{
-              border: "1px solid #e5e5e5",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-            }}
-          >
+          <section style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <h2 style={{ margin: 0 }}>Uploader</h2>
               <SignOutButton />
             </div>
 
             <form onSubmit={handleUpload}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png"
-                onChange={onFileChange}
-                style={{ display: "block", marginBottom: 12 }}
-              />
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" onChange={onFileChange} style={{ display: "block", marginBottom: 12 }} />
 
-              {/* Faux progress bar */}
-              <div
-                aria-hidden
-                style={{
-                  height: 10,
-                  borderRadius: 6,
-                  background: "#f0f0f0",
-                  overflow: "hidden",
-                  marginBottom: 12,
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${progress}%`,
-                    background: "#0ea5e9",
-                    transition: "width 200ms linear",
-                  }}
-                />
+              <div aria-hidden style={{ height: 10, borderRadius: 6, background: "#f0f0f0", overflow: "hidden", marginBottom: 12 }}>
+                <div style={{ height: "100%", width: `${progress}%`, background: "#0ea5e9", transition: "width 200ms linear" }} />
               </div>
 
-              <button
-                type="submit"
-                disabled={uploading}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #333",
-                  background: uploading ? "#999" : "#111",
-                  color: "#fff",
-                  cursor: uploading ? "not-allowed" : "pointer",
-                }}
-              >
+              <button type="submit" disabled={uploading} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #333", background: uploading ? "#999" : "#111", color: "#fff", cursor: uploading ? "not-allowed" : "pointer" }}>
                 {uploading ? "Uploading..." : "Upload"}
               </button>
             </form>
 
-            {/* Styled status box */}
-            <div
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 8,
-                border:
-                  status.kind === "error"
-                    ? "1px solid #ef4444"
-                    : status.kind === "success"
-                    ? "1px solid #10b981"
-                    : "1px solid #d4d4d4",
-                background:
-                  status.kind === "error"
-                    ? "#fef2f2"
-                    : status.kind === "success"
-                    ? "#f0fdf4"
-                    : "#fafafa",
-                color: "#111",
-              }}
-            >
+            <div style={{
+              marginTop: 12, padding: 12, borderRadius: 8,
+              border: status.kind === "error" ? "1px solid #ef4444" : status.kind === "success" ? "1px solid #10b981" : "1px solid #d4d4d4",
+              background: status.kind === "error" ? "#fef2f2" : status.kind === "success" ? "#f0fdf4" : "#fafafa", color: "#111",
+            }}>
               <strong style={{ display: "block", marginBottom: 4 }}>
                 {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
               </strong>
               <div ref={statusTextRef}>{status.text || " "}</div>
             </div>
 
-            {/* Always-on debug lines */}
             <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
               <div>Status debug: kind={String(status.kind)} text={"'" + String(status.text) + "'"}</div>
               <div>Status raw: [{String(status.kind)}] {String(status.text)}</div>
               <div style={{ opacity: 0.8 }}>User prefix: {userPrefix || "(none)"} </div>
             </div>
 
-            {/* Status trace list */}
             <div style={{ marginTop: 8, fontSize: 12, color: "#333", background: "#fafafa", border: "1px dashed #ddd", borderRadius: 8, padding: 8 }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>Status trace</div>
-              {trace.length === 0 ? (
-                <div style={{ color: "#777" }}>No entries yet.</div>
-              ) : (
+              {trace.length === 0 ? <div style={{ color: "#777" }}>No entries yet.</div> : (
                 <ol style={{ margin: 0, paddingLeft: 16 }}>
                   {trace.map((e, idx) => (
                     <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
-                      <code>[{e.t}] ({e.kind}) {e.text} — {e.caller}</code>
+                      <code>[{e.t}] ({e.kind}) {e.text} - {e.caller}</code>
                     </li>
                   ))}
                 </ol>
               )}
             </div>
 
-            {/* Mutation trace list */}
             <div style={{ marginTop: 8, fontSize: 12, color: "#333", background: "#fff7ed", border: "1px dashed #f59e0b", borderRadius: 8, padding: 8 }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>Status DOM mutations</div>
-              {mutations.length === 0 ? (
-                <div style={{ color: "#777" }}>No DOM changes observed.</div>
-              ) : (
+              {mutations.length === 0 ? <div style={{ color: "#777" }}>No DOM changes observed.</div> : (
                 <ol style={{ margin: 0, paddingLeft: 16 }}>
                   {mutations.map((m, idx) => (
                     <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
@@ -636,14 +591,7 @@ export default function Home() {
             </div>
           </section>
 
-          <section
-            style={{
-              border: "1px solid #e5e5e5",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-            }}
-          >
+          <section style={{ border: "1px solid #e5e5e5", borderRadius: 12, padding: 16, marginBottom: 16 }}>
             <h2 style={{ marginTop: 0 }}>Your images</h2>
             {files.length === 0 ? (
               <div style={{ color: "#666" }}>No images yet.</div>
@@ -653,12 +601,7 @@ export default function Home() {
                   <li key={f.path} style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}>
                     <div style={{ fontSize: 12, marginBottom: 6, wordBreak: "break-word" }}>{f.name}</div>
                     {f.url ? (
-                      <img
-                        src={f.url}
-                        alt={f.name}
-                        style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 6, display: "block" }}
-                        loading="lazy"
-                      />
+                      <img src={f.url} alt={f.name} style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 6, display: "block" }} loading="lazy" />
                     ) : (
                       <div style={{ fontSize: 12, color: "#999" }}>No preview</div>
                     )}
