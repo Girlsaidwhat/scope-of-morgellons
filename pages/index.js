@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.3.10";
+const BUILD_TAG = "35.4";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Manual redirect handling stays on. No debug UI.
+// Manual redirect handling so Production sign in is reliable
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
@@ -318,7 +318,7 @@ export default function Home() {
 
   return (
     <div style={{ maxWidth: 840, margin: "24px auto", padding: "0 16px", fontFamily: "system-ui, Arial, sans-serif" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, marginBottom: 16, textAlign: "center" }}>
+      <header style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, marginBottom: 20, textAlign: "center" }}>
         <h1 style={{ margin: 0 }}>The Scope of Morgellons</h1>
         <div style={{ fontSize: 12, opacity: 0.8 }}>Build {BUILD_TAG}</div>
       </header>
@@ -356,35 +356,36 @@ export default function Home() {
                 marginBottom: 12,
               }}
             />
-            <button
-              ref={signBtnRef}
-              type="button"
-              onClick={sendMagicLink}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid #333",
-                background: "#111",
-                color: "#fff",
-                cursor: "pointer",
-                marginRight: 8,
-              }}
-            >
-              {isSignUp ? "Sign up" : "Sign in"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSignUp((s) => !s)}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                background: "#fafafa",
-                cursor: "pointer",
-              }}
-            >
-              {isSignUp ? "Sign in" : "Sign up"}
-            </button>
+            <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+              <button
+                ref={signBtnRef}
+                type="button"
+                onClick={sendMagicLink}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #333",
+                  background: "#111",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {isSignUp ? "Sign up" : "Sign in"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsSignUp((s) => !s)}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #ccc",
+                  background: "#fafafa",
+                  cursor: "pointer",
+                }}
+              >
+                {isSignUp ? "Sign in" : "Sign up"}
+              </button>
+            </div>
           </form>
 
           {status.text ? (
@@ -392,7 +393,7 @@ export default function Home() {
               role="status"
               aria-live="polite"
               style={{
-                marginTop: 12,
+                marginTop: 10,
                 padding: 12,
                 borderRadius: 8,
                 border:
@@ -432,34 +433,49 @@ export default function Home() {
               <SignOutButton />
             </div>
 
-            <form onSubmit={handleUpload}>
+            <form onSubmit={handleUpload} style={{ marginBottom: 8 }}>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png"
                 onChange={onFileChange}
-                style={{ display: "block", marginBottom: 12 }}
+                style={{ display: "block", marginBottom: 8 }}
+                aria-label="Choose an image file to upload"
               />
 
-              {/* Faux progress bar */}
-              <div
-                aria-hidden
-                style={{
-                  height: 10,
-                  borderRadius: 6,
-                  background: "#f0f0f0",
-                  overflow: "hidden",
-                  marginBottom: 12,
-                }}
-              >
+              {/* Selected file name or helper text */}
+              <div style={{ fontSize: 13, color: file ? "#111" : "#666", marginBottom: 10, wordBreak: "break-word" }}>
+                {file ? `Selected file: ${file.name}` : "Tip: JPEG or PNG up to 10 MB."}
+              </div>
+
+              {/* Faux progress bar with percent */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                 <div
+                  role="progressbar"
+                  aria-label="Upload progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progress}
                   style={{
-                    height: "100%",
-                    width: `${progress}%`,
-                    background: "#0ea5e9",
-                    transition: "width 200ms linear",
+                    flex: 1,
+                    height: 12,
+                    borderRadius: 8,
+                    background: "#f0f0f0",
+                    overflow: "hidden",
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${progress}%`,
+                      background: "#0ea5e9",
+                      transition: "width 200ms linear",
+                    }}
+                  />
+                </div>
+                <div style={{ width: 52, textAlign: "right", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
+                  {progress}%
+                </div>
               </div>
 
               <button
@@ -555,6 +571,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
