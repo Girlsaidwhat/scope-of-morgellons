@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.3.8";
+const BUILD_TAG = "35.3.9";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+// Turn OFF auto URL handling so we handle every return shape ourselves
 const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false,
   },
 });
 
@@ -152,7 +153,7 @@ export default function Home() {
     };
   }, []);
 
-  // Handle magic link redirect: support both `?code=` and `#access_token=...`
+  // Handle magic link redirects: support ?code=, #access_token, and token_hash+type
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -179,6 +180,8 @@ export default function Home() {
     const code = searchParams.get("code");
     const access_token = hashParams.get("access_token");
     const refresh_token = hashParams.get("refresh_token");
+    const token_hash = searchParams.get("token_hash");
+    const vtype = searchParams.get("type"); // magiclink | signup | recovery, etc.
 
     (async () => {
       try {
@@ -206,16 +209,34 @@ export default function Home() {
             setStatus({ kind: "success", text: "Signed in. You can upload now." });
             setUrlDebug((p) => ({ ...p, handled: "hash tokens: success" }));
           }
+        } else if (token_hash && vtype) {
+          // Rare case where Supabase redirects back with token_hash + type
+          setStatus({ kind: "info", text: "Verifying link..." });
+          const { data, error } = await supabase.auth.verifyOtp({ type: vtype, token_hash });
+          if (error) {
+            setStatus({ kind: "error", text: `Verify OTP error: ${error.message}` });
+            setUrlDebug((p) => ({ ...p, handled: "token_hash: error" }));
+            return;
+          }
+          if (data?.session) {
+            setStatus({ kind: "success", text: "Signed in. You can upload now." });
+            setUrlDebug((p) => ({ ...p, handled: "token_hash: success" }));
+          } else {
+            setUrlDebug((p) => ({ ...p, handled: "token_hash: no-session" }));
+          }
         }
       } finally {
-        // Clean URL
+        // Clean URL of sensitive params
         try {
           url.searchParams.delete("code");
           url.searchParams.delete("type");
           url.searchParams.delete("error_description");
-          const cleaned = url.origin + url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "") + "";
+          url.searchParams.delete("token_hash");
+          const cleaned = url.origin + url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "");
           window.history.replaceState({}, "", cleaned);
-          if (window.location.hash) window.history.replaceState({}, "", cleaned);
+          if (window.location.hash) {
+            window.history.replaceState({}, "", cleaned);
+          }
         } catch {}
       }
     })();
@@ -570,7 +591,7 @@ export default function Home() {
                 <ol style={{ margin: 0, paddingLeft: 16 }}>
                   {trace.map((e, idx) => (
                     <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
-                      <code>[{e.t}] ({e.kind}) {e.text} - {e.caller}</code>
+                      <code>[{e.t}] ({e.kind}) {e.text} — {e.caller}</code>
                     </li>
                   ))}
                 </ol>
@@ -582,7 +603,7 @@ export default function Home() {
               {mutations.length === 0 ? <div style={{ color: "#777" }}>No DOM changes observed.</div> : (
                 <ol style={{ margin: 0, paddingLeft: 16 }}>
                   {mutations.map((m, idx) => (
-                    <li key={idx} style={{ marginBottom: 4, wordBreak: "break-word" }}>
+                    <li key={idx} style={{ marginBottom: 4, wordBreak: "word-break" }}>
                       <code>[{m.t}] {m.text}</code>
                     </li>
                   ))}
@@ -619,6 +640,7 @@ export default function Home() {
     </div>
   );
 }
+
 
 
 
