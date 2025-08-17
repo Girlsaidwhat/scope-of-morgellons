@@ -1,6 +1,6 @@
 // pages/index.js
 // The Scope of Morgellons — Home
-// Build: 36.3_2025-08-17
+// Build: 36.3d_2025-08-17
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -36,6 +36,7 @@ const Status = ({ kind = "info", children }) => {
         fontSize: 14,
         lineHeight: 1.3,
         marginTop: 8,
+        whiteSpace: "pre-wrap",
       }}
     >
       {children}
@@ -120,7 +121,6 @@ export default function HomePage() {
       .maybeSingle();
 
     if (error) {
-      // Silent fail to avoid blocking UX
       return;
     }
     if (data) {
@@ -133,19 +133,15 @@ export default function HomePage() {
 
   async function loadGallery(userId) {
     setLoadingGallery(true);
-    // Newest first
     const { data, error } = await supabase
       .from("image_metadata")
-      .select(
-        "id, user_id, path, filename, category, created_at"
-      )
+      .select("id, user_id, path, filename, category, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     setLoadingGallery(false);
 
     if (error) {
-      // Minimal status text; keep UI resilient
       return;
     }
     setItems(Array.isArray(data) ? data : []);
@@ -191,7 +187,6 @@ export default function HomePage() {
     setProgress(0);
     let pct = 0;
     const tick = () => {
-      // Ramp to 90% while uploading, final 100% on completion
       pct = Math.min(pct + Math.random() * 10 + 5, 90);
       setProgress(Math.floor(pct));
     };
@@ -224,11 +219,11 @@ export default function HomePage() {
 
     const path = `${user.id}/${file.name}`;
 
-    // Upload to Storage, keep path user_id/filename
+    // Upload to Storage
     const { error: uploadError } = await supabase.storage
       .from("images")
       .upload(path, file, {
-        upsert: false, // keep current behavior
+        upsert: false,
         contentType: file.type,
       });
 
@@ -266,10 +261,24 @@ export default function HomePage() {
     setProgress(100);
 
     if (metaError) {
+      // Show full error so we can diagnose quickly
+      const details =
+        [
+          metaError.message,
+          metaError.details,
+          metaError.hint,
+          // Some drivers tuck info under "code" or "name"
+          metaError.code ? `code: ${metaError.code}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+      console.error("Metadata insert failed:", metaError); // for DevTools
       setUploadStatus({
         type: "error",
         msg:
-          "Upload stored, but metadata insert failed. Please re-try the upload step.",
+          "Upload stored, but metadata insert failed.\n" +
+          details,
       });
       return;
     }
@@ -297,7 +306,7 @@ export default function HomePage() {
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.3_2025-08-17</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.3d_2025-08-17</div>
       </header>
 
       {!signedIn ? (
@@ -427,7 +436,7 @@ export default function HomePage() {
                 />
               </div>
               <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                {progress}%{/* keep it simple */}
+                {progress}%
               </div>
             </div>
           ) : null}
@@ -484,7 +493,6 @@ export default function HomePage() {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Use public URL from 'images' bucket */}
                   <img
                     src={publicUrlFor(it.path)}
                     alt={it.filename || "uploaded image"}
