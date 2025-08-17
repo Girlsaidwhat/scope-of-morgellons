@@ -1,576 +1,585 @@
+// pages/index.js
+// The Scope of Morgellons — Home
+// Build: 36.3_2025-08-17
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "35.4";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Category enum values provided by user
+const CATEGORIES = [
+  { value: "biofilm", label: "Biofilm" },
+  { value: "clear_to_brown_blebs", label: "Clear→Brown Blebs" },
+  { value: "fiber_bundles", label: "Fiber Bundles" },
+  { value: "fibers", label: "Fibers" },
+  { value: "hexagons", label: "Hexagons" },
+  { value: "miscellaneous", label: "Miscellaneous" },
+];
 
-// Manual redirect handling so Production sign in is reliable
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-  },
-});
+// Simple utility for status text colors
+const Status = ({ kind = "info", children }) => {
+  const color =
+    kind === "error" ? "#b91c1c" : kind === "success" ? "#065f46" : "#374151";
+  const bg =
+    kind === "error" ? "#fee2e2" : kind === "success" ? "#d1fae5" : "#e5e7eb";
+  return (
+    <div
+      style={{
+        background: bg,
+        color,
+        padding: "8px 10px",
+        borderRadius: 8,
+        fontSize: 14,
+        lineHeight: 1.3,
+        marginTop: 8,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
-export default function Home() {
-  const [session, setSession] = useState(null);
-  const [email, setEmail] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+export default function HomePage() {
+  const [user, setUser] = useState(null);
 
-  const [file, setFile] = useState(null);
-  const [status, _setStatus] = useState({ kind: "info", text: "" });
+  // Profile
+  const [initials, setInitials] = useState("");
+  const [age, setAge] = useState("");
+  const [locationText, setLocationText] = useState("");
+  const [contactOptIn, setContactOptIn] = useState(false);
+  const [profileStatus, setProfileStatus] = useState({ type: "info", msg: "" });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Upload
+  const fileInputRef = useRef(null);
+  const [selectedCategory, setSelectedCategory] = useState("miscellaneous");
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [uploadStatus, setUploadStatus] = useState({ type: "info", msg: "" });
 
-  const [files, setFiles] = useState([]);
-  const progressTimerRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const emailInputRef = useRef(null);
-  const signBtnRef = useRef(null);
-  const statusTextRef = useRef(null);
+  // Gallery
+  const [items, setItems] = useState([]);
+  const [loadingGallery, setLoadingGallery] = useState(false);
 
-  // Minimal setStatus wrapper
-  const setStatus = (next) => {
-    const nextVal = typeof next === "function" ? next(status) : next;
-    _setStatus(nextVal);
+  // Allowed client checks
+  const MAX_BYTES = 10 * 1024 * 1024;
+  const ALLOWED_TYPES = ["image/jpeg", "image/png"];
+
+  const publicUrlFor = (path) => {
+    const { data } = supabase.storage.from("images").getPublicUrl(path);
+    return data?.publicUrl || "";
   };
 
-  // Session management
+  // Load auth user and profile + gallery
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    async function bootstrap() {
+      const { data: auth } = await supabase.auth.getUser();
+      const currentUser = auth?.user || null;
       if (!mounted) return;
-      setSession(data.session ?? null);
-    });
 
+      setUser(currentUser);
+
+      if (currentUser) {
+        await Promise.all([loadProfile(currentUser.id), loadGallery(currentUser.id)]);
+      }
+    }
+
+    bootstrap();
+
+    // Keep session in sync on auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession ?? null);
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+      if (currentUser) {
+        loadProfile(currentUser.id);
+        loadGallery(currentUser.id);
+      } else {
+        setItems([]);
+      }
     });
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, []);
 
-  // Handle magic link redirects: support ?code=, #access_token, and token_hash+type
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  async function loadProfile(userId) {
+    const { data, error } = await supabase
+      .from("user_profile")
+      .select("initials, age, location, contact_opt_in")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    const url = new URL(window.location.href);
-    const searchParams = new URLSearchParams(url.search);
-    const hashStr = window.location.hash?.startsWith("#") ? window.location.hash.slice(1) : window.location.hash || "";
-    const hashParams = new URLSearchParams(hashStr);
-
-    const errorDesc = searchParams.get("error_description") || searchParams.get("error");
-    if (errorDesc) {
-      setStatus({ kind: "error", text: `Auth redirect error: ${decodeURIComponent(errorDesc)}` });
+    if (error) {
+      // Silent fail to avoid blocking UX
       return;
     }
-
-    const code = searchParams.get("code");
-    const access_token = hashParams.get("access_token");
-    const refresh_token = hashParams.get("refresh_token");
-    const token_hash = searchParams.get("token_hash");
-    const vtype = searchParams.get("type");
-
-    (async () => {
-      try {
-        if (code) {
-          setStatus({ kind: "info", text: "Finalizing sign in..." });
-          const { data, error } = await supabase.auth.exchangeCodeForSession({ code });
-          if (error) {
-            setStatus({ kind: "error", text: `Auth exchange error: ${error.message}` });
-            return;
-          }
-          if (data?.session) setStatus({ kind: "success", text: "Signed in. You can upload now." });
-        } else if (access_token && refresh_token) {
-          setStatus({ kind: "info", text: "Restoring session..." });
-          const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
-          if (error) {
-            setStatus({ kind: "error", text: `Set session error: ${error.message}` });
-            return;
-          }
-          if (data?.session) setStatus({ kind: "success", text: "Signed in. You can upload now." });
-        } else if (token_hash && vtype) {
-          setStatus({ kind: "info", text: "Verifying link..." });
-          const { data, error } = await supabase.auth.verifyOtp({ type: vtype, token_hash });
-          if (error) {
-            setStatus({ kind: "error", text: `Verify link error: ${error.message}` });
-            return;
-          }
-          if (data?.session) setStatus({ kind: "success", text: "Signed in. You can upload now." });
-        }
-      } finally {
-        // Clean URL
-        try {
-          url.searchParams.delete("code");
-          url.searchParams.delete("type");
-          url.searchParams.delete("error_description");
-          url.searchParams.delete("token_hash");
-          const cleaned = url.origin + url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : "");
-          window.history.replaceState({}, "", cleaned);
-          if (window.location.hash) window.history.replaceState({}, "", cleaned);
-        } catch {}
-      }
-    })();
-  }, []);
-
-  // Load gallery when signed in
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    fetchFiles();
-  }, [session?.user?.id]);
-
-  const userPrefix = useMemo(
-    () => (session?.user?.id ? `${session.user.id}/` : ""),
-    [session?.user?.id]
-  );
-
-  // Send magic link
-  async function sendMagicLink(e) {
-    if (e && typeof e.preventDefault === "function") e.preventDefault();
-
-    const eaddr = (email || emailInputRef.current?.value || "").trim();
-    if (eaddr !== email) setEmail(eaddr);
-
-    if (!eaddr) {
-      setStatus({ kind: "error", text: "Enter your email first." });
-      return;
-    }
-
-    setStatus({ kind: "info", text: isSignUp ? "Sending sign up link..." : "Attempting sign in..." });
-
-    try {
-      if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email: eaddr,
-          options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
-        });
-        if (error) throw error;
-        setStatus({ kind: "success", text: "Check your email to complete sign up." });
-      } else {
-        const { error } = await supabase.auth.signInWithOtp({
-          email: eaddr,
-          options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined },
-        });
-        if (error) throw error;
-        setStatus({ kind: "success", text: "Magic link sent. Check your email." });
-      }
-    } catch (err) {
-      setStatus({ kind: "error", text: `Auth error: ${err.message}` });
+    if (data) {
+      setInitials(data.initials ?? "");
+      setAge(data.age ?? "");
+      setLocationText(data.location ?? "");
+      setContactOptIn(Boolean(data.contact_opt_in));
     }
   }
 
-  // File selection and checks
-  function onFileChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  async function loadGallery(userId) {
+    setLoadingGallery(true);
+    // Newest first
+    const { data, error } = await supabase
+      .from("image_metadata")
+      .select(
+        "id, user_id, path, filename, category, created_at"
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
 
-    const isJpeg = f.type === "image/jpeg";
-    const isPng = f.type === "image/png";
-    if (!isJpeg && !isPng) {
-      setFile(null);
-      setStatus({ kind: "error", text: "Only JPEG or PNG files are allowed." });
-      e.target.value = "";
+    setLoadingGallery(false);
+
+    if (error) {
+      // Minimal status text; keep UI resilient
       return;
     }
-    const maxBytes = 10 * 1024 * 1024; // 10 MB
-    if (f.size > maxBytes) {
-      setFile(null);
-      setStatus({ kind: "error", text: "Choose a JPEG or PNG under 10 MB." });
-      e.target.value = "";
-      return;
-    }
-
-    setFile(f);
-    setStatus({ kind: "info", text: `Selected: ${f.name}` });
+    setItems(Array.isArray(data) ? data : []);
   }
 
-  // Faux progress
-  function startFauxProgress() {
-    setProgress(1);
-    clearInterval(progressTimerRef.current);
-    progressTimerRef.current = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 90) return p;
-        const bump = Math.max(1, Math.floor(Math.random() * 7));
-        return Math.min(90, p + bump);
+  async function saveProfile(e) {
+    e.preventDefault();
+    if (!user) return;
+    setProfileStatus({ type: "info", msg: "" });
+    setIsSavingProfile(true);
+
+    const payload = {
+      user_id: user.id,
+      initials: initials?.trim() || null,
+      age: age === "" ? null : Number(age),
+      location: locationText?.trim() || null,
+      contact_opt_in: !!contactOptIn,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("user_profile").upsert(payload, {
+      onConflict: "user_id",
+    });
+
+    setIsSavingProfile(false);
+
+    if (error) {
+      setProfileStatus({
+        type: "error",
+        msg: "Profile save failed. Please try again.",
       });
-    }, 200);
+      return;
+    }
+    setProfileStatus({
+      type: "success",
+      msg: "Profile saved.",
+    });
   }
 
-  function stopFauxProgress(to = 100) {
-    clearInterval(progressTimerRef.current);
-    setProgress(to);
-  }
+  // Faux progress bar while upload runs
+  useEffect(() => {
+    if (!uploading) return;
+    setProgress(0);
+    let pct = 0;
+    const tick = () => {
+      // Ramp to 90% while uploading, final 100% on completion
+      pct = Math.min(pct + Math.random() * 10 + 5, 90);
+      setProgress(Math.floor(pct));
+    };
+    const id = setInterval(tick, 350);
+    return () => clearInterval(id);
+  }, [uploading]);
 
-  // Upload
   async function handleUpload(e) {
     e.preventDefault();
-    if (!session?.user?.id) {
-      setStatus({ kind: "error", text: "Please sign in first." });
+    if (!user) {
+      setUploadStatus({ type: "error", msg: "You must be signed in." });
       return;
     }
+    const file = fileInputRef.current?.files?.[0];
     if (!file) {
-      setStatus({ kind: "error", text: "Choose a JPEG or PNG under 10 MB." });
+      setUploadStatus({ type: "error", msg: "Choose a JPEG or PNG under 10 MB." });
+      return;
+    }
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadStatus({ type: "error", msg: "Only JPEG or PNG files are allowed." });
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      setUploadStatus({ type: "error", msg: "File is larger than 10 MB." });
       return;
     }
 
-    try {
-      setUploading(true);
-      setStatus({ kind: "info", text: "Uploading..." });
-      startFauxProgress();
+    setUploadStatus({ type: "info", msg: "" });
+    setUploading(true);
 
-      const path = `${userPrefix}${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("images")
-        .upload(path, file, {
-          upsert: true,
-          contentType: file.type,
-        });
+    const path = `${user.id}/${file.name}`;
 
-      if (uploadError) {
-        throw uploadError;
-      }
+    // Upload to Storage, keep path user_id/filename
+    const { error: uploadError } = await supabase.storage
+      .from("images")
+      .upload(path, file, {
+        upsert: false, // keep current behavior
+        contentType: file.type,
+      });
 
-      // Metadata insert after successful upload
-      const { error: dbError } = await supabase.from("image_metadata").insert({
-        user_id: session.user.id,
+    if (uploadError) {
+      setUploading(false);
+      setProgress(0);
+      setUploadStatus({
+        type: "error",
+        msg: "Upload failed. Please try another image or filename.",
+      });
+      return;
+    }
+
+    // Snapshot profile at time of upload
+    const profileSnapshot = {
+      uploader_initials: initials?.trim() || null,
+      uploader_age: age === "" ? null : Number(age),
+      uploader_location: locationText?.trim() || null,
+      uploader_contact_opt_in: !!contactOptIn,
+    };
+
+    // Insert metadata row including category + uploader_* snapshot
+    const { error: metaError } = await supabase.from("image_metadata").insert([
+      {
+        user_id: user.id,
         bucket: "images",
         path,
         filename: file.name,
-        content_type: file.type,
-        size_bytes: file.size,
+        category: selectedCategory,
+        ...profileSnapshot,
+      },
+    ]);
+
+    setUploading(false);
+    setProgress(100);
+
+    if (metaError) {
+      setUploadStatus({
+        type: "error",
+        msg:
+          "Upload stored, but metadata insert failed. Please re-try the upload step.",
       });
-      if (dbError) {
-        // Non fatal to the user flow
-      }
-
-      stopFauxProgress(100);
-      setStatus({ kind: "success", text: `Upload complete. Saved to library. [Build ${BUILD_TAG}]` });
-
-      // Refresh gallery
-      await fetchFiles();
-
-      // Reset input
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setFile(null);
-      setUploading(false);
-    } catch (err) {
-      stopFauxProgress(0);
-      setUploading(false);
-      setStatus({ kind: "error", text: `Upload failed: ${err.message}` });
+      return;
     }
+
+    // Clear file input and refresh gallery
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setUploadStatus({
+      type: "success",
+      msg: "Upload successful. Metadata saved. Gallery updated.",
+    });
+    await loadGallery(user.id);
   }
 
-  // List files
-  async function fetchFiles() {
-    if (!session?.user?.id) return;
-    try {
-      const { data, error } = await supabase.storage.from("images").list(userPrefix, {
-        limit: 100,
-        sortBy: { column: "created_at", order: "desc" },
-      });
-      if (error) throw error;
-      const items = Array.isArray(data) ? data : [];
-      const withUrls = items
-        .filter((it) => it?.name)
-        .map((it) => {
-          const fullPath = `${userPrefix}${it.name}`;
-          const { data: urlData } = supabase.storage.from("images").getPublicUrl(fullPath);
-          return {
-            name: it.name,
-            path: fullPath,
-            url: urlData?.publicUrl || "",
-          };
-        });
-      setFiles(withUrls);
-    } catch {
-      setFiles([]);
-    }
-  }
-
-  function SignOutButton() {
-    return (
-      <button
-        onClick={async () => {
-          await supabase.auth.signOut();
-        }}
-        style={{
-          padding: "8px 12px",
-          borderRadius: 8,
-          border: "1px solid #ccc",
-          background: "#fafafa",
-          cursor: "pointer",
-        }}
-      >
-        Sign out
-      </button>
-    );
-  }
+  const signedIn = useMemo(() => Boolean(user?.id), [user]);
 
   return (
-    <div style={{ maxWidth: 840, margin: "24px auto", padding: "0 16px", fontFamily: "system-ui, Arial, sans-serif" }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 4, marginBottom: 20, textAlign: "center" }}>
-        <h1 style={{ margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, opacity: 0.8 }}>Build {BUILD_TAG}</div>
+    <div
+      style={{
+        maxWidth: 980,
+        margin: "32px auto",
+        padding: "0 16px 64px",
+        fontFamily:
+          '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+      }}
+    >
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.3_2025-08-17</div>
       </header>
 
-      {!session ? (
-        <section
-          style={{
-            border: "1px solid #e5e5e5",
-            borderRadius: 12,
-            padding: 16,
-            marginBottom: 16,
-          }}
-        >
-          <h2 style={{ marginTop: 0 }}>{isSignUp ? "Sign up" : "Sign in"}</h2>
+      {!signedIn ? (
+        <Status kind="info">
+          You must be signed in to use uploads and see your gallery. Use your normal sign in flow.
+        </Status>
+      ) : null}
 
-          <form onSubmit={(e) => e.preventDefault()}>
-            <label htmlFor="email" style={{ display: "block", marginBottom: 8 }}>
-              Email
-            </label>
+      {/* Profile */}
+      <section style={{ marginTop: 24 }}>
+        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Profile</h2>
+        <p style={{ marginTop: 0, color: "#4b5563", fontSize: 14 }}>
+          These fields are saved and a snapshot is stored with each upload.
+        </p>
+        <form onSubmit={saveProfile} style={cardStyle()}>
+          <div style={grid2()}>
+            <div>
+              <label style={labelStyle()}>Initials</label>
+              <input
+                type="text"
+                value={initials}
+                onChange={(e) => setInitials(e.target.value)}
+                placeholder="EC"
+                style={inputStyle()}
+                maxLength={8}
+              />
+            </div>
+            <div>
+              <label style={labelStyle()}>Age</label>
+              <input
+                type="number"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="42"
+                style={inputStyle()}
+                min={0}
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={labelStyle()}>Location</label>
             <input
-              ref={emailInputRef}
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              spellCheck="false"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "1px solid #ccc",
-                marginBottom: 12,
-              }}
+              type="text"
+              value={locationText}
+              onChange={(e) => setLocationText(e.target.value)}
+              placeholder="Pennsylvania, USA"
+              style={inputStyle()}
+              maxLength={120}
             />
-            <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
-              <button
-                ref={signBtnRef}
-                type="button"
-                onClick={sendMagicLink}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #333",
-                  background: "#111",
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                {isSignUp ? "Sign up" : "Sign in"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSignUp((s) => !s)}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #ccc",
-                  background: "#fafafa",
-                  cursor: "pointer",
-                }}
-              >
-                {isSignUp ? "Sign in" : "Sign up"}
-              </button>
-            </div>
-          </form>
-
-          {status.text ? (
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                marginTop: 10,
-                padding: 12,
-                borderRadius: 8,
-                border:
-                  status.kind === "error"
-                    ? "1px solid #ef4444"
-                    : status.kind === "success"
-                    ? "1px solid #10b981"
-                    : "1px solid #d4d4d4",
-                background:
-                  status.kind === "error"
-                    ? "#fef2f2"
-                    : status.kind === "success"
-                    ? "#f0fdf4"
-                    : "#fafafa",
-                color: "#111",
-              }}
+          </div>
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              id="optin"
+              type="checkbox"
+              checked={contactOptIn}
+              onChange={(e) => setContactOptIn(e.target.checked)}
+            />
+            <label htmlFor="optin" style={{ fontSize: 14 }}>
+              Open to being contacted by researchers or other members
+            </label>
+          </div>
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <button
+              type="submit"
+              disabled={!signedIn || isSavingProfile}
+              style={buttonStyle(!signedIn || isSavingProfile)}
             >
-              <strong style={{ display: "block", marginBottom: 4 }}>
-                {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
-              </strong>
-              <div ref={statusTextRef}>{status.text}</div>
-            </div>
+              {isSavingProfile ? "Saving..." : "Save Profile"}
+            </button>
+          </div>
+          {profileStatus.msg ? (
+            <Status kind={profileStatus.type}>{profileStatus.msg}</Status>
           ) : null}
-        </section>
-      ) : (
-        <>
-          <section
-            style={{
-              border: "1px solid #e5e5e5",
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <h2 style={{ margin: 0 }}>Uploader</h2>
-              <SignOutButton />
-            </div>
+        </form>
+      </section>
 
-            <form onSubmit={handleUpload} style={{ marginBottom: 8 }}>
+      {/* Upload */}
+      <section style={{ marginTop: 24 }}>
+        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Upload Image</h2>
+        <form onSubmit={handleUpload} style={cardStyle()}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label style={labelStyle()}>Category</label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                style={inputStyle()}
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle()}>
+                Choose image (JPEG or PNG, max 10 MB)
+              </label>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/jpeg,image/png"
-                onChange={onFileChange}
-                style={{ display: "block", marginBottom: 8 }}
-                aria-label="Choose an image file to upload"
+                style={inputStyle()}
               />
+            </div>
+          </div>
 
-              {/* Selected file name or helper text */}
-              <div style={{ fontSize: 13, color: file ? "#111" : "#666", marginBottom: 10, wordBreak: "break-word" }}>
-                {file ? `Selected file: ${file.name}` : "Tip: JPEG or PNG up to 10 MB."}
-              </div>
-
-              {/* Faux progress bar with percent */}
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          {/* Faux progress bar */}
+          {uploading || progress > 0 ? (
+            <div style={{ marginTop: 12 }}>
+              <div
+                style={{
+                  height: 10,
+                  background: "#e5e7eb",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                }}
+              >
                 <div
-                  role="progressbar"
-                  aria-label="Upload progress"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={progress}
                   style={{
-                    flex: 1,
-                    height: 12,
-                    borderRadius: 8,
-                    background: "#f0f0f0",
+                    height: "100%",
+                    width: `${progress}%`,
+                    background: "#2563eb",
+                    transition: "width 200ms linear",
+                  }}
+                />
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                {progress}%{/* keep it simple */}
+              </div>
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+            <button type="submit" disabled={!signedIn || uploading} style={buttonStyle(!signedIn || uploading)}>
+              {uploading ? "Uploading..." : "Upload"}
+            </button>
+          </div>
+
+          {uploadStatus.msg ? (
+            <Status kind={uploadStatus.type}>{uploadStatus.msg}</Status>
+          ) : (
+            <Status kind="info">
+              Storage path will be <code>user_id/filename</code>. Gallery refreshes on success.
+            </Status>
+          )}
+        </form>
+      </section>
+
+      {/* Gallery */}
+      <section style={{ marginTop: 24 }}>
+        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Your Gallery</h2>
+        {loadingGallery ? (
+          <p style={{ color: "#6b7280" }}>Loading...</p>
+        ) : items.length === 0 ? (
+          <p style={{ color: "#6b7280" }}>No images yet.</p>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {items.map((it) => (
+              <article
+                key={it.id}
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  background: "#fff",
+                }}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    aspectRatio: "1 / 1",
+                    background: "#f3f4f6",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     overflow: "hidden",
                   }}
                 >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${progress}%`,
-                      background: "#0ea5e9",
-                      transition: "width 200ms linear",
-                    }}
+                  {/* Use public URL from 'images' bucket */}
+                  <img
+                    src={publicUrlFor(it.path)}
+                    alt={it.filename || "uploaded image"}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    loading="lazy"
                   />
                 </div>
-                <div style={{ width: 52, textAlign: "right", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
-                  {progress}%
+                <div style={{ padding: 12 }}>
+                  {/* Category badge */}
+                  <div style={{ marginBottom: 8 }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        background: "#eef2ff",
+                        color: "#3730a3",
+                        borderRadius: 999,
+                      }}
+                      title={it.category || "Uncategorized"}
+                    >
+                      {badgeLabel(it.category)}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#111827",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={it.filename}
+                  >
+                    {it.filename}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                    {new Date(it.created_at).toLocaleString()}
+                  </div>
                 </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={uploading}
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #333",
-                  background: uploading ? "#999" : "#111",
-                  color: "#fff",
-                  cursor: uploading ? "not-allowed" : "pointer",
-                }}
-              >
-                {uploading ? "Uploading..." : "Upload"}
-              </button>
-            </form>
-
-            {/* Styled status box */}
-            <div
-              style={{
-                marginTop: 12,
-                padding: 12,
-                borderRadius: 8,
-                border:
-                  status.kind === "error"
-                    ? "1px solid #ef4444"
-                    : status.kind === "success"
-                    ? "1px solid #10b981"
-                    : "1px solid #d4d4d4",
-                background:
-                  status.kind === "error"
-                    ? "#fef2f2"
-                    : status.kind === "success"
-                    ? "#f0fdf4"
-                    : "#fafafa",
-                color: "#111",
-              }}
-            >
-              <strong style={{ display: "block", marginBottom: 4 }}>
-                {status.kind === "error" ? "Error" : status.kind === "success" ? "Success" : "Info"}
-              </strong>
-              <div ref={statusTextRef}>{status.text || " "}</div>
-            </div>
-
-            {/* Gallery */}
-            <section
-              style={{
-                marginTop: 16,
-                border: "1px solid #e5e5e5",
-                borderRadius: 12,
-                padding: 16,
-              }}
-            >
-              <h2 style={{ marginTop: 0 }}>Your images</h2>
-              {files.length === 0 ? (
-                <div style={{ color: "#666" }}>No images yet.</div>
-              ) : (
-                <ul
-                  style={{
-                    listStyle: "none",
-                    padding: 0,
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-                    gap: 12,
-                  }}
-                >
-                  {files.map((f) => (
-                    <li key={f.path} style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}>
-                      <div style={{ fontSize: 12, marginBottom: 6, wordBreak: "break-word" }}>{f.name}</div>
-                      {f.url ? (
-                        <img
-                          src={f.url}
-                          alt={f.name}
-                          style={{ width: "100%", height: 120, objectFit: "cover", borderRadius: 6, display: "block" }}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div style={{ fontSize: 12, color: "#999" }}>No preview</div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </section>
-        </>
-      )}
-
-      <footer style={{ fontSize: 12, color: "#777", textAlign: "center", marginTop: 24 }}>
-        &copy; {new Date().getFullYear()} The Scope of Morgellons
-      </footer>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
+
+function badgeLabel(v) {
+  const found = CATEGORIES.find((c) => c.value === v);
+  return found ? found.label : "Uncategorized";
+}
+
+// Styles
+function cardStyle() {
+  return {
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: 16,
+    background: "#fff",
+  };
+}
+function inputStyle() {
+  return {
+    width: "100%",
+    border: "1px solid #d1d5db",
+    borderRadius: 8,
+    padding: "10px 12px",
+    fontSize: 14,
+    outline: "none",
+  };
+}
+function labelStyle() {
+  return { display: "block", fontSize: 13, color: "#374151", marginBottom: 6 };
+}
+function buttonStyle(disabled) {
+  return {
+    background: disabled ? "#9ca3af" : "#111827",
+    color: "#fff",
+    border: 0,
+    borderRadius: 8,
+    padding: "10px 14px",
+    fontSize: 14,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+function grid2() {
+  return {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+  };
+}
+
 
 
 
