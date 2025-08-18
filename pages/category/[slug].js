@@ -1,6 +1,6 @@
 // pages/category/[slug].js
 // The Scope of Morgellons — Category Listing (per-user, supports ?color= for Blebs)
-// Build: 36.4h_2025-08-18
+// Build: 36.4h2_2025-08-18
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -47,10 +47,7 @@ export default function CategoryPage() {
   const [loading, setLoading] = useState(false);
   const [blebColor, setBlebColor] = useState(""); // optional filter for blebs
 
-  const cat = useMemo(
-    () => CATEGORIES.find((c) => c.value === slug),
-    [slug]
-  );
+  const cat = useMemo(() => CATEGORIES.find((c) => c.value === slug), [slug]);
   const isBlebCategory = slug === "clear_to_brown_blebs";
 
   const publicUrlFor = (path) => {
@@ -58,7 +55,7 @@ export default function CategoryPage() {
     return data?.publicUrl || "";
   };
 
-  // Initialize: get user, set initial filter from ?color (for Blebs), then load
+  // Initialize: get user, read ?color (for Blebs), then load
   useEffect(() => {
     if (!router.isReady) return;
 
@@ -70,7 +67,6 @@ export default function CategoryPage() {
       const currentUser = auth?.user || null;
       setUser(currentUser);
 
-      // If we have a color query and this is the bleb category, seed the filter
       const qColor = typeof router.query.color === "string" ? router.query.color : "";
       if (currentUser && slug && cat) {
         if (isBlebCategory && BLEB_COLORS.includes(qColor)) {
@@ -83,7 +79,9 @@ export default function CategoryPage() {
     }
     init();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, slug]);
 
@@ -122,7 +120,7 @@ export default function CategoryPage() {
   if (!cat) {
     return (
       <Wrapper>
-        <Header title="Unknown Category" build="36.4h_2025-08-18" />
+        <Header title="Unknown Category" build="36.4h2_2025-08-18" />
         <nav style={{ marginTop: 8 }}>
           <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>
             ← Back to Profile
@@ -137,7 +135,7 @@ export default function CategoryPage() {
 
   return (
     <Wrapper>
-      <Header title={title} build="36.4h_2025-08-18" />
+      <Header title={title} build="36.4h2_2025-08-18" />
 
       <nav style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>
@@ -172,7 +170,9 @@ export default function CategoryPage() {
           >
             <option value="">All colors</option>
             {BLEB_COLORS.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
         </div>
@@ -234,4 +234,76 @@ export default function CategoryPage() {
                       }}
                       title={it.category || "Uncategorized"}
                     >
-                      {cat.la
+                      {cat.label}
+                    </span>
+                    {it.category === "clear_to_brown_blebs" && it.bleb_color ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontSize: 12,
+                          padding: "4px 8px",
+                          background: "#ecfeff",
+                          color: "#155e75",
+                          borderRadius: 999,
+                        }}
+                        title={`Bleb Color: ${it.bleb_color}`}
+                      >
+                        {it.bleb_color}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#111827",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={it.filename}
+                  >
+                    {it.filename}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                    {new Date(it.created_at).toLocaleString()}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </Wrapper>
+  );
+}
+
+function Wrapper({ children }) {
+  return (
+    <div
+      style={{
+        maxWidth: 980,
+        margin: "32px auto",
+        padding: "0 16px 64px",
+        fontFamily:
+          '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Header({ title, build }) {
+  return (
+    <header
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+      }}
+    >
+      <h1 style={{ fontSize: 24, margin: 0 }}>{title}</h1>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>{build}</div>
+    </header>
+  );
+}
