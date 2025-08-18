@@ -1,6 +1,6 @@
 // pages/index.js
 // The Scope of Morgellons — Home
-// Build: 36.3d_2025-08-17
+// Build: 36.3m_2025-08-18
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -10,15 +10,21 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Category enum values provided by user
+// Category values stored in DB (value), with capitalized UI labels.
 const CATEGORIES = [
   { value: "biofilm", label: "Biofilm" },
-  { value: "clear_to_brown_blebs", label: "Clear→Brown Blebs" },
+  { value: "clear_to_brown_blebs", label: 'Clear--Brown "Blebs"' },
   { value: "fiber_bundles", label: "Fiber Bundles" },
   { value: "fibers", label: "Fibers" },
   { value: "hexagons", label: "Hexagons" },
+  { value: "crystalline_structures", label: "Crystalline Structures" },
+  { value: "feathers", label: "Feathers" },
   { value: "miscellaneous", label: "Miscellaneous" },
 ];
+
+// Bleb color options shown only for the Clear--Brown "Blebs" category.
+// Stored exactly as capitalized text values below.
+const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 
 // Simple utility for status text colors
 const Status = ({ kind = "info", children }) => {
@@ -58,6 +64,7 @@ export default function HomePage() {
   // Upload
   const fileInputRef = useRef(null);
   const [selectedCategory, setSelectedCategory] = useState("miscellaneous");
+  const [blebColor, setBlebColor] = useState(""); // empty = not set
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState({ type: "info", msg: "" });
@@ -135,7 +142,7 @@ export default function HomePage() {
     setLoadingGallery(true);
     const { data, error } = await supabase
       .from("image_metadata")
-      .select("id, user_id, path, filename, category, created_at")
+      .select("id, user_id, path, filename, category, bleb_color, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -245,7 +252,11 @@ export default function HomePage() {
       uploader_contact_opt_in: !!contactOptIn,
     };
 
-    // Insert metadata row including category + uploader_* snapshot
+    // Only store bleb_color when category is Clear--Brown "Blebs"
+    const blebColorValue =
+      selectedCategory === "clear_to_brown_blebs" ? (blebColor || null) : null;
+
+    // Insert metadata row including category, bleb_color, and uploader_* snapshot
     const { error: metaError } = await supabase.from("image_metadata").insert([
       {
         user_id: user.id,
@@ -253,6 +264,7 @@ export default function HomePage() {
         path,
         filename: file.name,
         category: selectedCategory,
+        bleb_color: blebColorValue,
         ...profileSnapshot,
       },
     ]);
@@ -261,30 +273,26 @@ export default function HomePage() {
     setProgress(100);
 
     if (metaError) {
-      // Show full error so we can diagnose quickly
       const details =
         [
           metaError.message,
           metaError.details,
           metaError.hint,
-          // Some drivers tuck info under "code" or "name"
           metaError.code ? `code: ${metaError.code}` : null,
         ]
           .filter(Boolean)
           .join("\n");
-
-      console.error("Metadata insert failed:", metaError); // for DevTools
+      console.error("Metadata insert failed:", metaError);
       setUploadStatus({
         type: "error",
-        msg:
-          "Upload stored, but metadata insert failed.\n" +
-          details,
+        msg: "Upload stored, but metadata insert failed.\n" + details,
       });
       return;
     }
 
-    // Clear file input and refresh gallery
+    // Clear inputs and refresh gallery
     if (fileInputRef.current) fileInputRef.current.value = "";
+    setBlebColor("");
     setUploadStatus({
       type: "success",
       msg: "Upload successful. Metadata saved. Gallery updated.",
@@ -293,6 +301,7 @@ export default function HomePage() {
   }
 
   const signedIn = useMemo(() => Boolean(user?.id), [user]);
+  const isBlebCategory = selectedCategory === "clear_to_brown_blebs";
 
   return (
     <div
@@ -306,7 +315,7 @@ export default function HomePage() {
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.3d_2025-08-17</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.3m_2025-08-18</div>
       </header>
 
       {!signedIn ? (
@@ -402,6 +411,25 @@ export default function HomePage() {
                 ))}
               </select>
             </div>
+
+            {isBlebCategory ? (
+              <div>
+                <label style={labelStyle()}>Bleb Color</label>
+                <select
+                  value={blebColor}
+                  onChange={(e) => setBlebColor(e.target.value)}
+                  style={inputStyle()}
+                >
+                  <option value="">(Optional) Select a color</option>
+                  {BLEB_COLORS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
             <div>
               <label style={labelStyle()}>
                 Choose image (JPEG or PNG, max 10 MB)
@@ -502,7 +530,7 @@ export default function HomePage() {
                 </div>
                 <div style={{ padding: 12 }}>
                   {/* Category badge */}
-                  <div style={{ marginBottom: 8 }}>
+                  <div style={{ marginBottom: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <span
                       style={{
                         display: "inline-block",
@@ -516,6 +544,22 @@ export default function HomePage() {
                     >
                       {badgeLabel(it.category)}
                     </span>
+                    {/* Optional second badge for bleb color */}
+                    {it.category === "clear_to_brown_blebs" && it.bleb_color ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontSize: 12,
+                          padding: "4px 8px",
+                          background: "#ecfeff",
+                          color: "#155e75",
+                          borderRadius: 999,
+                        }}
+                        title={`Bleb Color: ${it.bleb_color}`}
+                      >
+                        {it.bleb_color}
+                      </span>
+                    ) : null}
                   </div>
                   <div
                     style={{
@@ -587,7 +631,6 @@ function grid2() {
     gap: 12,
   };
 }
-
 
 
 
