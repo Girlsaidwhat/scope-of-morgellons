@@ -1,6 +1,6 @@
 // pages/upload.js
-// The Scope of Morgellons — Upload (Batch uploads + thumbnails)
-// Build: 36.4e_2025-08-18
+// The Scope of Morgellons — Upload (Batch uploads + thumbnails + clearer duplicate message)
+// Build: 36.4g_2025-08-18
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -164,13 +164,22 @@ export default function UploadPage() {
 
       if (uploadError) {
         clearInterval(fauxId);
+
+        // Detect duplicate filename (exists already)
+        const errText = `${uploadError.message || ""} ${uploadError.error || ""}`.trim();
+        const isDuplicate =
+          uploadError.statusCode === 409 ||
+          /already exists|exists|duplicate/i.test(errText);
+
         setFilesState((prev) => {
           const copy = [...prev];
           copy[i] = {
             ...copy[i],
             status: "error",
             progress: 0,
-            msg: "Upload failed. Try another image or filename.",
+            msg: isDuplicate
+              ? "A file with this name already exists in your folder. Rename the file and try again."
+              : "Upload failed. Try another image or filename.",
           };
           return copy;
         });
@@ -247,7 +256,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 780, margin: "32px auto", padding: "0 16px 64px", fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif' }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload Images</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4e_2025-08-18</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4g_2025-08-18</div>
       </header>
 
       <nav style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -373,3 +382,4 @@ function cardStyle() { return { border: "1px solid #e5e7eb", borderRadius: 12, p
 function inputStyle() { return { width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }; }
 function labelStyle() { return { display: "block", fontSize: 13, color: "#374151", marginBottom: 6 }; }
 function buttonStyle(disabled) { return { background: disabled ? "#9ca3af" : "#111827", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer" }; }
+
