@@ -1,8 +1,9 @@
 // pages/index.js
 // The Scope of Morgellons — Home
-// Build: 36.3m_2025-08-18
+// Build: 36.4a_2025-08-18
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -23,7 +24,6 @@ const CATEGORIES = [
 ];
 
 // Bleb color options shown only for the Clear--Brown "Blebs" category.
-// Stored exactly as capitalized text values below.
 const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 
 // Simple utility for status text colors
@@ -315,7 +315,7 @@ export default function HomePage() {
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.3m_2025-08-18</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4a_2025-08-18</div>
       </header>
 
       {!signedIn ? (
@@ -323,6 +323,35 @@ export default function HomePage() {
           You must be signed in to use uploads and see your gallery. Use your normal sign in flow.
         </Status>
       ) : null}
+
+      {/* Category links section (simple) */}
+      <section style={{ marginTop: 16 }}>
+        <h3 style={{ fontSize: 16, margin: "0 0 8px" }}>Browse by Category</h3>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {CATEGORIES.filter(c => c.value !== "miscellaneous").map((c) => (
+            <Link
+              key={c.value}
+              href={`/category/${c.value}`}
+              style={{
+                display: "inline-block",
+                padding: "6px 10px",
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+                fontSize: 13,
+                color: "#111827",
+                textDecoration: "none",
+              }}
+              title={`View ${c.label}`}
+            >
+              {c.label}
+            </Link>
+          ))}
+        </div>
+        <p style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+          Links will work after we add the category pages next.
+        </p>
+      </section>
 
       {/* Profile */}
       <section style={{ marginTop: 24 }}>
@@ -529,7 +558,7 @@ export default function HomePage() {
                   />
                 </div>
                 <div style={{ padding: 12 }}>
-                  {/* Category badge */}
+                  {/* Category and optional color badges */}
                   <div style={{ marginBottom: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <span
                       style={{
@@ -544,7 +573,6 @@ export default function HomePage() {
                     >
                       {badgeLabel(it.category)}
                     </span>
-                    {/* Optional second badge for bleb color */}
                     {it.category === "clear_to_brown_blebs" && it.bleb_color ? (
                       <span
                         style={{
@@ -588,7 +616,12 @@ export default function HomePage() {
 
 function badgeLabel(v) {
   const found = CATEGORIES.find((c) => c.value === v);
-  return found ? found.label : "Uncategorized";
+  return found ? cLabel(found.label) : "Uncategorized";
+}
+
+// In case labels ever change casing upstream, normalize here
+function cLabel(label) {
+  return label;
 }
 
 // Styles
@@ -631,21 +664,3 @@ function grid2() {
     gap: 12,
   };
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
