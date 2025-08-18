@@ -1,6 +1,6 @@
 // pages/category/[slug].js
-// The Scope of Morgellons — Category Listing (per-user, supports ?color= for Blebs)
-// Build: 36.4h2_2025-08-18
+// The Scope of Morgellons — Category Listing (per-user, supports ?color= for Blebs even when signed out)
+// Build: 36.4h3_2025-08-18
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -55,43 +55,36 @@ export default function CategoryPage() {
     return data?.publicUrl || "";
   };
 
-  // Initialize: get user, read ?color (for Blebs), then load
+  // 1) Parse ?color= from the URL and set dropdown immediately (even if not signed in)
   useEffect(() => {
     if (!router.isReady) return;
+    const qColor = typeof router.query.color === "string" ? router.query.color : "";
+    if (isBlebCategory && BLEB_COLORS.includes(qColor)) {
+      setBlebColor(qColor);
+    } else {
+      setBlebColor("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.isReady, slug, router.query.color]);
 
+  // 2) Get the current user once
+  useEffect(() => {
     let mounted = true;
-    async function init() {
+    async function getUser() {
       const { data: auth } = await supabase.auth.getUser();
       if (!mounted) return;
-
-      const currentUser = auth?.user || null;
-      setUser(currentUser);
-
-      const qColor = typeof router.query.color === "string" ? router.query.color : "";
-      if (currentUser && slug && cat) {
-        if (isBlebCategory && BLEB_COLORS.includes(qColor)) {
-          setBlebColor(qColor);
-          await loadCategory(currentUser.id, slug, qColor);
-        } else {
-          await loadCategory(currentUser.id, slug, "");
-        }
-      }
+      setUser(auth?.user || null);
     }
-    init();
+    getUser();
+    return () => { mounted = false; };
+  }, []);
 
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router.isReady, slug]);
-
-  // Reload when blebColor changes (only applies to blebs)
+  // 3) Load data when we have user + slug; reload when color changes
   useEffect(() => {
-    if (user?.id && slug && cat) {
-      loadCategory(user.id, slug, blebColor);
-    }
+    if (!user?.id || !slug || !cat) return;
+    loadCategory(user.id, slug, isBlebCategory ? blebColor : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blebColor]);
+  }, [user?.id, slug, blebColor]);
 
   async function loadCategory(userId, slugValue, colorFilter) {
     setLoading(true);
@@ -120,7 +113,7 @@ export default function CategoryPage() {
   if (!cat) {
     return (
       <Wrapper>
-        <Header title="Unknown Category" build="36.4h2_2025-08-18" />
+        <Header title="Unknown Category" build="36.4h3_2025-08-18" />
         <nav style={{ marginTop: 8 }}>
           <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>
             ← Back to Profile
@@ -135,7 +128,7 @@ export default function CategoryPage() {
 
   return (
     <Wrapper>
-      <Header title={title} build="36.4h2_2025-08-18" />
+      <Header title={title} build="36.4h3_2025-08-18" />
 
       <nav style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>
@@ -170,17 +163,20 @@ export default function CategoryPage() {
           >
             <option value="">All colors</option>
             {BLEB_COLORS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+              <option key={c} value={c}>{c}</option>
             ))}
           </select>
+          {!user ? (
+            <div style={{ marginTop: 8 }}>
+              <Status kind="info">Sign in to load your images for this category.</Status>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       <section style={{ marginTop: 16 }}>
         {!user ? (
-          <Status kind="info">Sign in to view your images for this category.</Status>
+          <p style={{ color: "#6b7280" }}>Sign in to view your images for this category.</p>
         ) : loading ? (
           <p style={{ color: "#6b7280" }}>Loading…</p>
         ) : items.length === 0 ? (
@@ -279,15 +275,7 @@ export default function CategoryPage() {
 
 function Wrapper({ children }) {
   return (
-    <div
-      style={{
-        maxWidth: 980,
-        margin: "32px auto",
-        padding: "0 16px 64px",
-        fontFamily:
-          '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
-      }}
-    >
+    <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px 64px", fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif' }}>
       {children}
     </div>
   );
@@ -295,13 +283,7 @@ function Wrapper({ children }) {
 
 function Header({ title, build }) {
   return (
-    <header
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-      }}
-    >
+    <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
       <h1 style={{ fontSize: 24, margin: 0 }}>{title}</h1>
       <div style={{ fontSize: 12, color: "#6b7280" }}>{build}</div>
     </header>
