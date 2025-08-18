@@ -1,8 +1,8 @@
 // pages/index.js
-// The Scope of Morgellons — Home
-// Build: 36.4a_2025-08-18
+// The Scope of Morgellons — Home (Profile + Gallery)
+// Build: 36.4b_2025-08-18
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
@@ -11,7 +11,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Category values stored in DB (value), with capitalized UI labels.
+// Category labels for badges
 const CATEGORIES = [
   { value: "biofilm", label: "Biofilm" },
   { value: "clear_to_brown_blebs", label: 'Clear--Brown "Blebs"' },
@@ -23,10 +23,6 @@ const CATEGORIES = [
   { value: "miscellaneous", label: "Miscellaneous" },
 ];
 
-// Bleb color options shown only for the Clear--Brown "Blebs" category.
-const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
-
-// Simple utility for status text colors
 const Status = ({ kind = "info", children }) => {
   const color =
     kind === "error" ? "#b91c1c" : kind === "success" ? "#065f46" : "#374151";
@@ -42,7 +38,6 @@ const Status = ({ kind = "info", children }) => {
         fontSize: 14,
         lineHeight: 1.3,
         marginTop: 8,
-        whiteSpace: "pre-wrap",
       }}
     >
       {children}
@@ -53,7 +48,7 @@ const Status = ({ kind = "info", children }) => {
 export default function HomePage() {
   const [user, setUser] = useState(null);
 
-  // Profile
+  // Profile state
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
   const [locationText, setLocationText] = useState("");
@@ -61,28 +56,15 @@ export default function HomePage() {
   const [profileStatus, setProfileStatus] = useState({ type: "info", msg: "" });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  // Upload
-  const fileInputRef = useRef(null);
-  const [selectedCategory, setSelectedCategory] = useState("miscellaneous");
-  const [blebColor, setBlebColor] = useState(""); // empty = not set
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState({ type: "info", msg: "" });
-
   // Gallery
   const [items, setItems] = useState([]);
   const [loadingGallery, setLoadingGallery] = useState(false);
-
-  // Allowed client checks
-  const MAX_BYTES = 10 * 1024 * 1024;
-  const ALLOWED_TYPES = ["image/jpeg", "image/png"];
 
   const publicUrlFor = (path) => {
     const { data } = supabase.storage.from("images").getPublicUrl(path);
     return data?.publicUrl || "";
   };
 
-  // Load auth user and profile + gallery
   useEffect(() => {
     let mounted = true;
 
@@ -100,7 +82,6 @@ export default function HomePage() {
 
     bootstrap();
 
-    // Keep session in sync on auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -127,9 +108,8 @@ export default function HomePage() {
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (error) {
-      return;
-    }
+    if (error) return;
+
     if (data) {
       setInitials(data.initials ?? "");
       setAge(data.age ?? "");
@@ -147,10 +127,8 @@ export default function HomePage() {
       .order("created_at", { ascending: false });
 
     setLoadingGallery(false);
+    if (error) return;
 
-    if (error) {
-      return;
-    }
     setItems(Array.isArray(data) ? data : []);
   }
 
@@ -182,126 +160,10 @@ export default function HomePage() {
       });
       return;
     }
-    setProfileStatus({
-      type: "success",
-      msg: "Profile saved.",
-    });
-  }
-
-  // Faux progress bar while upload runs
-  useEffect(() => {
-    if (!uploading) return;
-    setProgress(0);
-    let pct = 0;
-    const tick = () => {
-      pct = Math.min(pct + Math.random() * 10 + 5, 90);
-      setProgress(Math.floor(pct));
-    };
-    const id = setInterval(tick, 350);
-    return () => clearInterval(id);
-  }, [uploading]);
-
-  async function handleUpload(e) {
-    e.preventDefault();
-    if (!user) {
-      setUploadStatus({ type: "error", msg: "You must be signed in." });
-      return;
-    }
-    const file = fileInputRef.current?.files?.[0];
-    if (!file) {
-      setUploadStatus({ type: "error", msg: "Choose a JPEG or PNG under 10 MB." });
-      return;
-    }
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      setUploadStatus({ type: "error", msg: "Only JPEG or PNG files are allowed." });
-      return;
-    }
-    if (file.size > MAX_BYTES) {
-      setUploadStatus({ type: "error", msg: "File is larger than 10 MB." });
-      return;
-    }
-
-    setUploadStatus({ type: "info", msg: "" });
-    setUploading(true);
-
-    const path = `${user.id}/${file.name}`;
-
-    // Upload to Storage
-    const { error: uploadError } = await supabase.storage
-      .from("images")
-      .upload(path, file, {
-        upsert: false,
-        contentType: file.type,
-      });
-
-    if (uploadError) {
-      setUploading(false);
-      setProgress(0);
-      setUploadStatus({
-        type: "error",
-        msg: "Upload failed. Please try another image or filename.",
-      });
-      return;
-    }
-
-    // Snapshot profile at time of upload
-    const profileSnapshot = {
-      uploader_initials: initials?.trim() || null,
-      uploader_age: age === "" ? null : Number(age),
-      uploader_location: locationText?.trim() || null,
-      uploader_contact_opt_in: !!contactOptIn,
-    };
-
-    // Only store bleb_color when category is Clear--Brown "Blebs"
-    const blebColorValue =
-      selectedCategory === "clear_to_brown_blebs" ? (blebColor || null) : null;
-
-    // Insert metadata row including category, bleb_color, and uploader_* snapshot
-    const { error: metaError } = await supabase.from("image_metadata").insert([
-      {
-        user_id: user.id,
-        bucket: "images",
-        path,
-        filename: file.name,
-        category: selectedCategory,
-        bleb_color: blebColorValue,
-        ...profileSnapshot,
-      },
-    ]);
-
-    setUploading(false);
-    setProgress(100);
-
-    if (metaError) {
-      const details =
-        [
-          metaError.message,
-          metaError.details,
-          metaError.hint,
-          metaError.code ? `code: ${metaError.code}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-      console.error("Metadata insert failed:", metaError);
-      setUploadStatus({
-        type: "error",
-        msg: "Upload stored, but metadata insert failed.\n" + details,
-      });
-      return;
-    }
-
-    // Clear inputs and refresh gallery
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    setBlebColor("");
-    setUploadStatus({
-      type: "success",
-      msg: "Upload successful. Metadata saved. Gallery updated.",
-    });
-    await loadGallery(user.id);
+    setProfileStatus({ type: "success", msg: "Profile saved." });
   }
 
   const signedIn = useMemo(() => Boolean(user?.id), [user]);
-  const isBlebCategory = selectedCategory === "clear_to_brown_blebs";
 
   return (
     <div
@@ -315,50 +177,54 @@ export default function HomePage() {
     >
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4a_2025-08-18</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4b_2025-08-18</div>
       </header>
 
+      {/* Simple nav */}
+      <nav style={{ marginTop: 12, display: "flex", gap: 8 }}>
+        <Link
+          href="/upload"
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            background: "#111827",
+            color: "#fff",
+            fontSize: 13,
+            textDecoration: "none",
+          }}
+        >
+          Go to Uploader
+        </Link>
+        <Link
+          href="/browse"
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            background: "#fff",
+            color: "#111827",
+            fontSize: 13,
+            textDecoration: "none",
+          }}
+        >
+          Browse by Category
+        </Link>
+      </nav>
+
       {!signedIn ? (
-        <Status kind="info">
-          You must be signed in to use uploads and see your gallery. Use your normal sign in flow.
+        <Status kind="info" >
+          You must be signed in to save your profile and see your gallery.
         </Status>
       ) : null}
-
-      {/* Category links section (simple) */}
-      <section style={{ marginTop: 16 }}>
-        <h3 style={{ fontSize: 16, margin: "0 0 8px" }}>Browse by Category</h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {CATEGORIES.filter(c => c.value !== "miscellaneous").map((c) => (
-            <Link
-              key={c.value}
-              href={`/category/${c.value}`}
-              style={{
-                display: "inline-block",
-                padding: "6px 10px",
-                borderRadius: 999,
-                border: "1px solid #e5e7eb",
-                background: "#fff",
-                fontSize: 13,
-                color: "#111827",
-                textDecoration: "none",
-              }}
-              title={`View ${c.label}`}
-            >
-              {c.label}
-            </Link>
-          ))}
-        </div>
-        <p style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-          Links will work after we add the category pages next.
-        </p>
-      </section>
 
       {/* Profile */}
       <section style={{ marginTop: 24 }}>
         <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Profile</h2>
         <p style={{ marginTop: 0, color: "#4b5563", fontSize: 14 }}>
-          These fields are saved and a snapshot is stored with each upload.
+          Save your profile. Each upload stores a snapshot of these fields.
         </p>
+
         <form onSubmit={saveProfile} style={cardStyle()}>
           <div style={grid2()}>
             <div>
@@ -421,103 +287,12 @@ export default function HomePage() {
         </form>
       </section>
 
-      {/* Upload */}
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Upload Image</h2>
-        <form onSubmit={handleUpload} style={cardStyle()}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <label style={labelStyle()}>Category</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                style={inputStyle()}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {isBlebCategory ? (
-              <div>
-                <label style={labelStyle()}>Bleb Color</label>
-                <select
-                  value={blebColor}
-                  onChange={(e) => setBlebColor(e.target.value)}
-                  style={inputStyle()}
-                >
-                  <option value="">(Optional) Select a color</option>
-                  {BLEB_COLORS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-
-            <div>
-              <label style={labelStyle()}>
-                Choose image (JPEG or PNG, max 10 MB)
-              </label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png"
-                style={inputStyle()}
-              />
-            </div>
-          </div>
-
-          {/* Faux progress bar */}
-          {uploading || progress > 0 ? (
-            <div style={{ marginTop: 12 }}>
-              <div
-                style={{
-                  height: 10,
-                  background: "#e5e7eb",
-                  borderRadius: 8,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${progress}%`,
-                    background: "#2563eb",
-                    transition: "width 200ms linear",
-                  }}
-                />
-              </div>
-              <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                {progress}%
-              </div>
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-            <button type="submit" disabled={!signedIn || uploading} style={buttonStyle(!signedIn || uploading)}>
-              {uploading ? "Uploading..." : "Upload"}
-            </button>
-          </div>
-
-          {uploadStatus.msg ? (
-            <Status kind={uploadStatus.type}>{uploadStatus.msg}</Status>
-          ) : (
-            <Status kind="info">
-              Storage path will be <code>user_id/filename</code>. Gallery refreshes on success.
-            </Status>
-          )}
-        </form>
-      </section>
-
       {/* Gallery */}
       <section style={{ marginTop: 24 }}>
         <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Your Gallery</h2>
-        {loadingGallery ? (
+        {!signedIn ? (
+          <p style={{ color: "#6b7280" }}>Sign in to see your images.</p>
+        ) : loadingGallery ? (
           <p style={{ color: "#6b7280" }}>Loading...</p>
         ) : items.length === 0 ? (
           <p style={{ color: "#6b7280" }}>No images yet.</p>
@@ -558,7 +333,6 @@ export default function HomePage() {
                   />
                 </div>
                 <div style={{ padding: 12 }}>
-                  {/* Category and optional color badges */}
                   <div style={{ marginBottom: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <span
                       style={{
@@ -616,12 +390,7 @@ export default function HomePage() {
 
 function badgeLabel(v) {
   const found = CATEGORIES.find((c) => c.value === v);
-  return found ? cLabel(found.label) : "Uncategorized";
-}
-
-// In case labels ever change casing upstream, normalize here
-function cLabel(label) {
-  return label;
+  return found ? found.label : "Uncategorized";
 }
 
 // Styles
