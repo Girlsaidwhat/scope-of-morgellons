@@ -1,6 +1,6 @@
 // pages/upload.js
-// The Scope of Morgellons — Upload (Batch uploads)
-// Build: 36.4d_2025-08-18
+// The Scope of Morgellons — Upload (Batch uploads + thumbnails)
+// Build: 36.4e_2025-08-18
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -44,7 +44,9 @@ export default function UploadPage() {
   const [selectedCategory, setSelectedCategory] = useState("miscellaneous");
   const [blebColor, setBlebColor] = useState("");
 
-  const [filesState, setFilesState] = useState([]); // [{name, size, type, progress, status, msg}]
+  // Per-file state items:
+  // { name, size, type, progress, status, msg, previewUrl, finalUrl }
+  const [filesState, setFilesState] = useState([]);
   const [overallStatus, setOverallStatus] = useState({ type: "info", msg: "" });
 
   const MAX_BYTES = 10 * 1024 * 1024;
@@ -110,7 +112,7 @@ export default function UploadPage() {
       return;
     }
 
-    // Initialize per-file state
+    // Initialize per-file state with local previews
     const initial = picked.map((f) => ({
       name: f.name,
       size: f.size,
@@ -118,10 +120,12 @@ export default function UploadPage() {
       progress: 0,
       status: "queued", // queued | uploading | success | error | skipped
       msg: "",
+      previewUrl: URL.createObjectURL(f),
+      finalUrl: "",
     }));
     setFilesState(initial);
 
-    // Process sequentially for clearer progress
+    // Process sequentially
     let successCount = 0;
     for (let i = 0; i < picked.length; i++) {
       const file = picked[i];
@@ -207,11 +211,20 @@ export default function UploadPage() {
         continue;
       }
 
-      // Success
+      // Success: get a public URL so the preview persists
+      const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
+      const finalUrl = pub?.publicUrl || "";
+
       successCount += 1;
       setFilesState((prev) => {
         const copy = [...prev];
-        copy[i] = { ...copy[i], status: "success", progress: 100, msg: "Upload successful. Metadata saved." };
+        copy[i] = {
+          ...copy[i],
+          status: "success",
+          progress: 100,
+          msg: "Upload successful. Metadata saved.",
+          finalUrl,
+        };
         return copy;
       });
     }
@@ -234,7 +247,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 780, margin: "32px auto", padding: "0 16px 64px", fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif' }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload Images</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4d_2025-08-18</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4e_2025-08-18</div>
       </header>
 
       <nav style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -289,31 +302,63 @@ export default function UploadPage() {
           {overallStatus.msg ? (
             <Status kind={overallStatus.type}>{overallStatus.msg}</Status>
           ) : (
-            <Status kind="info">Storage path will be <code>user_id/filename</code>. Each file shows its own progress and status.</Status>
+            <Status kind="info">Each file shows its own progress, message, and thumbnail.</Status>
           )}
         </form>
 
-        {/* Per-file statuses */}
+        {/* Per-file statuses with thumbnails */}
         {filesState.length > 0 ? (
           <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
             {filesState.map((f, idx) => (
               <div key={`${f.name}-${idx}`} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12, background: "#fff" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-                  <div style={{ fontSize: 14, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>
-                    {f.name}
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      background: "#f3f4f6",
+                      flex: "0 0 auto",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {(f.finalUrl || f.previewUrl) ? (
+                      <img
+                        src={f.finalUrl || f.previewUrl}
+                        alt={f.name}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        loading="lazy"
+                      />
+                    ) : null}
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>{f.status}</div>
-                </div>
-                <div style={{ marginTop: 8, height: 10, background: "#e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${f.progress}%`, background: "#2563eb", transition: "width 200ms linear" }} />
-                </div>
-                {f.msg ? (
-                  <div style={{ marginTop: 8 }}>
-                    <Status kind={f.status === "success" ? "success" : f.status === "error" ? "error" : "info"}>
-                      {f.msg}
-                    </Status>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+                      <div
+                        style={{ fontSize: 14, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                        title={f.name}
+                      >
+                        {f.name}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>{f.status}</div>
+                    </div>
+
+                    <div style={{ marginTop: 8, height: 10, background: "#e5e7eb", borderRadius: 8, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${f.progress}%`, background: "#2563eb", transition: "width 200ms linear" }} />
+                    </div>
+
+                    {f.msg ? (
+                      <div style={{ marginTop: 8 }}>
+                        <Status kind={f.status === "success" ? "success" : f.status === "error" ? "error" : "info"}>
+                          {f.msg}
+                        </Status>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+                </div>
               </div>
             ))}
           </div>
