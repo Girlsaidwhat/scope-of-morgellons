@@ -1,6 +1,6 @@
 // pages/category/[slug].js
-// The Scope of Morgellons — Category Listing (per-user, supports ?color= for Blebs even when signed out)
-// Build: 36.4h3_2025-08-18
+// The Scope of Morgellons — Category Listing (per-user, counts + ?color= support)
+// Build: 36.6b_2025-08-19
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -44,6 +44,7 @@ export default function CategoryPage() {
 
   const [user, setUser] = useState(null);
   const [items, setItems] = useState([]);
+  const [count, setCount] = useState(null);
   const [loading, setLoading] = useState(false);
   const [blebColor, setBlebColor] = useState(""); // optional filter for blebs
 
@@ -55,7 +56,7 @@ export default function CategoryPage() {
     return data?.publicUrl || "";
   };
 
-  // 1) Parse ?color= from the URL and set dropdown immediately (even if not signed in)
+  // Read ?color= and set dropdown immediately (even if not signed in)
   useEffect(() => {
     if (!router.isReady) return;
     const qColor = typeof router.query.color === "string" ? router.query.color : "";
@@ -67,7 +68,7 @@ export default function CategoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router.isReady, slug, router.query.color]);
 
-  // 2) Get the current user once
+  // Get the current user once
   useEffect(() => {
     let mounted = true;
     async function getUser() {
@@ -79,10 +80,12 @@ export default function CategoryPage() {
     return () => { mounted = false; };
   }, []);
 
-  // 3) Load data when we have user + slug; reload when color changes
+  // Load items + count when we have user + slug; reload when color changes
   useEffect(() => {
     if (!user?.id || !slug || !cat) return;
-    loadCategory(user.id, slug, isBlebCategory ? blebColor : "");
+    const colorFilter = isBlebCategory ? blebColor : "";
+    loadCategory(user.id, slug, colorFilter);
+    loadCount(user.id, slug, colorFilter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, slug, blebColor]);
 
@@ -108,12 +111,31 @@ export default function CategoryPage() {
     setItems(Array.isArray(data) ? data : []);
   }
 
+  async function loadCount(userId, slugValue, colorFilter) {
+    let query = supabase
+      .from("image_metadata")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("category", slugValue);
+
+    if (slugValue === "clear_to_brown_blebs" && colorFilter) {
+      query = query.eq("bleb_color", colorFilter);
+    }
+
+    const { count: c, error } = await query;
+    if (error) {
+      setCount(null);
+      return;
+    }
+    setCount(typeof c === "number" ? c : 0);
+  }
+
   if (!slug) return null;
 
   if (!cat) {
     return (
       <Wrapper>
-        <Header title="Unknown Category" build="36.4h3_2025-08-18" />
+        <Header title="Unknown Category" build="36.6b_2025-08-19" />
         <nav style={{ marginTop: 8 }}>
           <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>
             ← Back to Profile
@@ -125,10 +147,13 @@ export default function CategoryPage() {
   }
 
   const title = `Category: ${cat.label}`;
+  const rightHeader = user
+    ? `${count ?? "–"} item${(count ?? 0) === 1 ? "" : "s"}${isBlebCategory && blebColor ? ` • ${blebColor}` : ""}`
+    : `${isBlebCategory && blebColor ? blebColor + " • " : ""}Sign in to load`;
 
   return (
     <Wrapper>
-      <Header title={title} build="36.4h3_2025-08-18" />
+      <Header title={title} build="36.6b_2025-08-19" right={rightHeader} />
 
       <nav style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>
@@ -281,11 +306,15 @@ function Wrapper({ children }) {
   );
 }
 
-function Header({ title, build }) {
+function Header({ title, build, right }) {
   return (
     <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
       <h1 style={{ fontSize: 24, margin: 0 }}>{title}</h1>
-      <div style={{ fontSize: 12, color: "#6b7280" }}>{build}</div>
+      <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+        {right ? <div style={{ fontSize: 12, color: "#111827" }}>{right}</div> : null}
+        <div style={{ fontSize: 12, color: "#6b7280" }}>{build}</div>
+      </div>
     </header>
   );
 }
+
