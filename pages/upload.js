@@ -1,6 +1,6 @@
-// Build: 36.7c_2025-08-19
+// Build: 36.7d_2025-08-19
 // Upload page with batch Notes (optional) saved to public.image_metadata.notes
-// Writes to image_metadata.path (NOT NULL). Bleb color selector is shown only for Blebs.
+// Writes to image_metadata.path; shows optional color pickers for Blebs, Fiber Bundles, and Fibers only when selected.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -9,7 +9,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Categories and Blebs color options
+// Categories
 const CATEGORIES = [
   'Clear--Brown "Blebs"',
   "Biofilm",
@@ -21,8 +21,11 @@ const CATEGORIES = [
   "Miscellaneous",
 ];
 
-const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 const BLEBS_LABEL = 'Clear--Brown "Blebs"';
+
+// Color options
+const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
+const FIBER_COLOR_OPTIONS = ["white/clear", "blue", "black", "red", "other"];
 
 // File size limit in bytes (10 MB)
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -51,6 +54,8 @@ export default function UploadPage() {
 
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   const [blebColor, setBlebColor] = useState("");
+  const [fiberBundlesColor, setFiberBundlesColor] = useState("");
+  const [fibersColor, setFibersColor] = useState("");
   const [notes, setNotes] = useState("");
 
   const [files, setFiles] = useState([]); // [{file, url}]
@@ -99,6 +104,8 @@ export default function UploadPage() {
   }, [files]);
 
   const isBlebs = selectedCategory === BLEBS_LABEL;
+  const isFiberBundles = selectedCategory === "Fiber Bundles";
+  const isFibers = selectedCategory === "Fibers";
 
   function resetStatuses(newFiles) {
     const newRows = newFiles.map((f) => ({
@@ -165,11 +172,17 @@ export default function UploadPage() {
       return;
     }
 
-    // Optional color notice for Blebs
+    // Optional color notices
     if (isBlebs && blebColor === "") {
-      const ok = confirm(
-        'You selected the Blebs category without a color. Continue without a color?'
-      );
+      const ok = confirm('You selected the Blebs category without a color. Continue without a color?');
+      if (!ok) return;
+    }
+    if (isFiberBundles && fiberBundlesColor === "") {
+      const ok = confirm('You selected Fiber Bundles without a color. Continue without a color?');
+      if (!ok) return;
+    }
+    if (isFibers && fibersColor === "") {
+      const ok = confirm('You selected Fibers without a color. Continue without a color?');
       if (!ok) return;
     }
 
@@ -188,10 +201,12 @@ export default function UploadPage() {
 
     setIsUploading(true);
 
-    // Prepare static metadata shared across the batch
+    // Shared metadata for the batch
     const shared = {
       category: selectedCategory,
       bleb_color: isBlebs ? (blebColor || null) : null,
+      fiber_bundles_color: isFiberBundles ? (fiberBundlesColor || null) : null,
+      fibers_color: isFibers ? (fibersColor || null) : null,
       notes: notes.trim() ? notes.trim() : null,
       uploader_initials: profileSnap?.initials ?? null,
       uploader_age: profileSnap?.age ?? null,
@@ -214,7 +229,7 @@ export default function UploadPage() {
 
       const path = `${user.id}/${f.name}`;
 
-      // Upload the file to Storage
+      // Upload to Storage
       const { error: upErr } = await supabase.storage
         .from("images")
         .upload(path, f, {
@@ -257,6 +272,8 @@ export default function UploadPage() {
         size: f.size,
         category: shared.category,
         bleb_color: shared.bleb_color,
+        fiber_bundles_color: shared.fiber_bundles_color,
+        fibers_color: shared.fibers_color,
         notes: shared.notes,
         uploader_initials: shared.uploader_initials,
         uploader_age: shared.uploader_age,
@@ -315,7 +332,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7c_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7d_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -330,8 +347,11 @@ export default function UploadPage() {
             <select
               value={selectedCategory}
               onChange={(e) => {
-                setSelectedCategory(e.target.value);
-                if (e.target.value !== BLEBS_LABEL) setBlebColor("");
+                const val = e.target.value;
+                setSelectedCategory(val);
+                if (val !== BLEBS_LABEL) setBlebColor("");
+                if (val !== "Fiber Bundles") setFiberBundlesColor("");
+                if (val !== "Fibers") setFibersColor("");
               }}
               style={{ width: "100%", padding: "8px" }}
             >
@@ -343,7 +363,7 @@ export default function UploadPage() {
             </select>
           </label>
 
-          {/* Bleb color only when Blebs selected */}
+          {/* Color pickers only when applicable */}
           {isBlebs && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
@@ -356,6 +376,46 @@ export default function UploadPage() {
               >
                 <option value="">No color</option>
                 {BLEB_COLOR_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {isFiberBundles && (
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+                Fiber Bundles Color (optional)
+              </span>
+              <select
+                value={fiberBundlesColor}
+                onChange={(e) => setFiberBundlesColor(e.target.value)}
+                style={{ width: "100%", padding: "8px" }}
+              >
+                <option value="">No color</option>
+                {FIBER_COLOR_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {isFibers && (
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+                Fibers Color (optional)
+              </span>
+              <select
+                value={fibersColor}
+                onChange={(e) => setFibersColor(e.target.value)}
+                style={{ width: "100%", padding: "8px" }}
+              >
+                <option value="">No color</option>
+                {FIBER_COLOR_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
                   </option>
@@ -503,4 +563,5 @@ export default function UploadPage() {
     </div>
   );
 }
+
 
