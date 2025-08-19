@@ -1,5 +1,6 @@
-// Build: 36.7_2025-08-19
+// Build: 36.7b_2025-08-19
 // Upload page with batch Notes (optional) saved to public.image_metadata.notes
+// Bleb color selector is hidden unless Blebs category is selected.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -127,7 +128,7 @@ export default function UploadPage() {
       return `File is too large. Limit is 10 MB. This file is ${prettyBytes(file.size)}.`;
     }
     return null;
-    }
+  }
 
   // Faux progress tickers kept here so we can clear them
   const tickerRefs = useRef({}); // key: index -> intervalId
@@ -164,7 +165,7 @@ export default function UploadPage() {
       return;
     }
 
-    // Validate category color combo
+    // Optional color notice for Blebs
     if (isBlebs && blebColor === "") {
       const ok = confirm(
         'You selected the Blebs category without a color. Continue without a color?'
@@ -214,7 +215,7 @@ export default function UploadPage() {
       const path = `${user.id}/${f.name}`;
 
       // Upload the file to Storage
-      const { data: upData, error: upErr } = await supabase.storage
+      const { error: upErr } = await supabase.storage
         .from("images")
         .upload(path, f, {
           cacheControl: "3600",
@@ -267,15 +268,17 @@ export default function UploadPage() {
       const { error: insErr } = await supabase.from("image_metadata").insert(meta);
       if (insErr) {
         stopFauxProgress(i);
-        // If notes column is missing, surface a clear hint
-        const missing = /column .*notes.* does not exist/i.test(insErr.message || "");
+        const missingNotes = /column .*notes.* does not exist/i.test(insErr.message || "");
+        const missingStoragePath = /column .*storage_path.* does not exist/i.test(insErr.message || "");
         setRows((prev) => {
           const copy = [...prev];
           copy[i] = {
             ...copy[i],
             state: "error",
-            message: missing
+            message: missingNotes
               ? `Metadata insert failed: "notes" column not found. Add it in Supabase, then retry.`
+              : missingStoragePath
+              ? `Metadata insert failed: "storage_path" column not found. Add it in Supabase, then retry.`
               : `Metadata insert failed: ${insErr.message}`,
             progress: 0,
           };
@@ -313,7 +316,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7b_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -341,25 +344,26 @@ export default function UploadPage() {
             </select>
           </label>
 
-          {/* Blebs color when applicable */}
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-              Bleb Color {isBlebs ? "(optional)" : "(not applicable)"}
-            </span>
-            <select
-              disabled={!isBlebs}
-              value={blebColor}
-              onChange={(e) => setBlebColor(e.target.value)}
-              style={{ width: "100%", padding: "8px", background: isBlebs ? "white" : "#f2f2f2" }}
-            >
-              <option value="">No color</option>
-              {BLEB_COLOR_OPTIONS.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </label>
+          {/* Bleb color only when Blebs selected */}
+          {isBlebs && (
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+                Bleb Color (optional)
+              </span>
+              <select
+                value={blebColor}
+                onChange={(e) => setBlebColor(e.target.value)}
+                style={{ width: "100%", padding: "8px" }}
+              >
+                <option value="">No color</option>
+                {BLEB_COLOR_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {/* Notes - batch level */}
           <label style={{ display: "block", marginBottom: 16 }}>
