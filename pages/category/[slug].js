@@ -1,4 +1,4 @@
-// Build: 36.10a4_2025-08-19
+// Build: 36.10a6_2025-08-19
 // Category listing with "Load more" pagination, newest first.
 // Respects optional ?color=... for Blebs, Fiber Bundles, and Fibers.
 
@@ -174,7 +174,7 @@ export default function CategoryPage() {
             </span>
           ) : null}
         </h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a4_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a6_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -197,4 +197,67 @@ export default function CategoryPage() {
                   gap: 12,
                 }}
               >
-                {items.map((row) =
+                {items.map((row) => {
+                  const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
+                  const url = pub?.publicUrl || "";
+                  return (
+                    <a
+                      key={row.id}
+                      href={`/image/${row.id}`}
+                      style={{
+                        display: "block",
+                        textDecoration: "none",
+                        color: "inherit",
+                        border: "1px solid #e5e5e5",
+                        borderRadius: 8,
+                        overflow: "hidden",
+                        background: "#fff",
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt={row.filename}
+                        style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
+                      />
+                      <div style={{ padding: 10 }}>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
+                          <Badge>{row.category}</Badge>
+                          {cardColorBadge(row)}
+                        </div>
+                        <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+
+              {/* Load more */}
+              <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
+                {items.length < count ? (
+                  <button
+                    onClick={loadMore}
+                    disabled={loading}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: "1px solid #0f766e",
+                      background: loading ? "#8dd3cd" : "#14b8a6",
+                      color: "white",
+                      cursor: loading ? "not-allowed" : "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {loading ? "Loading..." : "Load more"}
+                  </button>
+                ) : (
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
+                )}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
