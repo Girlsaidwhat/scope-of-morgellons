@@ -1,5 +1,5 @@
-// Build: 36.8_2025-08-19
-// Image Detail page: large preview + metadata, edit Notes (owner-only via RLS)
+// Build: 36.9_2025-08-19
+// Image Detail: large preview + metadata, edit Notes (owner-only via RLS), and Safe Delete (Storage object then metadata row)
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -27,6 +27,7 @@ export default function ImageDetailPage() {
   const [pubUrl, setPubUrl] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [status, setStatus] = useState("");
 
   // Load user
@@ -107,11 +108,54 @@ export default function ImageDetailPage() {
     setSaving(false);
   }
 
+  async function handleDelete() {
+    if (!row?.id || !user?.id) return;
+
+    // Clear confirmation
+    const first = confirm(
+      `This will permanently delete the image file and its metadata.\n\nFile: ${row.filename}\n\nContinue?`
+    );
+    if (!first) return;
+
+    const typed = prompt(`Type DELETE to confirm deleting "${row.filename}".`);
+    if ((typed || "").trim().toUpperCase() !== "DELETE") {
+      setStatus("Delete canceled.");
+      return;
+    }
+
+    setDeleting(true);
+    setStatus("Deleting...");
+
+    // 1) Delete Storage object first (avoid leaving a public file)
+    const { error: storErr } = await supabase.storage.from("images").remove([row.path]);
+    if (storErr) {
+      setStatus(`Storage delete failed: ${storErr.message}`);
+      setDeleting(false);
+      return;
+    }
+
+    // 2) Delete metadata row (RLS enforces ownership)
+    const { error: metaErr } = await supabase.from("image_metadata").delete().eq("id", row.id);
+    if (metaErr) {
+      setStatus(
+        `Row delete failed: ${metaErr.message}. The file has been removed from Storage; you can retry deleting the row.`
+      );
+      setDeleting(false);
+      return;
+    }
+
+    // Done → take them home
+    setStatus("Deleted.");
+    router.replace("/");
+  }
+
+  const isOwner = user?.id && row?.user_id && user.id === row.user_id;
+
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Image Detail</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.8_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.9_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -134,7 +178,7 @@ export default function ImageDetailPage() {
             )}
           </div>
 
-          {/* Right: metadata + notes editor */}
+          {/* Right: metadata + notes editor + delete */}
           <div style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 12 }}>
             <Field label="Filename">{row.filename}</Field>
             <Field label="Category">
@@ -186,20 +230,21 @@ export default function ImageDetailPage() {
                 rows={6}
                 placeholder="Add context about this image…"
                 style={{ width: "100%", padding: 8, resize: "vertical" }}
+                disabled={!isOwner || saving || deleting}
               />
             </Field>
 
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               <button
                 onClick={saveNotes}
-                disabled={saving}
+                disabled={!isOwner || saving || deleting}
                 style={{
                   padding: "10px 14px",
                   borderRadius: 8,
                   border: "1px solid #0f766e",
                   background: saving ? "#8dd3cd" : "#14b8a6",
                   color: "white",
-                  cursor: saving ? "not-allowed" : "pointer",
+                  cursor: !isOwner || saving || deleting ? "not-allowed" : "pointer",
                   fontWeight: 600,
                 }}
                 type="button"
@@ -211,13 +256,13 @@ export default function ImageDetailPage() {
                   setNotesDraft(row.notes || "");
                   setStatus("Changes discarded.");
                 }}
-                disabled={saving}
+                disabled={!isOwner || saving || deleting}
                 style={{
                   padding: "10px 14px",
                   borderRadius: 8,
                   border: "1px solid #e5e5e5",
                   background: "white",
-                  cursor: saving ? "not-allowed" : "pointer",
+                  cursor: !isOwner || saving || deleting ? "not-allowed" : "pointer",
                   fontWeight: 600,
                 }}
                 type="button"
@@ -226,8 +271,32 @@ export default function ImageDetailPage() {
               </button>
             </div>
 
+            {isOwner && (
+              <div style={{ borderTop: "1px solid #f1f1f1", paddingTop: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#991b1b", marginBottom: 8 }}>
+                  Danger zone
+                </div>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  type="button"
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #dc2626",
+                    background: deleting ? "#fca5a5" : "#ef4444",
+                    color: "white",
+                    cursor: deleting ? "not-allowed" : "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  {deleting ? "Deleting..." : "Delete Image"}
+                </button>
+              </div>
+            )}
+
             {status && (
-              <div style={{ marginTop: 10, fontSize: 13, color: /failed/i.test(status) ? "#b91c1c" : "#065f46" }}>
+              <div style={{ marginTop: 12, fontSize: 13, color: /failed|error/i.test(status) ? "#b91c1c" : "#065f46" }}>
                 {status}
               </div>
             )}
@@ -237,3 +306,4 @@ export default function ImageDetailPage() {
     </div>
   );
 }
+
