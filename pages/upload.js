@@ -1,6 +1,6 @@
-// Build: 36.7b_2025-08-19
+// Build: 36.7c_2025-08-19
 // Upload page with batch Notes (optional) saved to public.image_metadata.notes
-// Bleb color selector is hidden unless Blebs category is selected.
+// Writes to image_metadata.path (NOT NULL). Bleb color selector is shown only for Blebs.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -130,7 +130,7 @@ export default function UploadPage() {
     return null;
   }
 
-  // Faux progress tickers kept here so we can clear them
+  // Faux progress tickers
   const tickerRefs = useRef({}); // key: index -> intervalId
 
   function startFauxProgress(idx) {
@@ -199,7 +199,7 @@ export default function UploadPage() {
       uploader_contact_opt_in: profileSnap?.contact_opt_in ?? null,
     };
 
-    // Upload each file sequentially to keep messages simple
+    // Upload each file sequentially
     for (let i = 0; i < files.length; i++) {
       const f = files[i].file;
       if (rows[i].state === "rejected") continue;
@@ -225,7 +225,6 @@ export default function UploadPage() {
 
       if (upErr) {
         stopFauxProgress(i);
-        // Duplicate filename friendly message
         const conflict =
           upErr?.statusCode === 409 ||
           upErr?.status === 409 ||
@@ -248,10 +247,10 @@ export default function UploadPage() {
         continue;
       }
 
-      // Insert metadata row
+      // Insert metadata row (write to NOT NULL "path")
       const meta = {
         user_id: user.id,
-        storage_path: path,
+        path, // required by schema
         filename: f.name,
         ext: extFromName(f.name),
         mime_type: f.type,
@@ -269,7 +268,7 @@ export default function UploadPage() {
       if (insErr) {
         stopFauxProgress(i);
         const missingNotes = /column .*notes.* does not exist/i.test(insErr.message || "");
-        const missingStoragePath = /column .*storage_path.* does not exist/i.test(insErr.message || "");
+        const missingPath = /column .*path.* does not exist/i.test(insErr.message || "");
         setRows((prev) => {
           const copy = [...prev];
           copy[i] = {
@@ -277,14 +276,14 @@ export default function UploadPage() {
             state: "error",
             message: missingNotes
               ? `Metadata insert failed: "notes" column not found. Add it in Supabase, then retry.`
-              : missingStoragePath
-              ? `Metadata insert failed: "storage_path" column not found. Add it in Supabase, then retry.`
+              : missingPath
+              ? `Metadata insert failed: "path" column not found. Add it in Supabase, then retry.`
               : `Metadata insert failed: ${insErr.message}`,
             progress: 0,
           };
           return copy;
         });
-        // Attempt to remove the just-uploaded file to avoid orphaned files
+        // Clean up the just-uploaded file to avoid orphans
         await supabase.storage.from("images").remove([path]);
         continue;
       }
@@ -316,7 +315,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7b_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7c_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -504,3 +503,4 @@ export default function UploadPage() {
     </div>
   );
 }
+
