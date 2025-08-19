@@ -1,4 +1,4 @@
-// Build: 36.10a_2025-08-19
+// Build: 36.10a4_2025-08-19
 // Category listing with "Load more" pagination, newest first.
 // Respects optional ?color=... for Blebs, Fiber Bundles, and Fibers.
 
@@ -75,7 +75,9 @@ export default function CategoryPage() {
       if (!mounted) return;
       setUser(data?.user ?? null);
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Reset list when category or color changes
@@ -107,7 +109,9 @@ export default function CategoryPage() {
       }
       setCount(total || 0);
     })();
-    return () => { canceled = true; };
+    return () => {
+      canceled = true;
+    };
   }, [user?.id, categoryLabel, colorColumn, urlColor]);
 
   // Load a page of items (append)
@@ -118,7 +122,9 @@ export default function CategoryPage() {
 
     let q = supabase
       .from("image_metadata")
-      .select("id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at", { count: "exact" })
+      .select("id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at", {
+        count: "exact",
+      })
       .eq("user_id", user.id)
       .eq("category", categoryLabel)
       .order("created_at", { ascending: false })
@@ -148,5 +154,47 @@ export default function CategoryPage() {
       loadMore();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.]()
+  }, [user?.id, categoryLabel, colorColumn, urlColor]);
 
+  function cardColorBadge(row) {
+    if (row.category === "Blebs (clear to brown)" && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
+    if (row.category === "Fiber Bundles" && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
+    if (row.category === "Fibers" && row.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
+    return null;
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+        <h1 style={{ fontSize: 24, margin: 0 }}>
+          {categoryLabel || "Category"}
+          {colorColumn && urlColor ? (
+            <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>
+              (filtered: {urlColor})
+            </span>
+          ) : null}
+        </h1>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a4_2025-08-19</div>
+      </header>
+
+      {!user ? (
+        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>Please sign in to view this page.</div>
+      ) : (
+        <>
+          <div style={{ marginBottom: 12, fontSize: 14 }}>
+            Total in this category{colorColumn && urlColor ? " (filtered)" : ""}: <strong>{count}</strong>
+          </div>
+
+          {status && items.length === 0 ? (
+            <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{status}</div>
+          ) : (
+            <>
+              {/* Grid */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {items.map((row) =
