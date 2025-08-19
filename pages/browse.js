@@ -1,8 +1,15 @@
 // pages/browse.js
-// The Scope of Morgellons — Browse by Category (with Bleb color quick links)
-// Build: 36.4h2_2025-08-18
+// The Scope of Morgellons — Browse by Category (with counts + Bleb color quick links)
+// Build: 36.6_2025-08-19
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 const CATEGORIES = [
   { value: "biofilm", label: "Biofilm" },
@@ -18,16 +25,83 @@ const CATEGORIES = [
 const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 
 export default function BrowsePage() {
+  const [user, setUser] = useState(null);
+  const [counts, setCounts] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function init() {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!mounted) return;
+      const u = auth?.user || null;
+      setUser(u);
+      if (u) {
+        await loadCounts(u.id);
+      }
+    }
+    init();
+    return () => { mounted = false; };
+  }, []);
+
+  async function loadCounts(userId) {
+    setLoading(true);
+    const pairs = await Promise.all(
+      CATEGORIES.map(async (c) => {
+        const { count, error } = await supabase
+          .from("image_metadata")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("category", c.value);
+        if (error) return [c.value, null];
+        return [c.value, count ?? 0];
+      })
+    );
+    setCounts(Object.fromEntries(pairs));
+    setLoading(false);
+  }
+
+  const CountBadge = ({ value }) => {
+    const bg = "#f3f4f6";
+    const color = "#374151";
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          minWidth: 22,
+          textAlign: "center",
+          padding: "2px 6px",
+          borderRadius: 999,
+          background: bg,
+          color,
+          fontSize: 12,
+          border: "1px solid #e5e7eb",
+        }}
+        aria-label="Item count"
+      >
+        {value ?? "–"}
+      </span>
+    );
+  };
+
   return (
     <div style={{ maxWidth: 780, margin: "32px auto", padding: "0 16px 64px", fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif' }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Browse by Category</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4h2_2025-08-18</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.6_2025-08-19</div>
       </header>
 
       <nav style={{ marginTop: 8 }}>
         <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>← Back to Profile</Link>
       </nav>
+
+      {!user ? (
+        <p style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+          Sign in to see your per-category counts.
+        </p>
+      ) : loading ? (
+        <p style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>Loading counts…</p>
+      ) : null}
 
       <section style={{ marginTop: 16, display: "grid", gap: 12 }}>
         {CATEGORIES.filter(c => c.value !== "miscellaneous").map((c) => (
@@ -49,6 +123,7 @@ export default function BrowsePage() {
               >
                 {c.label}
               </Link>
+              {user ? <CountBadge value={counts[c.value]} /> : <CountBadge value={null} />}
             </div>
 
             {/* Quick color links for Blebs */}
@@ -78,9 +153,10 @@ export default function BrowsePage() {
           </div>
         ))}
         <p style={{ marginTop: 4, fontSize: 12, color: "#6b7280" }}>
-          Tip: Blebs have quick color filters now.
+          Counts reflect your own uploads (RLS enforced).
         </p>
       </section>
     </div>
   );
 }
+
