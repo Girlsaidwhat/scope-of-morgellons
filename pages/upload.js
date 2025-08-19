@@ -1,6 +1,5 @@
-// Build: 36.7f_2025-08-19
-// Adds Hairs, Skin, Wounds categories
-// Color pickers (Blebs, Fiber Bundles, Fibers) start blank; no "No color" option; selection is optional
+// Build: 36.7g_2025-08-19
+// Rename category label to 'Blebs (clear to brown)'; colors/notes behavior unchanged
 // Writes to image_metadata.path and saves optional notes/colors
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -12,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Categories
 const CATEGORIES = [
-  'Clear--Brown "Blebs"',
+  "Blebs (clear to brown)",
   "Biofilm",
   "Fiber Bundles",
   "Fibers",
@@ -25,7 +24,7 @@ const CATEGORIES = [
   "Wounds",
 ];
 
-const BLEBS_LABEL = 'Clear--Brown "Blebs"';
+const BLEBS_LABEL = "Blebs (clear to brown)";
 
 // Color options
 const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
@@ -81,7 +80,7 @@ export default function UploadPage() {
     };
   }, []);
 
-  // Load profile snapshot once user is ready
+  // Load profile snapshot
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -91,7 +90,6 @@ export default function UploadPage() {
         .select("initials, age, location, contact_opt_in")
         .eq("id", user.id)
         .maybeSingle();
-
       if (canceled) return;
       if (!error) setProfileSnap(data || null);
     })();
@@ -118,7 +116,7 @@ export default function UploadPage() {
       type: f.file.type,
       url: f.url,
       progress: 0,
-      state: "pending", // pending | uploading | success | error | rejected
+      state: "pending",
       message: "Waiting",
     }));
     setRows(newRows);
@@ -132,17 +130,13 @@ export default function UploadPage() {
   }
 
   function validateClientSide(file) {
-    if (!isValidImageType(file)) {
-      return "Only JPEG or PNG files are allowed.";
-    }
-    if (file.size > MAX_BYTES) {
-      return `File is too large. Limit is 10 MB. This file is ${prettyBytes(file.size)}.`;
-    }
+    if (!isValidImageType(file)) return "Only JPEG or PNG files are allowed.";
+    if (file.size > MAX_BYTES) return `File is too large. Limit is 10 MB. This file is ${prettyBytes(file.size)}.`;
     return null;
   }
 
   // Faux progress tickers
-  const tickerRefs = useRef({}); // key: index -> intervalId
+  const tickerRefs = useRef({});
 
   function startFauxProgress(idx) {
     stopFauxProgress(idx);
@@ -175,8 +169,6 @@ export default function UploadPage() {
       alert("Choose at least one file.");
       return;
     }
-
-    // All colors are optional; no confirms
 
     // Client-side checks per file
     let anyRejected = false;
@@ -236,19 +228,12 @@ export default function UploadPage() {
           upErr?.statusCode === 409 ||
           upErr?.status === 409 ||
           /already exists|resource already exists|duplicate/i.test(upErr?.message || "");
-
         const friendly = conflict
           ? `A file named "${f.name}" already exists in your folder. Rename the file and try again. Nothing was uploaded for this file.`
           : `Upload failed: ${upErr.message || "Unknown error"}`;
-
         setRows((prev) => {
           const copy = [...prev];
-          copy[i] = {
-            ...copy[i],
-            state: "error",
-            message: friendly,
-            progress: 0,
-          };
+          copy[i] = { ...copy[i], state: "error", message: friendly, progress: 0 };
           return copy;
         });
         continue;
@@ -257,7 +242,7 @@ export default function UploadPage() {
       // Insert metadata row
       const meta = {
         user_id: user.id,
-        path, // required by schema
+        path,
         filename: f.name,
         ext: extFromName(f.name),
         mime_type: f.type,
@@ -292,7 +277,6 @@ export default function UploadPage() {
           };
           return copy;
         });
-        // Clean up the just-uploaded file to avoid orphans
         await supabase.storage.from("images").remove([path]);
         continue;
       }
@@ -301,12 +285,7 @@ export default function UploadPage() {
       stopFauxProgress(i);
       setRows((prev) => {
         const copy = [...prev];
-        copy[i] = {
-          ...copy[i],
-          state: "success",
-          message: "Uploaded and saved metadata.",
-          progress: 100,
-        };
+        copy[i] = { ...copy[i], state: "success", message: "Uploaded and saved metadata.", progress: 100 };
         return copy;
       });
     }
@@ -324,7 +303,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7f_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7g_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -341,7 +320,6 @@ export default function UploadPage() {
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedCategory(val);
-                // Reset color selections when changing away
                 if (val !== BLEBS_LABEL) setBlebColor("");
                 if (val !== "Fiber Bundles") setFiberBundlesColor("");
                 if (val !== "Fibers") setFibersColor("");
@@ -356,12 +334,10 @@ export default function UploadPage() {
             </select>
           </label>
 
-          {/* Color pickers only when applicable; start blank with placeholder */}
+          {/* Color pickers, start blank with placeholder */}
           {isBlebs && (
             <label style={{ display: "block", marginBottom: 8 }}>
-              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Bleb Color (optional)
-              </span>
+              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Bleb Color (optional)</span>
               <select
                 value={blebColor}
                 onChange={(e) => setBlebColor(e.target.value)}
@@ -369,9 +345,7 @@ export default function UploadPage() {
               >
                 <option value="">Choose color (optional)</option>
                 {BLEB_COLOR_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{o}</option>
                 ))}
               </select>
             </label>
@@ -379,9 +353,7 @@ export default function UploadPage() {
 
           {isFiberBundles && (
             <label style={{ display: "block", marginBottom: 8 }}>
-              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Fiber Bundles Color (optional)
-              </span>
+              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Fiber Bundles Color (optional)</span>
               <select
                 value={fiberBundlesColor}
                 onChange={(e) => setFiberBundlesColor(e.target.value)}
@@ -389,9 +361,7 @@ export default function UploadPage() {
               >
                 <option value="">Choose color (optional)</option>
                 {FIBER_COLOR_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{o}</option>
                 ))}
               </select>
             </label>
@@ -399,9 +369,7 @@ export default function UploadPage() {
 
           {isFibers && (
             <label style={{ display: "block", marginBottom: 8 }}>
-              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Fibers Color (optional)
-              </span>
+              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Fibers Color (optional)</span>
               <select
                 value={fibersColor}
                 onChange={(e) => setFibersColor(e.target.value)}
@@ -409,15 +377,13 @@ export default function UploadPage() {
               >
                 <option value="">Choose color (optional)</option>
                 {FIBER_COLOR_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
+                  <option key={o} value={o}>{o}</option>
                 ))}
               </select>
             </label>
           )}
 
-          {/* Notes - batch level */}
+          {/* Notes */}
           <label style={{ display: "block", marginBottom: 16 }}>
             <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
               Notes (optional) - saved to each file in this batch
@@ -441,67 +407,53 @@ export default function UploadPage() {
               type="file"
               accept="image/jpeg,image/png"
               multiple
-              onChange={onChooseFiles}
+              onChange={(e) => onChooseFiles(e)}
             />
           </label>
 
-          {/* Selected files list with thumbnails and statuses */}
+          {/* Selected files list */}
           {files.length > 0 && (
             <div style={{ marginTop: 12 }}>
               {rows.map((r, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "64px 1fr",
-                    gap: 12,
-                    alignItems: "center",
-                    padding: 10,
-                    border: "1px solid #e5e5e5",
-                    borderRadius: 8,
-                    marginBottom: 8,
-                  }}
-                >
-                  <img
-                    src={r.url}
-                    alt={r.name}
-                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #ddd" }}
-                  />
+                <div key={idx} style={{
+                  display: "grid",
+                  gridTemplateColumns: "64px 1fr",
+                  gap: 12,
+                  alignItems: "center",
+                  padding: 10,
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 8,
+                  marginBottom: 8,
+                }}>
+                  <img src={r.url} alt={r.name} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #ddd" }} />
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 2 }}>{r.name}</div>
                     <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
                       {r.type} • {prettyBytes(r.size)}
                     </div>
-                    <div
-                      style={{
-                        height: 6,
-                        background: "#f3f3f3",
-                        borderRadius: 4,
-                        overflow: "hidden",
-                        marginBottom: 6,
-                      }}
-                      aria-label="Upload progress"
-                    >
-                      <div
-                        style={{
-                          width: `${r.progress}%`,
-                          height: "100%",
-                          background: r.state === "success" ? "#22c55e" : "#3b82f6",
-                          transition: "width 120ms linear",
-                        }}
-                      />
+                    <div style={{
+                      height: 6,
+                      background: "#f3f3f3",
+                      borderRadius: 4,
+                      overflow: "hidden",
+                      marginBottom: 6,
+                    }} aria-label="Upload progress">
+                      <div style={{
+                        width: `${r.progress}%`,
+                        height: "100%",
+                        background: r.state === "success" ? "#22c55e" : "#3b82f6",
+                        transition: "width 120ms linear",
+                      }} />
                     </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color:
-                          r.state === "error" || r.state === "rejected"
-                            ? "#b91c1c"
-                            : r.state === "success"
-                            ? "#065f46"
-                            : "#374151",
-                      }}
-                    >
+                    <div style={{
+                      fontSize: 13,
+                      color:
+                        r.state === "error" || r.state === "rejected"
+                          ? "#b91c1c"
+                          : r.state === "success"
+                          ? "#065f46"
+                          : "#374151",
+                    }}>
                       {r.message}
                     </div>
                   </div>
@@ -556,6 +508,7 @@ export default function UploadPage() {
     </div>
   );
 }
+
 
 
 
