@@ -1,7 +1,7 @@
-// Build: 36.7e_2025-08-19
-// Notes saved to public.image_metadata.notes
-// Writes to image_metadata.path
-// Color pickers: Blebs optional; Fiber Bundles and Fibers required (no "No color")
+// Build: 36.7f_2025-08-19
+// Adds Hairs, Skin, Wounds categories
+// Color pickers (Blebs, Fiber Bundles, Fibers) start blank; no "No color" option; selection is optional
+// Writes to image_metadata.path and saves optional notes/colors
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -20,6 +20,9 @@ const CATEGORIES = [
   "Crystalline Structures",
   "Feathers",
   "Miscellaneous",
+  "Hairs",
+  "Skin",
+  "Wounds",
 ];
 
 const BLEBS_LABEL = 'Clear--Brown "Blebs"';
@@ -54,9 +57,9 @@ export default function UploadPage() {
   const [profileSnap, setProfileSnap] = useState(null);
 
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
-  const [blebColor, setBlebColor] = useState("");
-  const [fiberBundlesColor, setFiberBundlesColor] = useState("");
-  const [fibersColor, setFibersColor] = useState("");
+  const [blebColor, setBlebColor] = useState(""); // blank unless chosen
+  const [fiberBundlesColor, setFiberBundlesColor] = useState(""); // blank unless chosen
+  const [fibersColor, setFibersColor] = useState(""); // blank unless chosen
   const [notes, setNotes] = useState("");
 
   const [files, setFiles] = useState([]); // [{file, url}]
@@ -173,21 +176,7 @@ export default function UploadPage() {
       return;
     }
 
-    // Require colors for Fiber Bundles and Fibers
-    if (isFiberBundles && !fiberBundlesColor) {
-      alert("Choose a color for Fiber Bundles.");
-      return;
-    }
-    if (isFibers && !fibersColor) {
-      alert("Choose a color for Fibers.");
-      return;
-    }
-
-    // Optional color notice for Blebs
-    if (isBlebs && blebColor === "") {
-      const ok = confirm('You selected the Blebs category without a color. Continue without a color?');
-      if (!ok) return;
-    }
+    // All colors are optional; no confirms
 
     // Client-side checks per file
     let anyRejected = false;
@@ -265,7 +254,7 @@ export default function UploadPage() {
         continue;
       }
 
-      // Insert metadata row (write to NOT NULL "path")
+      // Insert metadata row
       const meta = {
         user_id: user.id,
         path, // required by schema
@@ -287,17 +276,17 @@ export default function UploadPage() {
       const { error: insErr } = await supabase.from("image_metadata").insert(meta);
       if (insErr) {
         stopFauxProgress(i);
-        const missingNotes = /column .*notes.* does not exist/i.test(insErr.message || "");
         const missingPath = /column .*path.* does not exist/i.test(insErr.message || "");
+        const missingNotes = /column .*notes.* does not exist/i.test(insErr.message || "");
         setRows((prev) => {
           const copy = [...prev];
           copy[i] = {
             ...copy[i],
             state: "error",
-            message: missingNotes
-              ? `Metadata insert failed: "notes" column not found. Add it in Supabase, then retry.`
-              : missingPath
+            message: missingPath
               ? `Metadata insert failed: "path" column not found. Add it in Supabase, then retry.`
+              : missingNotes
+              ? `Metadata insert failed: "notes" column not found. Add it in Supabase, then retry.`
               : `Metadata insert failed: ${insErr.message}`,
             progress: 0,
           };
@@ -335,7 +324,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7e_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7f_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -352,21 +341,10 @@ export default function UploadPage() {
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedCategory(val);
-
-                // Reset unrelated colors
+                // Reset color selections when changing away
                 if (val !== BLEBS_LABEL) setBlebColor("");
-
-                if (val === "Fiber Bundles") {
-                  setFiberBundlesColor((prev) => prev || FIBER_COLOR_OPTIONS[0]);
-                } else {
-                  setFiberBundlesColor("");
-                }
-
-                if (val === "Fibers") {
-                  setFibersColor((prev) => prev || FIBER_COLOR_OPTIONS[0]);
-                } else {
-                  setFibersColor("");
-                }
+                if (val !== "Fiber Bundles") setFiberBundlesColor("");
+                if (val !== "Fibers") setFibersColor("");
               }}
               style={{ width: "100%", padding: "8px" }}
             >
@@ -378,7 +356,7 @@ export default function UploadPage() {
             </select>
           </label>
 
-          {/* Color pickers only when applicable */}
+          {/* Color pickers only when applicable; start blank with placeholder */}
           {isBlebs && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
@@ -389,7 +367,7 @@ export default function UploadPage() {
                 onChange={(e) => setBlebColor(e.target.value)}
                 style={{ width: "100%", padding: "8px" }}
               >
-                <option value="">No color</option>
+                <option value="">Choose color (optional)</option>
                 {BLEB_COLOR_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -402,14 +380,14 @@ export default function UploadPage() {
           {isFiberBundles && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Fiber Bundles Color (required)
+                Fiber Bundles Color (optional)
               </span>
               <select
                 value={fiberBundlesColor}
                 onChange={(e) => setFiberBundlesColor(e.target.value)}
                 style={{ width: "100%", padding: "8px" }}
-                required
               >
+                <option value="">Choose color (optional)</option>
                 {FIBER_COLOR_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -422,14 +400,14 @@ export default function UploadPage() {
           {isFibers && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Fibers Color (required)
+                Fibers Color (optional)
               </span>
               <select
                 value={fibersColor}
                 onChange={(e) => setFibersColor(e.target.value)}
                 style={{ width: "100%", padding: "8px" }}
-                required
               >
+                <option value="">Choose color (optional)</option>
                 {FIBER_COLOR_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -578,6 +556,7 @@ export default function UploadPage() {
     </div>
   );
 }
+
 
 
 
