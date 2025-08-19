@@ -1,6 +1,6 @@
 // pages/index.js
-// The Scope of Morgellons — Home (Profile + Gallery with category badges)
-// Build: 36.5_2025-08-18
+// The Scope of Morgellons — Home (Profile + Gallery with category badges + total count)
+// Build: 36.6c_2025-08-19
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -52,6 +52,7 @@ export default function HomePage() {
   // Gallery state
   const [items, setItems] = useState([]);
   const [loadingGallery, setLoadingGallery] = useState(false);
+  const [galleryCount, setGalleryCount] = useState(null);
 
   const signedIn = useMemo(() => Boolean(user?.id), [user]);
 
@@ -80,8 +81,8 @@ export default function HomePage() {
           });
         }
 
-        // Load gallery (newest first)
-        await loadGallery(currentUser.id);
+        // Load gallery and total count
+        await Promise.all([loadGallery(currentUser.id), loadGalleryCount(currentUser.id)]);
       }
     }
     init();
@@ -102,6 +103,18 @@ export default function HomePage() {
       return;
     }
     setItems(data);
+  }
+
+  async function loadGalleryCount(userId) {
+    const { count, error } = await supabase
+      .from("image_metadata")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if (error) {
+      setGalleryCount(null);
+      return;
+    }
+    setGalleryCount(typeof count === "number" ? count : 0);
   }
 
   function publicUrlFor(path) {
@@ -145,7 +158,7 @@ export default function HomePage() {
       {/* Header */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.5_2025-08-18</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.6c_2025-08-19</div>
       </header>
 
       {/* Shortcuts */}
@@ -225,7 +238,15 @@ export default function HomePage() {
 
       {/* Gallery */}
       <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 18, margin: "0 0 8px 0" }}>Your Gallery</h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <h2 style={{ fontSize: 18, margin: "0 0 8px 0" }}>Your Gallery</h2>
+          {signedIn ? (
+            <div style={{ fontSize: 12, color: "#111827" }}>
+              {galleryCount === null ? "…" : `${galleryCount} item${galleryCount === 1 ? "" : "s"}`}
+            </div>
+          ) : null}
+        </div>
+
         {!signedIn ? (
           <Status kind="info">Sign in to view your uploads.</Status>
         ) : loadingGallery ? (
@@ -297,4 +318,3 @@ function inputStyle() { return { width: "100%", border: "1px solid #d1d5db", bor
 function labelStyle() { return { display: "block", fontSize: 13, color: "#374151", marginBottom: 6 }; }
 function buttonStyle(disabled) { return { background: disabled ? "#9ca3af" : "#111827", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer" }; }
 function pillLinkStyle() { return { display: "inline-block", padding: "6px 10px", borderRadius: 999, border: "1px solid #e5e7eb", background: "#fff", fontSize: 13, color: "#111827", textDecoration: "none" }; }
-
