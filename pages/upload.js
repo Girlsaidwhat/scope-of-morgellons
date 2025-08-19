@@ -1,6 +1,7 @@
-// Build: 36.7d_2025-08-19
-// Upload page with batch Notes (optional) saved to public.image_metadata.notes
-// Writes to image_metadata.path; shows optional color pickers for Blebs, Fiber Bundles, and Fibers only when selected.
+// Build: 36.7e_2025-08-19
+// Notes saved to public.image_metadata.notes
+// Writes to image_metadata.path
+// Color pickers: Blebs optional; Fiber Bundles and Fibers required (no "No color")
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -172,17 +173,19 @@ export default function UploadPage() {
       return;
     }
 
-    // Optional color notices
+    // Require colors for Fiber Bundles and Fibers
+    if (isFiberBundles && !fiberBundlesColor) {
+      alert("Choose a color for Fiber Bundles.");
+      return;
+    }
+    if (isFibers && !fibersColor) {
+      alert("Choose a color for Fibers.");
+      return;
+    }
+
+    // Optional color notice for Blebs
     if (isBlebs && blebColor === "") {
       const ok = confirm('You selected the Blebs category without a color. Continue without a color?');
-      if (!ok) return;
-    }
-    if (isFiberBundles && fiberBundlesColor === "") {
-      const ok = confirm('You selected Fiber Bundles without a color. Continue without a color?');
-      if (!ok) return;
-    }
-    if (isFibers && fibersColor === "") {
-      const ok = confirm('You selected Fibers without a color. Continue without a color?');
       if (!ok) return;
     }
 
@@ -332,7 +335,7 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7d_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7e_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -349,9 +352,21 @@ export default function UploadPage() {
               onChange={(e) => {
                 const val = e.target.value;
                 setSelectedCategory(val);
+
+                // Reset unrelated colors
                 if (val !== BLEBS_LABEL) setBlebColor("");
-                if (val !== "Fiber Bundles") setFiberBundlesColor("");
-                if (val !== "Fibers") setFibersColor("");
+
+                if (val === "Fiber Bundles") {
+                  setFiberBundlesColor((prev) => prev || FIBER_COLOR_OPTIONS[0]);
+                } else {
+                  setFiberBundlesColor("");
+                }
+
+                if (val === "Fibers") {
+                  setFibersColor((prev) => prev || FIBER_COLOR_OPTIONS[0]);
+                } else {
+                  setFibersColor("");
+                }
               }}
               style={{ width: "100%", padding: "8px" }}
             >
@@ -387,14 +402,14 @@ export default function UploadPage() {
           {isFiberBundles && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Fiber Bundles Color (optional)
+                Fiber Bundles Color (required)
               </span>
               <select
                 value={fiberBundlesColor}
                 onChange={(e) => setFiberBundlesColor(e.target.value)}
                 style={{ width: "100%", padding: "8px" }}
+                required
               >
-                <option value="">No color</option>
                 {FIBER_COLOR_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -407,14 +422,14 @@ export default function UploadPage() {
           {isFibers && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-                Fibers Color (optional)
+                Fibers Color (required)
               </span>
               <select
                 value={fibersColor}
                 onChange={(e) => setFibersColor(e.target.value)}
                 style={{ width: "100%", padding: "8px" }}
+                required
               >
-                <option value="">No color</option>
                 {FIBER_COLOR_OPTIONS.map((o) => (
                   <option key={o} value={o}>
                     {o}
@@ -563,5 +578,6 @@ export default function UploadPage() {
     </div>
   );
 }
+
 
 
