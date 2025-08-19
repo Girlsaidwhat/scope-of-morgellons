@@ -1,5 +1,5 @@
-// Build: 36.10a6_2025-08-19
-// Category listing with "Load more" pagination, newest first.
+// Build: 36.10a10_2025-08-19
+// Category listing with robust "Load more": shows when count is unknown OR more pages likely exist.
 // Respects optional ?color=... for Blebs, Fiber Bundles, and Fibers.
 
 import { useEffect, useMemo, useState } from "react";
@@ -50,7 +50,7 @@ export default function CategoryPage() {
   const urlColor = typeof router.query?.color === "string" ? router.query.color : "";
 
   const [user, setUser] = useState(null);
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState(null); // null = unknown
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -75,46 +75,43 @@ export default function CategoryPage() {
       if (!mounted) return;
       setUser(data?.user ?? null);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   // Reset list when category or color changes
   useEffect(() => {
     setItems([]);
     setOffset(0);
-    setCount(0);
+    setCount(null);
     setStatus("");
   }, [categoryLabel, urlColor]);
 
-  // Fetch total count for header
+  // Fetch total count (may be unknown/null if API fails)
   useEffect(() => {
     if (!user?.id || !categoryLabel) return;
     let canceled = false;
     (async () => {
-      const q = supabase
+      const base = supabase
         .from("image_metadata")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("category", categoryLabel);
 
-      const q2 = colorColumn && urlColor ? q.eq(colorColumn, urlColor) : q;
+      const q = colorColumn && urlColor ? base.eq(colorColumn, urlColor) : base;
+      const { count: total, error } = await q;
 
-      const { count: total, error } = await q2;
       if (canceled) return;
       if (error) {
-        setStatus(`Count error: ${error.message}`);
+        // Keep count as null (unknown) and don’t block the UI
+        setCount(null);
         return;
       }
-      setCount(total || 0);
+      setCount(typeof total === "number" ? total : null);
     })();
-    return () => {
-      canceled = true;
-    };
+    return () => { canceled = true; };
   }, [user?.id, categoryLabel, colorColumn, urlColor]);
 
-  // Load a page of items (append)
+  // Load a page (append)
   async function loadMore() {
     if (!user?.id || !categoryLabel) return;
     setLoading(true);
@@ -122,17 +119,16 @@ export default function CategoryPage() {
 
     let q = supabase
       .from("image_metadata")
-      .select("id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at", {
-        count: "exact",
-      })
+      .select(
+        "id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at",
+        { count: "exact" }
+      )
       .eq("user_id", user.id)
       .eq("category", categoryLabel)
       .order("created_at", { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
 
-    if (colorColumn && urlColor) {
-      q = q.eq(colorColumn, urlColor);
-    }
+    if (colorColumn && urlColor) q = q.eq(colorColumn, urlColor);
 
     const { data, error } = await q;
 
@@ -142,8 +138,9 @@ export default function CategoryPage() {
       return;
     }
 
-    setItems((prev) => [...prev, ...(data || [])]);
-    setOffset((prev) => prev + (data?.length || 0));
+    const batch = data || [];
+    setItems((prev) => [...prev, ...batch]);
+    setOffset((prev) => prev + batch.length);
     setLoading(false);
     setStatus("");
   }
@@ -155,6 +152,15 @@ export default function CategoryPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, categoryLabel, colorColumn, urlColor]);
+
+  // Determine if more pages likely exist
+  const hasMore = useMemo(() => {
+    if (loading) return false;
+    if (items.length === 0) return false;
+    if (typeof count === "number") return items.length < count;
+    // Unknown count: show "Load more" if last page looked full
+    return items.length % PAGE_SIZE === 0;
+  }, [items.length, count, loading]);
 
   function cardColorBadge(row) {
     if (row.category === "Blebs (clear to brown)" && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
@@ -169,12 +175,10 @@ export default function CategoryPage() {
         <h1 style={{ fontSize: 24, margin: 0 }}>
           {categoryLabel || "Category"}
           {colorColumn && urlColor ? (
-            <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>
-              (filtered: {urlColor})
-            </span>
+            <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
           ) : null}
         </h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a6_2025-08-19</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a10_2025-08-19</div>
       </header>
 
       {!user ? (
@@ -182,7 +186,8 @@ export default function CategoryPage() {
       ) : (
         <>
           <div style={{ marginBottom: 12, fontSize: 14 }}>
-            Total in this category{colorColumn && urlColor ? " (filtered)" : ""}: <strong>{count}</strong>
+            Total in this category{colorColumn && urlColor ? " (filtered)" : ""}:{" "}
+            <strong>{typeof count === "number" ? count : "…"}</strong>
           </div>
 
           {status && items.length === 0 ? (
@@ -232,9 +237,9 @@ export default function CategoryPage() {
                 })}
               </div>
 
-              {/* Load more */}
+              {/* Load more / end-of-list */}
               <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-                {items.length < count ? (
+                {hasMore ? (
                   <button
                     onClick={loadMore}
                     disabled={loading}
@@ -250,9 +255,9 @@ export default function CategoryPage() {
                   >
                     {loading ? "Loading..." : "Load more"}
                   </button>
-                ) : (
+                ) : items.length > 0 ? (
                   <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
-                )}
+                ) : null}
               </div>
             </>
           )}
