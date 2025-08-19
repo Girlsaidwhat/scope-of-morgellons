@@ -1,385 +1,502 @@
-// pages/upload.js
-// The Scope of Morgellons — Upload (Batch uploads + thumbnails + clearer duplicate message)
-// Build: 36.4g_2025-08-18
+// Build: 36.7_2025-08-19
+// Upload page with batch Notes (optional) saved to public.image_metadata.notes
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Categories and Blebs color options
 const CATEGORIES = [
-  { value: "biofilm", label: "Biofilm" },
-  { value: "clear_to_brown_blebs", label: 'Clear--Brown "Blebs"' },
-  { value: "fiber_bundles", label: "Fiber Bundles" },
-  { value: "fibers", label: "Fibers" },
-  { value: "hexagons", label: "Hexagons" },
-  { value: "crystalline_structures", label: "Crystalline Structures" },
-  { value: "feathers", label: "Feathers" },
-  { value: "miscellaneous", label: "Miscellaneous" },
+  'Clear--Brown "Blebs"',
+  "Biofilm",
+  "Fiber Bundles",
+  "Fibers",
+  "Hexagons",
+  "Crystalline Structures",
+  "Feathers",
+  "Miscellaneous",
 ];
-const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 
-const Status = ({ kind = "info", children }) => {
-  const color =
-    kind === "error" ? "#b91c1c" : kind === "success" ? "#065f46" : "#374151";
-  const bg =
-    kind === "error" ? "#fee2e2" : kind === "success" ? "#d1fae5" : "#e5e7eb";
-  return (
-    <div style={{ background: bg, color, padding: "8px 10px", borderRadius: 8, fontSize: 14, marginTop: 8, whiteSpace: "pre-wrap" }}>
-      {children}
-    </div>
-  );
-};
+const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
+const BLEBS_LABEL = 'Clear--Brown "Blebs"';
+
+// File size limit in bytes (10 MB)
+const MAX_BYTES = 10 * 1024 * 1024;
+
+// Helpers
+function extFromName(name = "") {
+  const idx = name.lastIndexOf(".");
+  return idx >= 0 ? name.slice(idx + 1).toLowerCase() : "";
+}
+
+function isValidImageType(file) {
+  return file && (file.type === "image/jpeg" || file.type === "image/png");
+}
+
+function prettyBytes(n) {
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(2)} MB`;
+}
 
 export default function UploadPage() {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState({ initials: "", age: "", location: "", contact_opt_in: false });
+  const [profileSnap, setProfileSnap] = useState(null);
+
+  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
+  const [blebColor, setBlebColor] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const [files, setFiles] = useState([]); // [{file, url}]
+  const [rows, setRows] = useState([]); // per-file status rows
+  const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef(null);
 
-  const [selectedCategory, setSelectedCategory] = useState("miscellaneous");
-  const [blebColor, setBlebColor] = useState("");
-
-  // Per-file state items:
-  // { name, size, type, progress, status, msg, previewUrl, finalUrl }
-  const [filesState, setFilesState] = useState([]);
-  const [overallStatus, setOverallStatus] = useState({ type: "info", msg: "" });
-
-  const MAX_BYTES = 10 * 1024 * 1024;
-  const ALLOWED_TYPES = ["image/jpeg", "image/png"];
-
+  // Load auth user
   useEffect(() => {
     let mounted = true;
-    async function init() {
-      const { data: auth } = await supabase.auth.getUser();
-      const currentUser = auth?.user || null;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
       if (!mounted) return;
-      setUser(currentUser);
-      if (currentUser) {
-        const { data } = await supabase
-          .from("user_profile")
-          .select("initials, age, location, contact_opt_in")
-          .eq("user_id", currentUser.id)
-          .maybeSingle();
-        if (data) {
-          setProfile({
-            initials: data.initials ?? "",
-            age: data.age ?? "",
-            location: data.location ?? "",
-            contact_opt_in: !!data.contact_opt_in,
-          });
-        }
-      }
-    }
-    init();
-    return () => { mounted = false; };
+      setUser(data?.user ?? null);
+    })();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Faux progress helpers
-  function startFauxProgress(idx) {
-    let pct = 0;
-    const id = setInterval(() => {
-      pct = Math.min(pct + Math.random() * 10 + 5, 90);
-      setFilesState((prev) => {
-        const copy = [...prev];
-        if (!copy[idx]) return prev;
-        copy[idx] = { ...copy[idx], progress: Math.floor(pct) };
-        return copy;
-      });
-    }, 350);
-    return id;
+  // Load profile snapshot once user is ready
+  useEffect(() => {
+    if (!user?.id) return;
+    let canceled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_profile")
+        .select("initials, age, location, contact_opt_in")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (canceled) return;
+      if (!error) setProfileSnap(data || null);
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
+
+  // Clean up object URLs
+  useEffect(() => {
+    return () => {
+      files.forEach((f) => URL.revokeObjectURL(f.url));
+    };
+  }, [files]);
+
+  const isBlebs = selectedCategory === BLEBS_LABEL;
+
+  function resetStatuses(newFiles) {
+    const newRows = newFiles.map((f) => ({
+      name: f.file.name,
+      size: f.file.size,
+      type: f.file.type,
+      url: f.url,
+      progress: 0,
+      state: "pending", // pending | uploading | success | error | rejected
+      message: "Waiting",
+    }));
+    setRows(newRows);
   }
 
-  const signedIn = useMemo(() => Boolean(user?.id), [user]);
-  const isBlebCategory = selectedCategory === "clear_to_brown_blebs";
-  const uploadingAny = filesState.some((f) => f.status === "uploading");
+  function onChooseFiles(ev) {
+    const list = Array.from(ev.target.files || []);
+    const prepared = list.map((file) => ({ file, url: URL.createObjectURL(file) }));
+    setFiles(prepared);
+    resetStatuses(prepared);
+  }
 
-  async function handleUpload(e) {
-    e.preventDefault();
-    setOverallStatus({ type: "info", msg: "" });
-
-    if (!user) {
-      setOverallStatus({ type: "error", msg: "You must be signed in." });
-      return;
+  function validateClientSide(file) {
+    if (!isValidImageType(file)) {
+      return "Only JPEG or PNG files are allowed.";
     }
-    const picked = Array.from(fileInputRef.current?.files || []);
-    if (picked.length === 0) {
-      setOverallStatus({ type: "error", msg: "Choose at least one JPEG or PNG under 10 MB." });
-      return;
+    if (file.size > MAX_BYTES) {
+      return `File is too large. Limit is 10 MB. This file is ${prettyBytes(file.size)}.`;
+    }
+    return null;
     }
 
-    // Initialize per-file state with local previews
-    const initial = picked.map((f) => ({
-      name: f.name,
-      size: f.size,
-      type: f.type,
-      progress: 0,
-      status: "queued", // queued | uploading | success | error | skipped
-      msg: "",
-      previewUrl: URL.createObjectURL(f),
-      finalUrl: "",
-    }));
-    setFilesState(initial);
+  // Faux progress tickers kept here so we can clear them
+  const tickerRefs = useRef({}); // key: index -> intervalId
 
-    // Process sequentially
-    let successCount = 0;
-    for (let i = 0; i < picked.length; i++) {
-      const file = picked[i];
-
-      // Validate client-side
-      if (!ALLOWED_TYPES.includes(file.type)) {
-        setFilesState((prev) => {
-          const copy = [...prev];
-          copy[i] = { ...copy[i], status: "error", msg: "Only JPEG or PNG files are allowed." };
-          return copy;
-        });
-        continue;
-      }
-      if (file.size > MAX_BYTES) {
-        setFilesState((prev) => {
-          const copy = [...prev];
-          copy[i] = { ...copy[i], status: "error", msg: "File is larger than 10 MB." };
-          return copy;
-        });
-        continue;
-      }
-
-      const path = `${user.id}/${file.name}`;
-      setFilesState((prev) => {
+  function startFauxProgress(idx) {
+    stopFauxProgress(idx);
+    tickerRefs.current[idx] = setInterval(() => {
+      setRows((prev) => {
         const copy = [...prev];
-        copy[i] = { ...copy[i], status: "uploading", msg: "" };
+        const r = { ...copy[idx] };
+        if (r.progress < 90) r.progress += 1;
+        copy[idx] = r;
+        return copy;
+      });
+    }, 70);
+  }
+
+  function stopFauxProgress(idx) {
+    const id = tickerRefs.current[idx];
+    if (id) {
+      clearInterval(id);
+      delete tickerRefs.current[idx];
+    }
+  }
+
+  async function handleUpload(ev) {
+    ev.preventDefault();
+    if (!user?.id) {
+      alert("Please sign in first.");
+      return;
+    }
+    if (files.length === 0) {
+      alert("Choose at least one file.");
+      return;
+    }
+
+    // Validate category color combo
+    if (isBlebs && blebColor === "") {
+      const ok = confirm(
+        'You selected the Blebs category without a color. Continue without a color?'
+      );
+      if (!ok) return;
+    }
+
+    // Client-side checks per file
+    let anyRejected = false;
+    const nextRowsA = rows.map((r, idx) => {
+      const err = validateClientSide(files[idx].file);
+      if (err) {
+        anyRejected = true;
+        return { ...r, state: "rejected", message: err, progress: 0 };
+      }
+      return { ...r, state: "pending", message: "Ready" };
+    });
+    setRows(nextRowsA);
+    if (anyRejected && nextRowsA.every((r) => r.state === "rejected")) return;
+
+    setIsUploading(true);
+
+    // Prepare static metadata shared across the batch
+    const shared = {
+      category: selectedCategory,
+      bleb_color: isBlebs ? (blebColor || null) : null,
+      notes: notes.trim() ? notes.trim() : null,
+      uploader_initials: profileSnap?.initials ?? null,
+      uploader_age: profileSnap?.age ?? null,
+      uploader_location: profileSnap?.location ?? null,
+      uploader_contact_opt_in: profileSnap?.contact_opt_in ?? null,
+    };
+
+    // Upload each file sequentially to keep messages simple
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i].file;
+      if (rows[i].state === "rejected") continue;
+
+      // Start faux progress
+      startFauxProgress(i);
+      setRows((prev) => {
+        const copy = [...prev];
+        copy[i] = { ...copy[i], state: "uploading", message: "Uploading..." };
         return copy;
       });
 
-      const fauxId = startFauxProgress(i);
+      const path = `${user.id}/${f.name}`;
 
-      // Step 1: storage upload
-      const { error: uploadError } = await supabase.storage
+      // Upload the file to Storage
+      const { data: upData, error: upErr } = await supabase.storage
         .from("images")
-        .upload(path, file, { upsert: false, contentType: file.type });
-
-      if (uploadError) {
-        clearInterval(fauxId);
-
-        // Detect duplicate filename (exists already)
-        const errText = `${uploadError.message || ""} ${uploadError.error || ""}`.trim();
-        const isDuplicate =
-          uploadError.statusCode === 409 ||
-          /already exists|exists|duplicate/i.test(errText);
-
-        setFilesState((prev) => {
-          const copy = [...prev];
-          copy[i] = {
-            ...copy[i],
-            status: "error",
-            progress: 0,
-            msg: isDuplicate
-              ? "A file with this name already exists in your folder. Rename the file and try again."
-              : "Upload failed. Try another image or filename.",
-          };
-          return copy;
+        .upload(path, f, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: f.type,
         });
-        continue; // move to next file
-      }
 
-      // Step 2: metadata insert
-      const blebColorValue = isBlebCategory ? (blebColor || null) : null;
+      if (upErr) {
+        stopFauxProgress(i);
+        // Duplicate filename friendly message
+        const conflict =
+          upErr?.statusCode === 409 ||
+          upErr?.status === 409 ||
+          /already exists|resource already exists|duplicate/i.test(upErr?.message || "");
 
-      const { error: metaError } = await supabase.from("image_metadata").insert([{
-        user_id: user.id,
-        bucket: "images",
-        path,
-        filename: file.name,
-        category: selectedCategory,
-        bleb_color: blebColorValue,
-        uploader_initials: profile.initials?.trim() || null,
-        uploader_age: profile.age === "" ? null : Number(profile.age),
-        uploader_location: profile.location?.trim() || null,
-        uploader_contact_opt_in: !!profile.contact_opt_in,
-      }]);
+        const friendly = conflict
+          ? `A file named "${f.name}" already exists in your folder. Rename the file and try again. Nothing was uploaded for this file.`
+          : `Upload failed: ${upErr.message || "Unknown error"}`;
 
-      clearInterval(fauxId);
-
-      if (metaError) {
-        const details = [metaError.message, metaError.details, metaError.hint, metaError.code ? `code: ${metaError.code}` : null]
-          .filter(Boolean).join(" | ");
-        setFilesState((prev) => {
+        setRows((prev) => {
           const copy = [...prev];
           copy[i] = {
             ...copy[i],
-            status: "error",
+            state: "error",
+            message: friendly,
             progress: 0,
-            msg: "Upload stored, but metadata insert failed. " + details,
           };
           return copy;
         });
         continue;
       }
 
-      // Success: get a public URL so the preview persists
-      const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
-      const finalUrl = pub?.publicUrl || "";
+      // Insert metadata row
+      const meta = {
+        user_id: user.id,
+        storage_path: path,
+        filename: f.name,
+        ext: extFromName(f.name),
+        mime_type: f.type,
+        size: f.size,
+        category: shared.category,
+        bleb_color: shared.bleb_color,
+        notes: shared.notes,
+        uploader_initials: shared.uploader_initials,
+        uploader_age: shared.uploader_age,
+        uploader_location: shared.uploader_location,
+        uploader_contact_opt_in: shared.uploader_contact_opt_in,
+      };
 
-      successCount += 1;
-      setFilesState((prev) => {
+      const { error: insErr } = await supabase.from("image_metadata").insert(meta);
+      if (insErr) {
+        stopFauxProgress(i);
+        // If notes column is missing, surface a clear hint
+        const missing = /column .*notes.* does not exist/i.test(insErr.message || "");
+        setRows((prev) => {
+          const copy = [...prev];
+          copy[i] = {
+            ...copy[i],
+            state: "error",
+            message: missing
+              ? `Metadata insert failed: "notes" column not found. Add it in Supabase, then retry.`
+              : `Metadata insert failed: ${insErr.message}`,
+            progress: 0,
+          };
+          return copy;
+        });
+        // Attempt to remove the just-uploaded file to avoid orphaned files
+        await supabase.storage.from("images").remove([path]);
+        continue;
+      }
+
+      // Success
+      stopFauxProgress(i);
+      setRows((prev) => {
         const copy = [...prev];
         copy[i] = {
           ...copy[i],
-          status: "success",
+          state: "success",
+          message: "Uploaded and saved metadata.",
           progress: 100,
-          msg: "Upload successful. Metadata saved.",
-          finalUrl,
         };
         return copy;
       });
     }
 
-    // Clear file picker so user can select more
-    if (fileInputRef.current) fileInputRef.current.value = "";
-
-    // Summary status
-    const total = picked.length;
-    if (successCount === total) {
-      setOverallStatus({ type: "success", msg: `All ${total}/${total} uploads completed.` });
-    } else if (successCount === 0) {
-      setOverallStatus({ type: "error", msg: `No files completed. Check messages for each file.` });
-    } else {
-      setOverallStatus({ type: "info", msg: `${successCount}/${total} uploads completed. Check messages for any that failed.` });
-    }
+    setIsUploading(false);
   }
 
+  const totalCountText = useMemo(() => {
+    const ok = rows.filter((r) => r.state === "success").length;
+    const fail = rows.filter((r) => r.state === "error" || r.state === "rejected").length;
+    return ok + fail > 0 ? `Done. Success: ${ok} • Issues: ${fail}` : "";
+  }, [rows]);
+
   return (
-    <div style={{ maxWidth: 780, margin: "32px auto", padding: "0 16px 64px", fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif' }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>Upload Images</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4g_2025-08-18</div>
+    <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+        <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7_2025-08-19</div>
       </header>
 
-      <nav style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Link href="/" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>← Back to Profile</Link>
-        <Link href="/browse" style={{ fontSize: 13, color: "#2563eb", textDecoration: "none" }}>Browse</Link>
-      </nav>
-
-      {!signedIn ? (
-        <Status kind="info">Sign in to upload.</Status>
-      ) : (
-        <div style={{ marginTop: 12, fontSize: 13, color: "#6b7280" }}>
-          Snapshot in use: {profile.initials || "(no initials)"} {profile.age ? `• Age ${profile.age}` : ""} {profile.location ? `• ${profile.location}` : ""} {profile.contact_opt_in ? "• Open to contact" : ""}
+      {!user ? (
+        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+          Please sign in to upload.
         </div>
-      )}
+      ) : (
+        <form onSubmit={handleUpload}>
+          {/* Category */}
+          <label style={{ display: "block", marginBottom: 8 }}>
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Category</span>
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                if (e.target.value !== BLEBS_LABEL) setBlebColor("");
+              }}
+              style={{ width: "100%", padding: "8px" }}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
 
-      <section style={{ marginTop: 16 }}>
-        <form onSubmit={handleUpload} style={cardStyle()}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div>
-              <label style={labelStyle()}>Category</label>
-              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} style={inputStyle()}>
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
+          {/* Blebs color when applicable */}
+          <label style={{ display: "block", marginBottom: 8 }}>
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+              Bleb Color {isBlebs ? "(optional)" : "(not applicable)"}
+            </span>
+            <select
+              disabled={!isBlebs}
+              value={blebColor}
+              onChange={(e) => setBlebColor(e.target.value)}
+              style={{ width: "100%", padding: "8px", background: isBlebs ? "white" : "#f2f2f2" }}
+            >
+              <option value="">No color</option>
+              {BLEB_COLOR_OPTIONS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {/* Notes - batch level */}
+          <label style={{ display: "block", marginBottom: 16 }}>
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+              Notes (optional) - saved to each file in this batch
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Any details about this batch. Example: microscope settings, date taken, lighting, context."
+              style={{ width: "100%", padding: "8px", resize: "vertical" }}
+            />
+          </label>
+
+          {/* File input */}
+          <label style={{ display: "block", marginBottom: 8 }}>
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+              Select images (JPEG or PNG, up to 10 MB each)
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              multiple
+              onChange={onChooseFiles}
+            />
+          </label>
+
+          {/* Selected files list with thumbnails and statuses */}
+          {files.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {rows.map((r, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "64px 1fr",
+                    gap: 12,
+                    alignItems: "center",
+                    padding: 10,
+                    border: "1px solid #e5e5e5",
+                    borderRadius: 8,
+                    marginBottom: 8,
+                  }}
+                >
+                  <img
+                    src={r.url}
+                    alt={r.name}
+                    style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #ddd" }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>{r.name}</div>
+                    <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
+                      {r.type} • {prettyBytes(r.size)}
+                    </div>
+                    <div
+                      style={{
+                        height: 6,
+                        background: "#f3f3f3",
+                        borderRadius: 4,
+                        overflow: "hidden",
+                        marginBottom: 6,
+                      }}
+                      aria-label="Upload progress"
+                    >
+                      <div
+                        style={{
+                          width: `${r.progress}%`,
+                          height: "100%",
+                          background: r.state === "success" ? "#22c55e" : "#3b82f6",
+                          transition: "width 120ms linear",
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color:
+                          r.state === "error" || r.state === "rejected"
+                            ? "#b91c1c"
+                            : r.state === "success"
+                            ? "#065f46"
+                            : "#374151",
+                      }}
+                    >
+                      {r.message}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
+          )}
 
-            {isBlebCategory ? (
-              <div>
-                <label style={labelStyle()}>Bleb Color</label>
-                <select value={blebColor} onChange={(e) => setBlebColor(e.target.value)} style={inputStyle()}>
-                  <option value="">(Optional) Select a color</option>
-                  {BLEB_COLORS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-
-            <div>
-              <label style={labelStyle()}>Choose images (JPEG or PNG, max 10 MB each)</label>
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" multiple style={inputStyle()} />
-            </div>
-          </div>
-
-          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-            <button type="submit" disabled={!signedIn || uploadingAny} style={buttonStyle(!signedIn || uploadingAny)}>
-              {uploadingAny ? "Uploading…" : "Start Uploads"}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              type="submit"
+              disabled={!user || files.length === 0 || isUploading}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid #0f766e",
+                background: isUploading ? "#8dd3cd" : "#14b8a6",
+                color: "white",
+                cursor: isUploading ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              {isUploading ? "Uploading..." : "Upload"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                fileInputRef.current?.value && (fileInputRef.current.value = "");
+                files.forEach((f) => URL.revokeObjectURL(f.url));
+                setFiles([]);
+                setRows([]);
+              }}
+              disabled={isUploading}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid #e5e5e5",
+                background: "white",
+                cursor: isUploading ? "not-allowed" : "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Clear
             </button>
           </div>
 
-          {overallStatus.msg ? (
-            <Status kind={overallStatus.type}>{overallStatus.msg}</Status>
-          ) : (
-            <Status kind="info">Each file shows its own progress, message, and thumbnail.</Status>
+          {totalCountText && (
+            <div style={{ marginTop: 12, fontSize: 13, color: "#374151" }}>{totalCountText}</div>
           )}
         </form>
-
-        {/* Per-file statuses with thumbnails */}
-        {filesState.length > 0 ? (
-          <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
-            {filesState.map((f, idx) => (
-              <div key={`${f.name}-${idx}`} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12, background: "#fff" }}>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <div
-                    style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 8,
-                      overflow: "hidden",
-                      background: "#f3f4f6",
-                      flex: "0 0 auto",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {(f.finalUrl || f.previewUrl) ? (
-                      <img
-                        src={f.finalUrl || f.previewUrl}
-                        alt={f.name}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                        loading="lazy"
-                      />
-                    ) : null}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-                      <div
-                        style={{ fontSize: 14, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                        title={f.name}
-                      >
-                        {f.name}
-                      </div>
-                      <div style={{ fontSize: 12, color: "#6b7280" }}>{f.status}</div>
-                    </div>
-
-                    <div style={{ marginTop: 8, height: 10, background: "#e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${f.progress}%`, background: "#2563eb", transition: "width 200ms linear" }} />
-                    </div>
-
-                    {f.msg ? (
-                      <div style={{ marginTop: 8 }}>
-                        <Status kind={f.status === "success" ? "success" : f.status === "error" ? "error" : "info"}>
-                          {f.msg}
-                        </Status>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </section>
+      )}
     </div>
   );
 }
-
-// Styles
-function cardStyle() { return { border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, background: "#fff" }; }
-function inputStyle() { return { width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none" }; }
-function labelStyle() { return { display: "block", fontSize: 13, color: "#374151", marginBottom: 6 }; }
-function buttonStyle(disabled) { return { background: disabled ? "#9ca3af" : "#111827", color: "#fff", border: 0, borderRadius: 8, padding: "10px 14px", fontSize: 14, cursor: disabled ? "not-allowed" : "pointer" }; }
-
