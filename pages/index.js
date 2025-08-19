@@ -1,6 +1,6 @@
 // pages/index.js
-// The Scope of Morgellons — Home (Profile + Gallery with category badges + total count)
-// Build: 36.6c_2025-08-19
+// The Scope of Morgellons — Home (Profile + Gallery + badges + total count + CSV export)
+// Build: 36.6d_2025-08-19
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -53,6 +53,10 @@ export default function HomePage() {
   const [items, setItems] = useState([]);
   const [loadingGallery, setLoadingGallery] = useState(false);
   const [galleryCount, setGalleryCount] = useState(null);
+
+  // Export state
+  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState({ type: "info", msg: "" });
 
   const signedIn = useMemo(() => Boolean(user?.id), [user]);
 
@@ -153,12 +157,108 @@ export default function HomePage() {
     setProfileStatus({ type: "success", msg: "Profile saved." });
   }
 
+  async function fetchAllMetadata(userId) {
+    // Pull all rows in pages to respect large libraries
+    const pageSize = 1000;
+    let from = 0;
+    let all = [];
+    // Columns to export (keep in sync with inserts)
+    const cols = [
+      "id",
+      "user_id",
+      "bucket",
+      "path",
+      "filename",
+      "category",
+      "bleb_color",
+      "uploader_initials",
+      "uploader_age",
+      "uploader_location",
+      "uploader_contact_opt_in",
+      "created_at",
+    ];
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("image_metadata")
+        .select(cols.join(","))
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        throw new Error(error.message || "Query failed");
+      }
+
+      const chunk = Array.isArray(data) ? data : [];
+      all = all.concat(chunk);
+      if (chunk.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return all;
+  }
+
+  function toCsv(rows) {
+    const headers = [
+      "id",
+      "user_id",
+      "bucket",
+      "path",
+      "filename",
+      "category",
+      "bleb_color",
+      "uploader_initials",
+      "uploader_age",
+      "uploader_location",
+      "uploader_contact_opt_in",
+      "created_at",
+    ];
+    const esc = (v) => {
+      if (v === null || v === undefined) return "";
+      const s = String(v);
+      // Escape quotes by doubling them, wrap in quotes
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+    const lines = [headers.map(esc).join(",")];
+    for (const r of rows) {
+      lines.push(headers.map((h) => esc(r[h])).join(","));
+    }
+    return lines.join("\r\n");
+  }
+
+  async function handleExportCsv() {
+    if (!user) return;
+    setExporting(true);
+    setExportStatus({ type: "info", msg: "" });
+
+    try {
+      const rows = await fetchAllMetadata(user.id);
+      const csv = toCsv(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const today = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `morgellons-image-metadata-${today}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setExportStatus({ type: "success", msg: `Exported ${rows.length} row(s).` });
+    } catch (err) {
+      setExportStatus({ type: "error", msg: "Export failed. " + (err?.message || "") });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: 980, margin: "32px auto", padding: "0 16px 64px", fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif' }}>
       {/* Header */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.6c_2025-08-19</div>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.6d_2025-08-19</div>
       </header>
 
       {/* Shortcuts */}
@@ -238,14 +338,34 @@ export default function HomePage() {
 
       {/* Gallery */}
       <section style={{ marginTop: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
           <h2 style={{ fontSize: 18, margin: "0 0 8px 0" }}>Your Gallery</h2>
-          {signedIn ? (
-            <div style={{ fontSize: 12, color: "#111827" }}>
-              {galleryCount === null ? "…" : `${galleryCount} item${galleryCount === 1 ? "" : "s"}`}
-            </div>
-          ) : null}
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {signedIn ? (
+              <div style={{ fontSize: 12, color: "#111827" }}>
+                {galleryCount === null ? "…" : `${galleryCount} item${galleryCount === 1 ? "" : "s"}`}
+              </div>
+            ) : null}
+            <button
+              onClick={handleExportCsv}
+              disabled={!signedIn || exporting}
+              style={{
+                background: (!signedIn || exporting) ? "#9ca3af" : "#111827",
+                color: "#fff",
+                border: 0,
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 13,
+                cursor: (!signedIn || exporting) ? "not-allowed" : "pointer",
+              }}
+              title="Download CSV of your image metadata"
+            >
+              {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+          </div>
         </div>
+
+        {exportStatus.msg ? <Status kind={exportStatus.type}>{exportStatus.msg}</Status> : null}
 
         {!signedIn ? (
           <Status kind="info">Sign in to view your uploads.</Status>
