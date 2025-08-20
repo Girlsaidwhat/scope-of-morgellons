@@ -1,5 +1,5 @@
-// Build: 36.10a11_2025-08-19
-// Dedicated Blebs (clear to brown) page with robust "Load more" pagination and clear empty states.
+// Build: 36.10c_2025-08-20
+// Dedicated Blebs page with robust pagination; per-page header build tag removed (global badge remains).
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -145,7 +145,7 @@ export default function BlebsCategoryPage() {
             <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
           ) : null}
         </h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a11_2025-08-19</div>
+        {/* Per-page build tag removed; global badge in _app.js is the single source of truth. */}
       </header>
 
       {!user ? (
