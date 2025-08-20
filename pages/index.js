@@ -1,7 +1,5 @@
-// Build: 36.11_2025-08-20
-// Home: Profile form + gallery with "Load more" pagination, CSV export,
-// and per-card actions: "Copy image link" + "Open image".
-// No per-page build header (global badge is the source of truth).
+// Build: 36.12_2025-08-20
+// Home: same features + a11y improvements (main landmark, aria-live statuses, button labels).
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -30,7 +28,6 @@ function Badge({ children }) {
 }
 
 export default function HomePage() {
-  // Auth/user
   const [user, setUser] = useState(null);
 
   // Profile form
@@ -41,16 +38,15 @@ export default function HomePage() {
   const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
-  const [count, setCount] = useState(null); // null = unknown
+  const [count, setCount] = useState(null);
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [galleryStatus, setGalleryStatus] = useState("");
 
-  // Per-card "copied!" feedback
-  const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
+  const [copiedMap, setCopiedMap] = useState({});
 
-  // Load user
+  // Auth
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -61,7 +57,7 @@ export default function HomePage() {
     return () => { mounted = false; };
   }, []);
 
-  // Load profile for signed-in user
+  // Load profile
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -107,7 +103,7 @@ export default function HomePage() {
     setTimeout(() => setProfileStatus(""), 1500);
   }
 
-  // Reset gallery when user changes (or after sign-in)
+  // Reset gallery on user change
   useEffect(() => {
     setItems([]);
     setOffset(0);
@@ -116,7 +112,7 @@ export default function HomePage() {
     setCopiedMap({});
   }, [user?.id]);
 
-  // Fetch total count (header)
+  // Count
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -127,7 +123,7 @@ export default function HomePage() {
         .eq("user_id", user.id);
       if (canceled) return;
       if (error) {
-        setCount(null); // unknown; do not block UI
+        setCount(null);
         return;
       }
       setCount(typeof total === "number" ? total : null);
@@ -135,12 +131,11 @@ export default function HomePage() {
     return () => { canceled = true; };
   }, [user?.id]);
 
-  // Load a page of gallery items (append)
+  // Load a page
   async function loadMore() {
     if (!user?.id) return;
     setLoading(true);
     setGalleryStatus(items.length === 0 ? "Loading..." : "");
-
     const { data, error } = await supabase
       .from("image_metadata")
       .select("id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at")
@@ -161,7 +156,7 @@ export default function HomePage() {
     setLoading(false);
   }
 
-  // Initial gallery load
+  // Initial load
   useEffect(() => {
     if (user?.id && offset === 0 && items.length === 0) {
       loadMore();
@@ -169,15 +164,14 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Determine if more pages likely exist
   const hasMore = useMemo(() => {
     if (loading) return false;
     if (items.length === 0) return false;
     if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0; // unknown count: offer more if the last page was full
+    return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
-  // CSV export (all rows for signed-in user)
+  // CSV export
   async function exportCSV() {
     if (!user?.id) return;
     const { data, error } = await supabase
@@ -239,7 +233,7 @@ export default function HomePage() {
         delete n[id];
         return n;
       }), 1000);
-    } catch (err) {
+    } catch {
       alert("Copy failed.");
     }
   }
@@ -253,7 +247,7 @@ export default function HomePage() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       {/* Header */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Home</h1>
@@ -271,6 +265,7 @@ export default function HomePage() {
         <>
           <form
             onSubmit={saveProfile}
+            aria-labelledby="profile-form-heading"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
@@ -282,17 +277,22 @@ export default function HomePage() {
               marginBottom: 16,
             }}
           >
+            <h2 id="profile-form-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>
+              Profile
+            </h2>
             <div>
-              <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Initials</label>
+              <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Initials</label>
               <input
+                id="initials"
                 value={initials}
                 onChange={(e) => setInitials(e.target.value)}
                 style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
               />
             </div>
             <div>
-              <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Age</label>
+              <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Age</label>
               <input
+                id="age"
                 type="number"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
@@ -300,8 +300,9 @@ export default function HomePage() {
               />
             </div>
             <div>
-              <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Location</label>
+              <label htmlFor="location" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Location</label>
               <input
+                id="location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
@@ -319,6 +320,7 @@ export default function HomePage() {
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button
                 type="submit"
+                aria-label="Save profile"
                 style={{
                   padding: "10px 14px",
                   borderRadius: 8,
@@ -331,7 +333,9 @@ export default function HomePage() {
               >
                 Save Profile
               </button>
-              {profileStatus ? <span style={{ fontSize: 12, opacity: 0.8 }}>{profileStatus}</span> : null}
+              <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+                {profileStatus}
+              </span>
             </div>
           </form>
 
@@ -342,6 +346,7 @@ export default function HomePage() {
             </a>
             <button
               onClick={exportCSV}
+              aria-label="Export all image metadata to CSV"
               style={{
                 padding: "8px 12px",
                 borderRadius: 8,
@@ -357,15 +362,17 @@ export default function HomePage() {
           </div>
 
           {/* Gallery status */}
-          {galleryStatus && items.length === 0 ? (
-            <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, marginBottom: 12 }}>
-              {galleryStatus}
-            </div>
-          ) : null}
+          <div role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 12 }}>
+            {galleryStatus && items.length === 0 ? (
+              <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{galleryStatus}</div>
+            ) : null}
+          </div>
 
           {/* Gallery grid */}
           {items.length > 0 ? (
             <div
+              role="list"
+              aria-label="Your images"
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
@@ -378,6 +385,7 @@ export default function HomePage() {
                 const copied = !!copiedMap[row.id];
                 return (
                   <a
+                    role="listitem"
                     key={row.id}
                     href={`/image/${row.id}`}
                     style={{
@@ -389,6 +397,7 @@ export default function HomePage() {
                       overflow: "hidden",
                       background: "#fff",
                     }}
+                    aria-label={`Open details for ${row.filename}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -415,6 +424,7 @@ export default function HomePage() {
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <button
                           onClick={(e) => handleCopy(e, url, row.id)}
+                          aria-label={`Copy public link for ${row.filename}`}
                           style={{
                             padding: "6px 10px",
                             borderRadius: 8,
@@ -424,13 +434,13 @@ export default function HomePage() {
                             fontSize: 12,
                             fontWeight: 600,
                           }}
-                          aria-label="Copy image link"
                           title="Copy image link"
                         >
                           {copied ? "Link copied!" : "Copy image link"}
                         </button>
                         <button
                           onClick={(e) => handleOpen(e, url)}
+                          aria-label={`Open ${row.filename} in a new tab`}
                           style={{
                             padding: "6px 10px",
                             borderRadius: 8,
@@ -440,7 +450,6 @@ export default function HomePage() {
                             fontSize: 12,
                             fontWeight: 600,
                           }}
-                          aria-label="Open image in new tab"
                           title="Open image in new tab"
                         >
                           Open image
@@ -461,6 +470,7 @@ export default function HomePage() {
               <button
                 onClick={loadMore}
                 disabled={loading}
+                aria-label="Load more images"
                 style={{
                   padding: "10px 14px",
                   borderRadius: 8,
@@ -479,7 +489,9 @@ export default function HomePage() {
           </div>
         </>
       )}
-    </div>
+    </main>
   );
 }
+
+
 

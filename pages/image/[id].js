@@ -1,6 +1,5 @@
-// Build: 36.9_2025-08-20
-// Image Detail: large preview, metadata, editable Notes, and SAFE DELETE for own images.
-// Delete flow: confirm -> delete Storage object -> delete DB row -> redirect Home.
+// Build: 36.12_2025-08-20
+// Image Detail a11y: main landmark, aria-live statuses, labeled buttons. Features unchanged.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -50,7 +49,7 @@ export default function ImageDetailPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Load the image row for this user+id
+  // Load row
   useEffect(() => {
     if (!user?.id || !id) return;
     let canceled = false;
@@ -121,8 +120,7 @@ export default function ImageDetailPage() {
     setDeleting(true);
     setStatus("Deleting...");
 
-    // 1) Delete the Storage object first (so we never orphan it).
-    // If it's already missing, continue to DB delete.
+    // 1) Storage delete
     const removeRes = await supabase.storage.from("images").remove([row.path]);
     if (removeRes.error && !/Not Found|does not exist/i.test(removeRes.error.message)) {
       setStatus(`Storage delete error: ${removeRes.error.message}`);
@@ -130,7 +128,7 @@ export default function ImageDetailPage() {
       return;
     }
 
-    // 2) Delete the DB row (RLS: only own row)
+    // 2) Row delete
     const { error: dbErr } = await supabase
       .from("image_metadata")
       .delete()
@@ -143,7 +141,6 @@ export default function ImageDetailPage() {
       return;
     }
 
-    // 3) Redirect Home with a small flag
     setStatus("Deleted.");
     setTimeout(() => {
       router.push("/?deleted=1");
@@ -159,10 +156,11 @@ export default function ImageDetailPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <button
           onClick={() => (typeof window !== "undefined" ? window.history.back() : (router.push("/"), null))}
+          aria-label="Go back"
           style={{
             padding: "6px 10px",
             borderRadius: 8,
@@ -179,14 +177,15 @@ export default function ImageDetailPage() {
       {!user ? (
         <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>Please sign in to view this page.</div>
       ) : loading ? (
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{status || "Loading..."}</div>
+        <div role="status" aria-live="polite" aria-atomic="true" style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+          {status || "Loading..."}
+        </div>
       ) : !row ? (
         <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
           Not found or not accessible.
         </div>
       ) : (
         <>
-          {/* Preview + side panel */}
           <div
             style={{
               display: "grid",
@@ -235,10 +234,11 @@ export default function ImageDetailPage() {
                 </div>
 
                 {/* Danger zone */}
-                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
+                    aria-label="Delete this image"
                     style={{
                       padding: "8px 12px",
                       borderRadius: 8,
@@ -251,13 +251,16 @@ export default function ImageDetailPage() {
                   >
                     {deleting ? "Deleting..." : "Delete image"}
                   </button>
-                  {status ? <span style={{ fontSize: 12, opacity: 0.8 }}>{status}</span> : null}
+                  <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+                    {status}
+                  </span>
                 </div>
               </div>
 
               {/* Notes */}
               <form
                 onSubmit={saveNotes}
+                aria-labelledby="notes-heading"
                 style={{
                   border: "1px solid #e5e5e5",
                   borderRadius: 10,
@@ -265,10 +268,14 @@ export default function ImageDetailPage() {
                   padding: 12,
                 }}
               >
-                <label style={{ fontSize: 12, display: "block", marginBottom: 6 }}>
+                <h2 id="notes-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>
+                  Notes
+                </h2>
+                <label htmlFor="notes" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>
                   Notes (optional)
                 </label>
                 <textarea
+                  id="notes"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Add notes about this image…"
@@ -279,6 +286,7 @@ export default function ImageDetailPage() {
                   <button
                     type="submit"
                     disabled={saving}
+                    aria-label="Save notes"
                     style={{
                       padding: "10px 14px",
                       borderRadius: 8,
@@ -291,7 +299,9 @@ export default function ImageDetailPage() {
                   >
                     {saving ? "Saving..." : "Save Notes"}
                   </button>
-                  {status && !deleting ? <span style={{ fontSize: 12, opacity: 0.8 }}>{status}</span> : null}
+                  <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+                    {status && !deleting ? status : ""}
+                  </span>
                 </div>
               </form>
 
@@ -316,7 +326,8 @@ export default function ImageDetailPage() {
           </div>
         </>
       )}
-    </div>
+    </main>
   );
 }
+
 

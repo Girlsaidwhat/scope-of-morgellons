@@ -1,24 +1,21 @@
-// Build: 36.10c5_2025-08-20
-// Global build tag overlay + robust client-side cleanup for any per-page "Build ..." labels.
+// Build: 36.12_2025-08-20
+// Global build tag + cleanup of old per-page labels + "Skip to content" link.
 
 import { useEffect } from "react";
 
 function BuildBadge() {
-  const TAG = "36.10c5_2025-08-20"; // single source of truth
+  const TAG = "36.12_2025-08-20"; // single source of truth
 
   // Remove any leftover per-page "Build ..." elements after hydration, but keep our global badge.
   useEffect(() => {
     try {
       const badge = document.getElementById("global-build-badge");
       const insideBadge = (el) => !!badge && badge.contains(el);
-
       const all = Array.from(document.querySelectorAll("body *"));
       for (const el of all) {
-        if (insideBadge(el)) continue; // keep the global badge intact
+        if (insideBadge(el)) continue;
         const txt = (el.textContent || "").trim();
-        // Match "Build 123..." or "Build: 123..." (header-style tags we used before)
         if (/^Build(?::|\s)\s*\S+/.test(txt)) {
-          // Avoid removing truly fixed overlays (paranoia guard)
           const style = window.getComputedStyle(el);
           if (style.position !== "fixed") {
             el.parentElement?.removeChild(el);
@@ -53,13 +50,47 @@ function BuildBadge() {
   );
 }
 
+function SkipLink() {
+  const style = {
+    position: "fixed",
+    top: 8,
+    left: 8,
+    padding: "8px 12px",
+    background: "#fff",
+    border: "2px solid #0f766e",
+    color: "#0f766e",
+    borderRadius: 8,
+    zIndex: 100000,
+    transform: "translateY(-150%)",
+  };
+  const styleFocus = {
+    ...style,
+    transform: "translateY(0)",
+  };
+
+  return (
+    <a
+      href="#main"
+      onFocus={(e) => (e.currentTarget.style.transform = "translateY(0)")}
+      onBlur={(e) => (e.currentTarget.style.transform = "translateY(-150%)")}
+      aria-label="Skip to main content"
+      style={style}
+    >
+      Skip to content
+    </a>
+  );
+}
+
 export default function MyApp({ Component, pageProps }) {
   return (
     <>
+      <SkipLink />
       <Component {...pageProps} />
       <BuildBadge />
     </>
   );
 }
+
+
 
 

@@ -1,6 +1,5 @@
-// Build: 36.11_2025-08-20
-// Dedicated Blebs page with robust pagination + per-card actions: "Copy image link" + "Open image".
-// No per-page build header (global badge is the source of truth).
+// Build: 36.12_2025-08-20
+// Blebs page a11y: main landmark, aria-live statuses, labeled buttons. Keeps pagination and filters.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -36,16 +35,15 @@ export default function BlebsCategoryPage() {
   const urlColor = typeof router.query?.color === "string" ? router.query.color : "";
 
   const [user, setUser] = useState(null);
-  const [count, setCount] = useState(null); // null = unknown
+  const [count, setCount] = useState(null);
   const [items, setItems] = useState([]);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
-  // Per-card "copied!" feedback
   const [copiedMap, setCopiedMap] = useState({});
 
-  // Load user
+  // Auth
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -56,7 +54,7 @@ export default function BlebsCategoryPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Reset list when filter changes
+  // Reset list
   useEffect(() => {
     setItems([]);
     setOffset(0);
@@ -65,7 +63,7 @@ export default function BlebsCategoryPage() {
     setCopiedMap({});
   }, [urlColor]);
 
-  // Fetch total count (may be unknown/null if API fails)
+  // Count
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -81,7 +79,7 @@ export default function BlebsCategoryPage() {
 
       if (canceled) return;
       if (error) {
-        setCount(null); // unknown, but don’t block UI
+        setCount(null);
         return;
       }
       setCount(typeof total === "number" ? total : null);
@@ -89,7 +87,7 @@ export default function BlebsCategoryPage() {
     return () => { canceled = true; };
   }, [user?.id, urlColor]);
 
-  // Load a page (append)
+  // Load page
   async function loadMore() {
     if (!user?.id) return;
     setLoading(true);
@@ -120,7 +118,7 @@ export default function BlebsCategoryPage() {
     setStatus("");
   }
 
-  // Initial load
+  // Initial
   useEffect(() => {
     if (user?.id && offset === 0 && items.length === 0) {
       loadMore();
@@ -128,12 +126,11 @@ export default function BlebsCategoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, urlColor]);
 
-  // Determine if more pages likely exist
   const hasMore = useMemo(() => {
     if (loading) return false;
     if (items.length === 0) return false;
     if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0; // unknown count: if last page was full, offer more
+    return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
   function cardColorBadge(row) {
@@ -166,7 +163,7 @@ export default function BlebsCategoryPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>
           {CATEGORY_LABEL}
@@ -174,7 +171,6 @@ export default function BlebsCategoryPage() {
             <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
           ) : null}
         </h1>
-        {/* No per-page build tag; global badge is the source of truth. */}
       </header>
 
       {!user ? (
@@ -186,13 +182,17 @@ export default function BlebsCategoryPage() {
             <strong>{typeof count === "number" ? count : "…"}</strong>
           </div>
 
-          {status && items.length === 0 ? (
-            <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{status}</div>
-          ) : null}
+          <div role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 12 }}>
+            {status && items.length === 0 ? (
+              <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{status}</div>
+            ) : null}
+          </div>
 
           {/* Grid */}
           {items.length > 0 ? (
             <div
+              role="list"
+              aria-label={`${CATEGORY_LABEL} images`}
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
@@ -205,8 +205,10 @@ export default function BlebsCategoryPage() {
                 const copied = !!copiedMap[row.id];
                 return (
                   <a
+                    role="listitem"
                     key={row.id}
                     href={`/image/${row.id}`}
+                    aria-label={`Open details for ${row.filename}`}
                     style={{
                       display: "block",
                       textDecoration: "none",
@@ -234,6 +236,7 @@ export default function BlebsCategoryPage() {
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <button
                           onClick={(e) => handleCopy(e, url, row.id)}
+                          aria-label={`Copy public link for ${row.filename}`}
                           style={{
                             padding: "6px 10px",
                             borderRadius: 8,
@@ -243,13 +246,13 @@ export default function BlebsCategoryPage() {
                             fontSize: 12,
                             fontWeight: 600,
                           }}
-                          aria-label="Copy image link"
                           title="Copy image link"
                         >
                           {copied ? "Link copied!" : "Copy image link"}
                         </button>
                         <button
                           onClick={(e) => handleOpen(e, url)}
+                          aria-label={`Open ${row.filename} in a new tab`}
                           style={{
                             padding: "6px 10px",
                             borderRadius: 8,
@@ -259,7 +262,6 @@ export default function BlebsCategoryPage() {
                             fontSize: 12,
                             fontWeight: 600,
                           }}
-                          aria-label="Open image in new tab"
                           title="Open image in new tab"
                         >
                           Open image
@@ -278,6 +280,7 @@ export default function BlebsCategoryPage() {
               <button
                 onClick={loadMore}
                 disabled={loading}
+                aria-label="Load more images"
                 style={{
                   padding: "10px 14px",
                   borderRadius: 8,
@@ -298,7 +301,7 @@ export default function BlebsCategoryPage() {
           </div>
         </>
       )}
-    </div>
+    </main>
   );
 }
 
