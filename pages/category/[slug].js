@@ -1,6 +1,5 @@
-// Build: 36.10a10_2025-08-19
-// Category listing with robust "Load more": shows when count is unknown OR more pages likely exist.
-// Respects optional ?color=... for Blebs, Fiber Bundles, and Fibers.
+// Build: 36.10c2_2025-08-20
+// Category listing with robust pagination; per-page header build tag removed (global badge remains).
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -102,8 +101,7 @@ export default function CategoryPage() {
 
       if (canceled) return;
       if (error) {
-        // Keep count as null (unknown) and don’t block the UI
-        setCount(null);
+        setCount(null); // unknown; don’t block UI
         return;
       }
       setCount(typeof total === "number" ? total : null);
@@ -178,7 +176,7 @@ export default function CategoryPage() {
             <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
           ) : null}
         </h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.10a10_2025-08-19</div>
+        {/* Per-page build tag removed; global badge in _app.js is the single source of truth. */}
       </header>
 
       {!user ? (
@@ -266,3 +264,4 @@ export default function CategoryPage() {
     </div>
   );
 }
+
