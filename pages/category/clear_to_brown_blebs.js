@@ -1,5 +1,6 @@
-// Build: 36.10c_2025-08-20
-// Dedicated Blebs page with robust pagination; per-page header build tag removed (global badge remains).
+// Build: 36.11_2025-08-20
+// Dedicated Blebs page with robust pagination + per-card actions: "Copy image link" + "Open image".
+// No per-page build header (global badge is the source of truth).
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -41,6 +42,9 @@ export default function BlebsCategoryPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
+  // Per-card "copied!" feedback
+  const [copiedMap, setCopiedMap] = useState({});
+
   // Load user
   useEffect(() => {
     let mounted = true;
@@ -58,6 +62,7 @@ export default function BlebsCategoryPage() {
     setOffset(0);
     setCount(null);
     setStatus("");
+    setCopiedMap({});
   }, [urlColor]);
 
   // Fetch total count (may be unknown/null if API fails)
@@ -136,6 +141,30 @@ export default function BlebsCategoryPage() {
     return null;
   }
 
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => setCopiedMap((m) => {
+        const n = { ...m };
+        delete n[id];
+        return n;
+      }), 1000);
+    } catch {
+      alert("Copy failed.");
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
@@ -145,7 +174,7 @@ export default function BlebsCategoryPage() {
             <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
           ) : null}
         </h1>
-        {/* Per-page build tag removed; global badge in _app.js is the single source of truth. */}
+        {/* No per-page build tag; global badge is the source of truth. */}
       </header>
 
       {!user ? (
@@ -173,6 +202,7 @@ export default function BlebsCategoryPage() {
               {items.map((row) => {
                 const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
                 const url = pub?.publicUrl || "";
+                const copied = !!copiedMap[row.id];
                 return (
                   <a
                     key={row.id}
@@ -199,6 +229,42 @@ export default function BlebsCategoryPage() {
                         {cardColorBadge(row)}
                       </div>
                       <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
+
+                      {/* Card actions */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={(e) => handleCopy(e, url, row.id)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: "1px solid #cbd5e1",
+                            background: "#f8fafc",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                          aria-label="Copy image link"
+                          title="Copy image link"
+                        >
+                          {copied ? "Link copied!" : "Copy image link"}
+                        </button>
+                        <button
+                          onClick={(e) => handleOpen(e, url)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: "1px solid #cbd5e1",
+                            background: "#f8fafc",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                          aria-label="Open image in new tab"
+                          title="Open image in new tab"
+                        >
+                          Open image
+                        </button>
+                      </div>
                     </div>
                   </a>
                 );
@@ -226,7 +292,7 @@ export default function BlebsCategoryPage() {
               </button>
             ) : items.length > 0 ? (
               <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
-            ) : status ? null : (
+            ) : (
               <div style={{ fontSize: 12, opacity: 0.7 }}>No items in this category yet.</div>
             )}
           </div>
@@ -235,4 +301,5 @@ export default function BlebsCategoryPage() {
     </div>
   );
 }
+
 

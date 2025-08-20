@@ -1,6 +1,7 @@
-// Build: 36.10b_2025-08-20
-// Home: Profile form + gallery with "Load more" pagination and CSV export.
-// Keeps: sign-in flow, category/color badges, newest-first ordering, header count.
+// Build: 36.11_2025-08-20
+// Home: Profile form + gallery with "Load more" pagination, CSV export,
+// and per-card actions: "Copy image link" + "Open image".
+// No per-page build header (global badge is the source of truth).
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -46,6 +47,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [galleryStatus, setGalleryStatus] = useState("");
 
+  // Per-card "copied!" feedback
+  const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
+
   // Load user
   useEffect(() => {
     let mounted = true;
@@ -69,7 +73,6 @@ export default function HomePage() {
         .single();
       if (canceled) return;
       if (error && error.code !== "PGRST116") {
-        // Ignore "No rows found" (PGRST116); surface others lightly
         setProfileStatus(`Profile load error: ${error.message}`);
         return;
       }
@@ -110,6 +113,7 @@ export default function HomePage() {
     setOffset(0);
     setCount(null);
     setGalleryStatus("");
+    setCopiedMap({});
   }, [user?.id]);
 
   // Fetch total count (header)
@@ -193,7 +197,6 @@ export default function HomePage() {
       return;
     }
 
-    // Build CSV
     const headers = Object.keys(rows[0]);
     const csv = [
       headers.join(","),
@@ -223,6 +226,30 @@ export default function HomePage() {
     if (row.category === "Fiber Bundles" && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
     if (row.category === "Fibers" && row.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
     return null;
+  }
+
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => setCopiedMap((m) => {
+        const n = { ...m };
+        delete n[id];
+        return n;
+      }), 1000);
+    } catch (err) {
+      alert("Copy failed.");
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
   }
 
   return (
@@ -348,6 +375,7 @@ export default function HomePage() {
               {items.map((row) => {
                 const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
                 const url = pub?.publicUrl || "";
+                const copied = !!copiedMap[row.id];
                 return (
                   <a
                     key={row.id}
@@ -382,6 +410,42 @@ export default function HomePage() {
                         ) : null}
                       </div>
                       <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
+
+                      {/* Card actions */}
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={(e) => handleCopy(e, url, row.id)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: "1px solid #cbd5e1",
+                            background: "#f8fafc",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                          aria-label="Copy image link"
+                          title="Copy image link"
+                        >
+                          {copied ? "Link copied!" : "Copy image link"}
+                        </button>
+                        <button
+                          onClick={(e) => handleOpen(e, url)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: "1px solid #cbd5e1",
+                            background: "#f8fafc",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            fontWeight: 600,
+                          }}
+                          aria-label="Open image in new tab"
+                          title="Open image in new tab"
+                        >
+                          Open image
+                        </button>
+                      </div>
                     </div>
                   </a>
                 );
@@ -418,3 +482,4 @@ export default function HomePage() {
     </div>
   );
 }
+

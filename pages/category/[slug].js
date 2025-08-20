@@ -1,5 +1,6 @@
-// Build: 36.10c2_2025-08-20
-// Category listing with robust pagination; per-page header build tag removed (global badge remains).
+// Build: 36.11_2025-08-20
+// Category listing with robust pagination + per-card actions: "Copy image link" + "Open image".
+// Respects optional ?color=... for Blebs, Fiber Bundles, and Fibers. No per-page build header.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -55,6 +56,9 @@ export default function CategoryPage() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
+  // Per-card "copied!" feedback
+  const [copiedMap, setCopiedMap] = useState({});
+
   const categoryLabel = useMemo(() => SLUG_TO_CATEGORY[slug] || "", [slug]);
 
   // Which color column (if any) applies to this category?
@@ -83,6 +87,7 @@ export default function CategoryPage() {
     setOffset(0);
     setCount(null);
     setStatus("");
+    setCopiedMap({});
   }, [categoryLabel, urlColor]);
 
   // Fetch total count (may be unknown/null if API fails)
@@ -167,6 +172,30 @@ export default function CategoryPage() {
     return null;
   }
 
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => setCopiedMap((m) => {
+        const n = { ...m };
+        delete n[id];
+        return n;
+      }), 1000);
+    } catch {
+      alert("Copy failed.");
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
@@ -176,7 +205,7 @@ export default function CategoryPage() {
             <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
           ) : null}
         </h1>
-        {/* Per-page build tag removed; global badge in _app.js is the single source of truth. */}
+        {/* No per-page build tag; global badge is the source of truth. */}
       </header>
 
       {!user ? (
@@ -203,6 +232,7 @@ export default function CategoryPage() {
                 {items.map((row) => {
                   const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
                   const url = pub?.publicUrl || "";
+                  const copied = !!copiedMap[row.id];
                   return (
                     <a
                       key={row.id}
@@ -229,6 +259,42 @@ export default function CategoryPage() {
                           {cardColorBadge(row)}
                         </div>
                         <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
+
+                        {/* Card actions */}
+                        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                          <button
+                            onClick={(e) => handleCopy(e, url, row.id)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 8,
+                              border: "1px solid #cbd5e1",
+                              background: "#f8fafc",
+                              cursor: "pointer",
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                            aria-label="Copy image link"
+                            title="Copy image link"
+                          >
+                            {copied ? "Link copied!" : "Copy image link"}
+                          </button>
+                          <button
+                            onClick={(e) => handleOpen(e, url)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 8,
+                              border: "1px solid #cbd5e1",
+                              background: "#f8fafc",
+                              cursor: "pointer",
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                            aria-label="Open image in new tab"
+                            title="Open image in new tab"
+                          >
+                            Open image
+                          </button>
+                        </div>
                       </div>
                     </a>
                   );
@@ -264,4 +330,5 @@ export default function CategoryPage() {
     </div>
   );
 }
+
 
