@@ -1,6 +1,6 @@
-// Build: 36.8_2025-08-20
-// Image Detail: large preview, metadata, and editable Notes for the signed-in user's own image.
-// Uses RLS-safe update (user_id match). No per-page header build text; global badge applies.
+// Build: 36.9_2025-08-20
+// Image Detail: large preview, metadata, editable Notes, and SAFE DELETE for own images.
+// Delete flow: confirm -> delete Storage object -> delete DB row -> redirect Home.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -37,6 +37,7 @@ export default function ImageDetailPage() {
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Auth
   useEffect(() => {
@@ -112,7 +113,44 @@ export default function ImageDetailPage() {
     setTimeout(() => setStatus(""), 1500);
   }
 
-  function cardColorBadge() {
+  async function handleDelete() {
+    if (!user?.id || !row?.id) return;
+    const ok = window.confirm(`Delete this image and its metadata?\n\n${row.filename}\n\nThis cannot be undone.`);
+    if (!ok) return;
+
+    setDeleting(true);
+    setStatus("Deleting...");
+
+    // 1) Delete the Storage object first (so we never orphan it).
+    // If it's already missing, continue to DB delete.
+    const removeRes = await supabase.storage.from("images").remove([row.path]);
+    if (removeRes.error && !/Not Found|does not exist/i.test(removeRes.error.message)) {
+      setStatus(`Storage delete error: ${removeRes.error.message}`);
+      setDeleting(false);
+      return;
+    }
+
+    // 2) Delete the DB row (RLS: only own row)
+    const { error: dbErr } = await supabase
+      .from("image_metadata")
+      .delete()
+      .eq("id", row.id)
+      .eq("user_id", user.id);
+
+    if (dbErr) {
+      setStatus(`Database delete error: ${dbErr.message}`);
+      setDeleting(false);
+      return;
+    }
+
+    // 3) Redirect Home with a small flag
+    setStatus("Deleted.");
+    setTimeout(() => {
+      router.push("/?deleted=1");
+    }, 200);
+  }
+
+  function colorBadge() {
     if (!row) return null;
     if (row.category === "Blebs (clear to brown)" && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
     if (row.category === "Fiber Bundles" && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
@@ -148,7 +186,7 @@ export default function ImageDetailPage() {
         </div>
       ) : (
         <>
-          {/* Preview + quick facts */}
+          {/* Preview + side panel */}
           <div
             style={{
               display: "grid",
@@ -174,7 +212,7 @@ export default function ImageDetailPage() {
               />
             </div>
 
-            {/* Metadata + editable notes */}
+            {/* Metadata + actions */}
             <div style={{ display: "grid", gap: 12 }}>
               <div
                 style={{
@@ -186,7 +224,7 @@ export default function ImageDetailPage() {
               >
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                   <Badge>{row.category || "Uncategorized"}</Badge>
-                  {cardColorBadge()}
+                  {colorBadge()}
                 </div>
 
                 <div style={{ fontSize: 14, lineHeight: 1.6 }}>
@@ -195,8 +233,29 @@ export default function ImageDetailPage() {
                   <div><strong>Uploaded:</strong> {prettyDate(row.created_at)}</div>
                   <div><strong>Storage path:</strong> {row.path}</div>
                 </div>
+
+                {/* Danger zone */}
+                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #991b1b",
+                      background: deleting ? "#fca5a5" : "#ef4444",
+                      color: "white",
+                      fontWeight: 700,
+                      cursor: deleting ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {deleting ? "Deleting..." : "Delete image"}
+                  </button>
+                  {status ? <span style={{ fontSize: 12, opacity: 0.8 }}>{status}</span> : null}
+                </div>
               </div>
 
+              {/* Notes */}
               <form
                 onSubmit={saveNotes}
                 style={{
@@ -232,11 +291,11 @@ export default function ImageDetailPage() {
                   >
                     {saving ? "Saving..." : "Save Notes"}
                   </button>
-                  {status ? <span style={{ fontSize: 12, opacity: 0.8 }}>{status}</span> : null}
+                  {status && !deleting ? <span style={{ fontSize: 12, opacity: 0.8 }}>{status}</span> : null}
                 </div>
               </form>
 
-              {/* Snapshot of uploader profile at upload time (if present) */}
+              {/* Uploader snapshot */}
               <div
                 style={{
                   border: "1px solid #e5e5e5",
@@ -260,3 +319,4 @@ export default function ImageDetailPage() {
     </div>
   );
 }
+
