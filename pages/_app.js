@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.14_2025-08-21
+// Build 36.15_2025-08-21
 import "../styles/globals.css";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-export const BUILD_VERSION = "Build 36.14_2025-08-21";
+export const BUILD_VERSION = "Build 36.15_2025-08-21";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -50,16 +50,25 @@ const srOnlyFocus = {
   display: "inline-block",
 };
 
-// Global quick-color toolbar (appears only on two category routes)
+// Global quick-color toolbar (Fibers, Fiber Bundles, Blebs)
 function QuickColorToolbar() {
   const router = useRouter();
   const p = router.asPath || "";
+
   const onBundles = p.startsWith("/category/fiber_bundles");
   const onFibers = p.startsWith("/category/fibers");
-  if (!onBundles && !onFibers) return null;
+  const onBlebs = p.startsWith("/category/clear_to_brown_blebs");
+  if (!onBundles && !onFibers && !onBlebs) return null;
 
-  const COLORS = ["white/clear", "blue", "black", "red", "other"];
-  const baseHref = onBundles ? "/category/fiber_bundles" : "/category/fibers";
+  const COLORS = onBlebs
+    ? ["Clear", "Yellow", "Orange", "Red", "Brown"]
+    : ["white/clear", "blue", "black", "red", "other"];
+
+  const baseHref = onBundles
+    ? "/category/fiber_bundles"
+    : onFibers
+    ? "/category/fibers"
+    : "/category/clear_to_brown_blebs";
 
   const wrap = {
     position: "fixed",
@@ -75,7 +84,6 @@ function QuickColorToolbar() {
   };
   const title = { fontSize: 12, fontWeight: 600, marginBottom: 6 };
   const row = { display: "flex", flexWrap: "wrap", gap: 8 };
-
   const chip = {
     display: "inline-block",
     border: "1px solid #ccc",
@@ -89,7 +97,9 @@ function QuickColorToolbar() {
 
   return (
     <nav aria-label="Quick colors" style={wrap}>
-      <div style={title}>{onBundles ? "Fiber Bundles" : "Fibers"} · Quick colors</div>
+      <div style={title}>
+        {onBundles ? "Fiber Bundles" : onFibers ? "Fibers" : "Blebs (clear to brown)"} · Quick colors
+      </div>
       <div style={row}>
         {COLORS.map((c) => (
           <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
