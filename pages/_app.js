@@ -1,9 +1,9 @@
 // pages/_app.js
-// Build 36.13_2025-08-20
+// Build 36.13_2025-08-21
 import "../styles/globals.css";
 import { useEffect } from "react";
 
-export const BUILD_VERSION = "Build 36.13_2025-08-20";
+export const BUILD_VERSION = "Build 36.13_2025-08-21";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -12,12 +12,12 @@ function BuildBadge() {
     bottom: 8,
     zIndex: 9999,
     fontSize: 12,
-    padding: "4px 8px",
-    borderRadius: 6,
-    border: "1px solid #ccc",
-    background: "rgba(255,255,255,0.9)",
-    WebkitBackdropFilter: "blur(2px)",
-    backdropFilter: "blur(2px)",
+    padding: "4px 10px",
+    borderRadius: 8,
+    color: "#fff",
+    background: "#111",
+    border: "1px solid #000",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
   };
   return (
     <div aria-label="Build version" style={badgeStyle}>
@@ -26,7 +26,7 @@ function BuildBadge() {
   );
 }
 
-// visually hidden, but appears on keyboard focus
+// Visually hidden skip link that appears on focus (no Tailwind needed)
 const srOnly = {
   position: "absolute",
   left: "-10000px",
@@ -55,12 +55,20 @@ export default function MyApp({ Component, pageProps }) {
   }, []);
 
   function handleSkipFocus(e) {
-    // when focused by keyboard, reveal the link
-    e.currentTarget.setAttribute("style", Object.entries(srOnlyFocus).map(([k,v]) => `${k}:${v}`).join(";"));
+    e.currentTarget.setAttribute(
+      "style",
+      Object.entries(srOnlyFocus)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(";")
+    );
   }
   function handleSkipBlur(e) {
-    // hide again on blur
-    e.currentTarget.setAttribute("style", Object.entries(srOnly).map(([k,v]) => `${k}:${v}`).join(";"));
+    e.currentTarget.setAttribute(
+      "style",
+      Object.entries(srOnly)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(";")
+    );
   }
 
   return (
@@ -78,6 +86,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
