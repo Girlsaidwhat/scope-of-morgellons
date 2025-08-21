@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.15_2025-08-21
+// Build 36.15a_2025-08-21
 import "../styles/globals.css";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-export const BUILD_VERSION = "Build 36.15_2025-08-21";
+export const BUILD_VERSION = "Build 36.15a_2025-08-21";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -50,14 +50,34 @@ const srOnlyFocus = {
   display: "inline-block",
 };
 
-// Global quick-color toolbar (Fibers, Fiber Bundles, Blebs)
+// Global quick-color toolbar (Fibers, Fiber Bundles, Blebs) with robust route detection
 function QuickColorToolbar() {
   const router = useRouter();
-  const p = router.asPath || "";
+  const asPath = router?.asPath || "";
+  const pathname = router?.pathname || "";
+  const q = router?.query || {};
+  const slug =
+    typeof q.slug === "string"
+      ? q.slug
+      : Array.isArray(q.slug)
+      ? q.slug[0]
+      : "";
 
-  const onBundles = p.startsWith("/category/fiber_bundles");
-  const onFibers = p.startsWith("/category/fibers");
-  const onBlebs = p.startsWith("/category/clear_to_brown_blebs");
+  const onBundles =
+    asPath.startsWith("/category/fiber_bundles") ||
+    pathname.startsWith("/category/fiber_bundles") ||
+    slug === "fiber_bundles";
+
+  const onFibers =
+    asPath.startsWith("/category/fibers") ||
+    pathname.startsWith("/category/fibers") ||
+    slug === "fibers";
+
+  const onBlebs =
+    asPath.startsWith("/category/clear_to_brown_blebs") ||
+    pathname.startsWith("/category/clear_to_brown_blebs") ||
+    slug === "clear_to_brown_blebs";
+
   if (!onBundles && !onFibers && !onBlebs) return null;
 
   const COLORS = onBlebs
