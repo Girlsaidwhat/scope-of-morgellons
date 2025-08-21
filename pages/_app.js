@@ -1,12 +1,12 @@
 // pages/_app.js
-// Build 36.17_2025-08-21
+// Build 36.18_2025-08-21
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.17_2025-08-21";
+export const BUILD_VERSION = "Build 36.18_2025-08-21";
 
 const supabase =
   typeof window !== "undefined"
@@ -62,7 +62,6 @@ const srOnlyFocus = {
 // CSV helpers
 function toCSV(rows) {
   if (!rows || rows.length === 0) return "";
-  // Preferred column order first, then include any extras present
   const pref = [
     "id",
     "filename",
@@ -87,7 +86,6 @@ function toCSV(rows) {
   );
   const extras = allKeys.filter((k) => !pref.includes(k));
   const headers = [...pref.filter((k) => allKeys.includes(k)), ...extras];
-
   const esc = (v) => {
     if (v === null || v === undefined) return "";
     const s = String(v);
@@ -96,11 +94,8 @@ function toCSV(rows) {
     }
     return s;
   };
-
   const lines = [headers.join(",")];
-  for (const row of rows) {
-    lines.push(headers.map((h) => esc(row[h])).join(","));
-  }
+  for (const row of rows) lines.push(headers.map((h) => esc(row[h])).join(","));
   return lines.join("\n");
 }
 
@@ -166,7 +161,6 @@ function QuickColorToolbar() {
       ? q.color[0]
       : "";
 
-  // Map slug to DB category label
   const dbCategory = onBundles
     ? "Fiber Bundles"
     : onFibers
@@ -176,7 +170,7 @@ function QuickColorToolbar() {
   const wrap = {
     position: "fixed",
     left: 8,
-    bottom: 48, // leave space for the build badge
+    bottom: 48,
     zIndex: 9998,
     background: "#fff",
     border: "1px solid #ddd",
@@ -200,11 +194,7 @@ function QuickColorToolbar() {
   };
   const chipActive = { ...chip, color: "#fff", background: "#111", borderColor: "#111" };
   const chipClear = { ...chip, background: "#f6f6f6", borderStyle: "dashed" };
-  const exportBtn = {
-    ...chipActive,
-    background: "#0b5fff",
-    borderColor: "#0b5fff",
-  };
+  const exportBtn = { ...chipActive, background: "#0b5fff", borderColor: "#0b5fff" };
   const statusStyle = { fontSize: 12, color: "#555", marginTop: 6 };
 
   async function handleExport(e) {
@@ -221,10 +211,7 @@ function QuickColorToolbar() {
         .order("created_at", { ascending: false });
 
       if (activeColor) {
-        // Try either 'color' or 'bleb_color' depending on schema
-        query = query.or(
-          `color.eq.${activeColor},bleb_color.eq.${activeColor}`
-        );
+        query = query.or(`color.eq.${activeColor},bleb_color.eq.${activeColor}`);
       }
 
       const { data, error } = await query;
@@ -273,11 +260,7 @@ function QuickColorToolbar() {
           const isActive = (activeColor || "")?.toLowerCase() === c.toLowerCase();
           return (
             <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
-              <a
-                aria-label={`Filter by color ${c}`}
-                aria-current={isActive ? "page" : undefined}
-                style={isActive ? chipActive : chip}
-              >
+              <a aria-label={`Filter by color ${c}`} aria-current={isActive ? "page" : undefined} style={isActive ? chipActive : chip}>
                 {c}
               </a>
             </Link>
@@ -299,36 +282,43 @@ function QuickColorToolbar() {
 }
 
 export default function MyApp({ Component, pageProps }) {
+  const router = useRouter();
+
   useEffect(() => {
     const nodes = document.querySelectorAll("[data-build-line]");
     nodes.forEach((n) => n.remove());
   }, []);
 
+  // Keyboard shortcuts: Alt+Shift+H (Home), Alt+Shift+B (Browse), Alt+Shift+U (Upload)
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (!e.altKey || !e.shiftKey) return;
+      const k = e.key?.toLowerCase();
+      if (k === "h") {
+        e.preventDefault();
+        router.push("/");
+      } else if (k === "b") {
+        e.preventDefault();
+        router.push("/browse");
+      } else if (k === "u") {
+        e.preventDefault();
+        router.push("/upload");
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [router]);
+
   function handleSkipFocus(e) {
-    e.currentTarget.setAttribute(
-      "style",
-      Object.entries(srOnlyFocus)
-        .map(([k, v]) => `${k}:${v}`)
-        .join(";")
-    );
+    e.currentTarget.setAttribute("style", Object.entries(srOnlyFocus).map(([k, v]) => `${k}:${v}`).join(";"));
   }
   function handleSkipBlur(e) {
-    e.currentTarget.setAttribute(
-      "style",
-      Object.entries(srOnly)
-        .map(([k, v]) => `${k}:${v}`)
-        .join(";")
-    );
+    e.currentTarget.setAttribute("style", Object.entries(srOnly).map(([k, v]) => `${k}:${v}`).join(";"));
   }
 
   return (
     <>
-      <a
-        href="#main"
-        onFocus={handleSkipFocus}
-        onBlur={handleSkipBlur}
-        style={srOnly}
-      >
+      <a href="#main" onFocus={handleSkipFocus} onBlur={handleSkipBlur} style={srOnly}>
         Skip to content
       </a>
       <Component {...pageProps} />
@@ -337,6 +327,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
