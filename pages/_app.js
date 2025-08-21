@@ -1,12 +1,12 @@
 // pages/_app.js
-// Build 36.18_2025-08-21
+// Build 36.19_2025-08-21
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.18_2025-08-21";
+export const BUILD_VERSION = "Build 36.19_2025-08-21";
 
 const supabase =
   typeof window !== "undefined"
@@ -31,13 +31,13 @@ function BuildBadge() {
     boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
   };
   return (
-    <div aria-label="Build version" style={badgeStyle}>
+    <div id="global-build-badge" aria-label="Build version" style={badgeStyle}>
       {BUILD_VERSION}
     </div>
   );
 }
 
-// Visually hidden skip link that appears on focus
+// Visually hidden “Skip to content” that appears on focus
 const srOnly = {
   position: "absolute",
   left: "-10000px",
@@ -111,7 +111,7 @@ function downloadCSV(filename, csvText) {
   URL.revokeObjectURL(url);
 }
 
-// Global quick-color + export toolbar
+// Global quick-color + export toolbar (Fibers, Fiber Bundles, Blebs)
 function QuickColorToolbar() {
   const router = useRouter();
   const asPath = router?.asPath || "";
@@ -284,9 +284,24 @@ function QuickColorToolbar() {
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
 
+  // Remove legacy build lines anywhere except the global badge
   useEffect(() => {
-    const nodes = document.querySelectorAll("[data-build-line]");
-    nodes.forEach((n) => n.remove());
+    // Remove explicit markers
+    document.querySelectorAll("[data-build-line]").forEach((n) => n.remove());
+
+    // Remove any element whose text is exactly a Build string, excluding the global badge
+    const badge = document.getElementById("global-build-badge");
+    const buildRe = /^Build\s+\d+(?:\.\d+)*_\d{4}-\d{2}-\d{2}$/;
+
+    // Scan shallowly to avoid perf hit
+    const all = Array.from(document.body.querySelectorAll("*"));
+    for (const el of all) {
+      if (el === badge || (badge && el.contains(badge))) continue;
+      const t = (el.textContent || "").trim();
+      if (buildRe.test(t)) {
+        el.remove();
+      }
+    }
   }, []);
 
   // Keyboard shortcuts: Alt+Shift+H (Home), Alt+Shift+B (Browse), Alt+Shift+U (Upload)
@@ -310,15 +325,30 @@ export default function MyApp({ Component, pageProps }) {
   }, [router]);
 
   function handleSkipFocus(e) {
-    e.currentTarget.setAttribute("style", Object.entries(srOnlyFocus).map(([k, v]) => `${k}:${v}`).join(";"));
+    e.currentTarget.setAttribute(
+      "style",
+      Object.entries(srOnlyFocus)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(";")
+    );
   }
   function handleSkipBlur(e) {
-    e.currentTarget.setAttribute("style", Object.entries(srOnly).map(([k, v]) => `${k}:${v}`).join(";"));
+    e.currentTarget.setAttribute(
+      "style",
+      Object.entries(srOnly)
+        .map(([k, v]) => `${k}:${v}`)
+        .join(";")
+    );
   }
 
   return (
     <>
-      <a href="#main" onFocus={handleSkipFocus} onBlur={handleSkipBlur} style={srOnly}>
+      <a
+        href="#main"
+        onFocus={handleSkipFocus}
+        onBlur={handleSkipBlur}
+        style={srOnly}
+      >
         Skip to content
       </a>
       <Component {...pageProps} />
