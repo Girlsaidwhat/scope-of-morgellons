@@ -1,11 +1,20 @@
 // pages/_app.js
-// Build 36.16_2025-08-21
+// Build 36.17_2025-08-21
 import "../styles/globals.css";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.16_2025-08-21";
+export const BUILD_VERSION = "Build 36.17_2025-08-21";
+
+const supabase =
+  typeof window !== "undefined"
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
 
 function BuildBadge() {
   const badgeStyle = {
@@ -50,12 +59,72 @@ const srOnlyFocus = {
   display: "inline-block",
 };
 
-// Global quick-color toolbar (Fibers, Fiber Bundles, Blebs)
+// CSV helpers
+function toCSV(rows) {
+  if (!rows || rows.length === 0) return "";
+  // Preferred column order first, then include any extras present
+  const pref = [
+    "id",
+    "filename",
+    "category",
+    "color",
+    "bleb_color",
+    "uploader_initials",
+    "uploader_age",
+    "uploader_location",
+    "uploader_contact_opt_in",
+    "notes",
+    "created_at",
+    "storage_path",
+    "file_path",
+    "public_url",
+  ];
+  const allKeys = Array.from(
+    rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set())
+  );
+  const extras = allKeys.filter((k) => !pref.includes(k));
+  const headers = [...pref.filter((k) => allKeys.includes(k)), ...extras];
+
+  const esc = (v) => {
+    if (v === null || v === undefined) return "";
+    const s = String(v);
+    if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((h) => esc(row[h])).join(","));
+  }
+  return lines.join("\n");
+}
+
+function downloadCSV(filename, csvText) {
+  const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Global quick-color + export toolbar
 function QuickColorToolbar() {
   const router = useRouter();
   const asPath = router?.asPath || "";
   const pathname = router?.pathname || "";
   const q = router?.query || {};
+  const [exporting, setExporting] = useState(false);
+  const [status, setStatus] = useState("");
+
   const slug =
     typeof q.slug === "string"
       ? q.slug
@@ -97,6 +166,13 @@ function QuickColorToolbar() {
       ? q.color[0]
       : "";
 
+  // Map slug to DB category label
+  const dbCategory = onBundles
+    ? "Fiber Bundles"
+    : onFibers
+    ? "Fibers"
+    : "Blebs (clear to brown)";
+
   const wrap = {
     position: "fixed",
     left: 8,
@@ -107,7 +183,7 @@ function QuickColorToolbar() {
     borderRadius: 10,
     boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
     padding: "8px 10px",
-    maxWidth: "calc(100vw - 120px)",
+    maxWidth: "calc(100vw - 140px)",
   };
   const title = { fontSize: 12, fontWeight: 600, marginBottom: 6 };
   const row = { display: "flex", flexWrap: "wrap", gap: 8 };
@@ -122,45 +198,81 @@ function QuickColorToolbar() {
     background: "#fafafa",
     textDecoration: "none",
   };
-  const chipActive = {
-    ...chip,
-    color: "#fff",
-    background: "#111",
-    borderColor: "#111",
+  const chipActive = { ...chip, color: "#fff", background: "#111", borderColor: "#111" };
+  const chipClear = { ...chip, background: "#f6f6f6", borderStyle: "dashed" };
+  const exportBtn = {
+    ...chipActive,
+    background: "#0b5fff",
+    borderColor: "#0b5fff",
   };
-  const chipClear = {
-    ...chip,
-    background: "#f6f6f6",
-    borderStyle: "dashed",
-  };
+  const statusStyle = { fontSize: 12, color: "#555", marginTop: 6 };
+
+  async function handleExport(e) {
+    e.preventDefault();
+    if (!supabase) return;
+    try {
+      setExporting(true);
+      setStatus("Exporting…");
+
+      let query = supabase
+        .from("image_metadata")
+        .select("*")
+        .eq("category", dbCategory)
+        .order("created_at", { ascending: false });
+
+      if (activeColor) {
+        // Try either 'color' or 'bleb_color' depending on schema
+        query = query.or(
+          `color.eq.${activeColor},bleb_color.eq.${activeColor}`
+        );
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        setStatus("No rows for this filter.");
+        setExporting(false);
+        return;
+      }
+
+      const csv = toCSV(data);
+      const today = new Date();
+      const y = String(today.getFullYear());
+      const m = String(today.getMonth() + 1).padStart(2, "0");
+      const d = String(today.getDate()).padStart(2, "0");
+      const colorPart = activeColor ? `_${activeColor.replace(/\s+/g, "_")}` : "";
+      const slugPart = onBundles ? "fiber_bundles" : onFibers ? "fibers" : "clear_to_brown_blebs";
+      const filename = `export_${slugPart}${colorPart}_${y}-${m}-${d}.csv`;
+
+      downloadCSV(filename, csv);
+      setStatus(`Exported ${data.length} rows to ${filename}.`);
+    } catch (err) {
+      console.error("CSV export error:", err);
+      setStatus("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
-    <nav aria-label="Quick colors" style={wrap}>
+    <nav aria-label="Quick colors and export" style={wrap}>
       <div style={title}>
         {onBundles ? "Fiber Bundles" : onFibers ? "Fibers" : "Blebs (clear to brown)"} · Quick colors
         {activeColor ? ` · Active: ${activeColor}` : ""}
       </div>
+
+      {/* Row: Clear + Colors */}
       <div style={row}>
-        {/* Clear filter */}
         <Link href={baseHref} legacyBehavior>
-          <a
-            aria-label="Clear color filter"
-            style={activeColor ? chipClear : chip}
-          >
+          <a aria-label="Clear color filter" style={activeColor ? chipClear : chip}>
             Clear color
           </a>
         </Link>
-
-        {/* Color options */}
         {COLORS.map((c) => {
-          const isActive =
-            (activeColor || "")?.toLowerCase() === c.toLowerCase();
+          const isActive = (activeColor || "")?.toLowerCase() === c.toLowerCase();
           return (
-            <Link
-              key={c}
-              href={`${baseHref}?color=${encodeURIComponent(c)}`}
-              legacyBehavior
-            >
+            <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
               <a
                 aria-label={`Filter by color ${c}`}
                 aria-current={isActive ? "page" : undefined}
@@ -172,6 +284,16 @@ function QuickColorToolbar() {
           );
         })}
       </div>
+
+      {/* Row: Export */}
+      <div style={{ ...row, marginTop: 8 }}>
+        <a href="#" onClick={handleExport} aria-busy={exporting ? "true" : "false"} style={exportBtn}>
+          {exporting ? "Exporting…" : "Export CSV"}
+        </a>
+      </div>
+
+      {/* Status */}
+      <div aria-live="polite" style={statusStyle}>{status}</div>
     </nav>
   );
 }
