@@ -26,10 +26,38 @@ const CATEGORIES = [
   { label: "Wounds", slug: "wounds" },
 ];
 
-// Color sets (exact values used elsewhere in your app)
-// Blebs colors are capitalized; Fiber Bundles/Fibers are lower-case.
 const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 const FIBER_COMMON_COLORS = ["white/clear", "blue", "black", "red", "other"];
+
+// Inline styles (no framework needed)
+const pageStyle = { maxWidth: 880, margin: "0 auto", padding: "16px" };
+const h1Style = { fontSize: "28px", fontWeight: 700, marginBottom: "10px" };
+const h2Style = { fontSize: "18px", fontWeight: 600, margin: "16px 0 8px" };
+const h3Style = { fontSize: "14px", fontWeight: 600, margin: "8px 0 6px" };
+const statusStyle = { fontSize: "13px", color: "#555", marginBottom: "12px" };
+const listWrapStyle = { border: "1px solid #ddd", borderRadius: 6, overflow: "hidden" };
+const listItemStyle = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "10px 12px",
+  borderTop: "1px solid #eee",
+};
+const firstListItemStyle = { ...listItemStyle, borderTop: "none" };
+const chipRowStyle = { display: "flex", flexWrap: "wrap", marginTop: 4 };
+const chipAStyle = {
+  display: "inline-block",
+  border: "1px solid #ccc",
+  borderRadius: 999,
+  padding: "6px 10px",
+  fontSize: 12,
+  color: "#111",
+  background: "#fff",
+  textDecoration: "none",
+  marginRight: 8,
+  marginBottom: 8,
+};
+const catLinkAStyle = { color: "#0b5fff", textDecoration: "none", fontWeight: 500 };
 
 export default function Browse() {
   const [loading, setLoading] = useState(true);
@@ -40,16 +68,13 @@ export default function Browse() {
     let isMounted = true;
     (async () => {
       if (!supabase) return;
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } = {} } = await supabase.auth.getUser();
       if (!isMounted) return;
       setSignedIn(!!user);
 
-      // RLS ensures we only see our own rows
       const { data, error } = await supabase
         .from("image_metadata")
-        .select("id, category");
+        .select("id, category"); // RLS: only your rows
 
       if (!isMounted) return;
       if (error) {
@@ -68,21 +93,28 @@ export default function Browse() {
   const counts = useMemo(() => {
     const map = new Map(CATEGORIES.map((c) => [c.label, 0]));
     for (const r of rows) {
-      if (map.has(r.category)) map.set(r.category, map.get(r.category) + 1);
+      if (map.has(r.category)) map.set(r.category, (map.get(r.category) || 0) + 1);
     }
     return map;
   }, [rows]);
 
-  return (
-    <main id="main" className="max-w-4xl mx-auto p-4">
-      <h1 className="text-2xl font-semibold mb-4">Browse</h1>
+  const Chip = ({ href, label }) => (
+    <Link href={href} legacyBehavior>
+      <a aria-label={label} style={chipAStyle}>{label}</a>
+    </Link>
+  );
 
-      {/* Status line */}
-      <p
-        aria-live="polite"
-        className="text-sm text-gray-600 mb-4"
-        id="browse-status"
-      >
+  const CatLink = ({ href, label }) => (
+    <Link href={href} legacyBehavior>
+      <a aria-label={`Open ${label} category`} style={catLinkAStyle}>{label}</a>
+    </Link>
+  );
+
+  return (
+    <main id="main" style={pageStyle}>
+      <h1 style={h1Style}>Browse</h1>
+
+      <p aria-live="polite" id="browse-status" style={statusStyle}>
         {loading
           ? "Loading your category counts…"
           : signedIn
@@ -91,68 +123,47 @@ export default function Browse() {
       </p>
 
       {/* Quick color links */}
-      <section
-        className="mb-6"
-        aria-labelledby="quick-colors-heading"
-        role="navigation"
-      >
-        <h2 id="quick-colors-heading" className="text-lg font-medium mb-2">
-          Quick colors
-        </h2>
+      <section aria-labelledby="quick-colors-heading" role="navigation" style={{ marginBottom: 16 }}>
+        <h2 id="quick-colors-heading" style={h2Style}>Quick colors</h2>
 
-        {/* Blebs quick links (existing parity) */}
-        <div className="mb-3">
-          <h3 className="text-sm font-semibold mb-1">
-            Blebs (clear to brown)
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {BLEB_COLORS.map((color) => (
-              <Link
-                key={color}
-                href={`/category/clear_to_brown_blebs?color=${encodeURIComponent(
-                  color
-                )}`}
-                className="inline-block rounded-full border px-3 py-1 text-sm hover:underline"
-                aria-label={`Blebs color ${color}`}
-              >
-                {color}
-              </Link>
+        {/* Blebs quick links */}
+        <div style={{ marginBottom: 10 }}>
+          <h3 style={h3Style}>Blebs (clear to brown)</h3>
+          <div style={chipRowStyle}>
+            {BLEB_COLORS.map((c) => (
+              <Chip
+                key={`blebs-${c}`}
+                href={`/category/clear_to_brown_blebs?color=${encodeURIComponent(c)}`}
+                label={c}
+              />
             ))}
           </div>
         </div>
 
-        {/* NEW: Fiber Bundles quick links */}
-        <div className="mb-3">
-          <h3 className="text-sm font-semibold mb-1">Fiber Bundles</h3>
-          <div className="flex flex-wrap gap-2">
-            {FIBER_COMMON_COLORS.map((color) => (
-              <Link
-                key={`bundles-${color}`}
-                href={`/category/fiber_bundles?color=${encodeURIComponent(
-                  color
-                )}`}
-                className="inline-block rounded-full border px-3 py-1 text-sm hover:underline"
-                aria-label={`Fiber Bundles color ${color}`}
-              >
-                {color}
-              </Link>
+        {/* Fiber Bundles quick links */}
+        <div style={{ marginBottom: 10 }}>
+          <h3 style={h3Style}>Fiber Bundles</h3>
+          <div style={chipRowStyle}>
+            {FIBER_COMMON_COLORS.map((c) => (
+              <Chip
+                key={`bundles-${c}`}
+                href={`/category/fiber_bundles?color=${encodeURIComponent(c)}`}
+                label={c}
+              />
             ))}
           </div>
         </div>
 
-        {/* NEW: Fibers quick links */}
+        {/* Fibers quick links */}
         <div>
-          <h3 className="text-sm font-semibold mb-1">Fibers</h3>
-          <div className="flex flex-wrap gap-2">
-            {FIBER_COMMON_COLORS.map((color) => (
-              <Link
-                key={`fibers-${color}`}
-                href={`/category/fibers?color=${encodeURIComponent(color)}`}
-                className="inline-block rounded-full border px-3 py-1 text-sm hover:underline"
-                aria-label={`Fibers color ${color}`}
-              >
-                {color}
-              </Link>
+          <h3 style={h3Style}>Fibers</h3>
+          <div style={chipRowStyle}>
+            {FIBER_COMMON_COLORS.map((c) => (
+              <Chip
+                key={`fibers-${c}`}
+                href={`/category/fibers?color=${encodeURIComponent(c)}`}
+                label={c}
+              />
             ))}
           </div>
         </div>
@@ -160,24 +171,15 @@ export default function Browse() {
 
       {/* Category list with per-user counts */}
       <section aria-labelledby="categories-heading">
-        <h2 id="categories-heading" className="text-lg font-medium mb-2">
-          Your categories
-        </h2>
-        <ul className="divide-y border rounded">
-          {CATEGORIES.map((cat) => {
+        <h2 id="categories-heading" style={h2Style}>Your categories</h2>
+        <ul style={listWrapStyle}>
+          {CATEGORIES.map((cat, idx) => {
             const count = counts.get(cat.label) ?? 0;
+            const itemStyle = idx === 0 ? firstListItemStyle : listItemStyle;
             return (
-              <li key={cat.slug} className="flex items-center justify-between p-3">
-                <Link
-                  href={`/category/${cat.slug}`}
-                  className="hover:underline font-medium"
-                  aria-label={`Open ${cat.label} category`}
-                >
-                  {cat.label}
-                </Link>
-                <span aria-label={`${cat.label} count`} className="text-sm">
-                  {count}
-                </span>
+              <li key={cat.slug} style={itemStyle}>
+                <CatLink href={`/category/${cat.slug}`} label={cat.label} />
+                <span aria-label={`${cat.label} count`} style={{ fontSize: 13 }}>{count}</span>
               </li>
             );
           })}
@@ -186,6 +188,7 @@ export default function Browse() {
     </main>
   );
 }
+
 
 
 

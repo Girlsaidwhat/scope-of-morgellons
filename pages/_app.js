@@ -26,16 +26,53 @@ function BuildBadge() {
   );
 }
 
+// visually hidden, but appears on keyboard focus
+const srOnly = {
+  position: "absolute",
+  left: "-10000px",
+  top: "auto",
+  width: "1px",
+  height: "1px",
+  overflow: "hidden",
+};
+const srOnlyFocus = {
+  position: "static",
+  width: "auto",
+  height: "auto",
+  overflow: "visible",
+  padding: "4px 8px",
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  background: "#fff",
+  margin: 8,
+  display: "inline-block",
+};
+
 export default function MyApp({ Component, pageProps }) {
-  // Remove any legacy per-page build markers post-hydration
   useEffect(() => {
     const nodes = document.querySelectorAll("[data-build-line]");
     nodes.forEach((n) => n.remove());
   }, []);
 
+  function handleSkipFocus(e) {
+    // when focused by keyboard, reveal the link
+    e.currentTarget.setAttribute("style", Object.entries(srOnlyFocus).map(([k,v]) => `${k}:${v}`).join(";"));
+  }
+  function handleSkipBlur(e) {
+    // hide again on blur
+    e.currentTarget.setAttribute("style", Object.entries(srOnly).map(([k,v]) => `${k}:${v}`).join(";"));
+  }
+
   return (
     <>
-      <a href="#main" className="sr-only">Skip to content</a>
+      <a
+        href="#main"
+        onFocus={handleSkipFocus}
+        onBlur={handleSkipBlur}
+        style={srOnly}
+      >
+        Skip to content
+      </a>
       <Component {...pageProps} />
       <BuildBadge />
     </>
