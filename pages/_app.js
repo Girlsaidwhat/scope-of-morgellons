@@ -1,12 +1,12 @@
 // pages/_app.js
-// Build 36.19_2025-08-21
+// Build 36.19a_2025-08-21
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.19_2025-08-21";
+export const BUILD_VERSION = "Build 36.19a_2025-08-21";
 
 const supabase =
   typeof window !== "undefined"
@@ -59,7 +59,7 @@ const srOnlyFocus = {
   display: "inline-block",
 };
 
-// CSV helpers
+/** ---------- CSV helpers ---------- */
 function toCSV(rows) {
   if (!rows || rows.length === 0) return "";
   const pref = [
@@ -111,7 +111,7 @@ function downloadCSV(filename, csvText) {
   URL.revokeObjectURL(url);
 }
 
-// Global quick-color + export toolbar (Fibers, Fiber Bundles, Blebs)
+/** ---------- Global quick-color + export toolbar (Fibers, Fiber Bundles, Blebs) ---------- */
 function QuickColorToolbar() {
   const router = useRouter();
   const asPath = router?.asPath || "";
@@ -284,25 +284,62 @@ function QuickColorToolbar() {
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
 
-  // Remove legacy build lines anywhere except the global badge
+  // Remove legacy build lines and keep doing so if a page re-inserts them
   useEffect(() => {
-    // Remove explicit markers
-    document.querySelectorAll("[data-build-line]").forEach((n) => n.remove());
-
-    // Remove any element whose text is exactly a Build string, excluding the global badge
     const badge = document.getElementById("global-build-badge");
-    const buildRe = /^Build\s+\d+(?:\.\d+)*_\d{4}-\d{2}-\d{2}$/;
+    const buildRe = /Build\s+\d+(?:\.\d+)*[_-]\d{4}-\d{2}-\d{2}/i;
 
-    // Scan shallowly to avoid perf hit
-    const all = Array.from(document.body.querySelectorAll("*"));
-    for (const el of all) {
-      if (el === badge || (badge && el.contains(badge))) continue;
-      const t = (el.textContent || "").trim();
-      if (buildRe.test(t)) {
-        el.remove();
+    function scrubBuildText(root) {
+      // Skip the global badge subtree entirely
+      if (badge && (root === badge || root.contains?.(badge))) return;
+
+      // Replace just the matching text inside nodes, keep structure
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const toPatch = [];
+      while (walker.nextNode()) {
+        const n = walker.currentNode;
+        if (buildRe.test(n.nodeValue)) toPatch.push(n);
       }
+      for (const n of toPatch) {
+        n.nodeValue = n.nodeValue.replace(buildRe, "").replace(/\(\s*\)/g, "").replace(/\s{2,}/g, " ").trim();
+      }
+
+      // Remove any elements explicitly marked as build lines
+      root.querySelectorAll?.("[data-build-line]").forEach((el) => el.remove());
     }
-  }, []);
+
+    // Initial scrub after hydration
+    scrubBuildText(document.body);
+
+    // Scrub again after route changes
+    const onRouteDone = () => scrubBuildText(document.body);
+    router.events.on("routeChangeComplete", onRouteDone);
+
+    // Watch for late DOM changes and scrub as needed
+    const obs = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        if (m.type === "childList") {
+          m.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) scrubBuildText(node); // element
+            else if (node.nodeType === 3 && buildRe.test(node.nodeValue)) {
+              node.nodeValue = node.nodeValue.replace(buildRe, "").trim();
+            }
+          });
+        } else if (m.type === "characterData") {
+          const n = m.target;
+          if (buildRe.test(n.nodeValue)) {
+            n.nodeValue = n.nodeValue.replace(buildRe, "").trim();
+          }
+        }
+      }
+    });
+    obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    return () => {
+      router.events.off("routeChangeComplete", onRouteDone);
+      obs.disconnect();
+    };
+  }, [router]);
 
   // Keyboard shortcuts: Alt+Shift+H (Home), Alt+Shift+B (Browse), Alt+Shift+U (Upload)
   useEffect(() => {
@@ -357,6 +394,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
