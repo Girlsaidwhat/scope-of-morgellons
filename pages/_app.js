@@ -1,9 +1,11 @@
 // pages/_app.js
-// Build 36.13_2025-08-21
+// Build 36.14_2025-08-21
 import "../styles/globals.css";
 import { useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/router";
 
-export const BUILD_VERSION = "Build 36.13_2025-08-21";
+export const BUILD_VERSION = "Build 36.14_2025-08-21";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -26,7 +28,7 @@ function BuildBadge() {
   );
 }
 
-// Visually hidden skip link that appears on focus (no Tailwind needed)
+// Visually hidden skip link that appears on focus
 const srOnly = {
   position: "absolute",
   left: "-10000px",
@@ -47,6 +49,57 @@ const srOnlyFocus = {
   margin: 8,
   display: "inline-block",
 };
+
+// Global quick-color toolbar (appears only on two category routes)
+function QuickColorToolbar() {
+  const router = useRouter();
+  const p = router.asPath || "";
+  const onBundles = p.startsWith("/category/fiber_bundles");
+  const onFibers = p.startsWith("/category/fibers");
+  if (!onBundles && !onFibers) return null;
+
+  const COLORS = ["white/clear", "blue", "black", "red", "other"];
+  const baseHref = onBundles ? "/category/fiber_bundles" : "/category/fibers";
+
+  const wrap = {
+    position: "fixed",
+    left: 8,
+    bottom: 48, // keep clear of the build badge
+    zIndex: 9998,
+    background: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: 10,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+    padding: "8px 10px",
+    maxWidth: "calc(100vw - 120px)",
+  };
+  const title = { fontSize: 12, fontWeight: 600, marginBottom: 6 };
+  const row = { display: "flex", flexWrap: "wrap", gap: 8 };
+
+  const chip = {
+    display: "inline-block",
+    border: "1px solid #ccc",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 12,
+    color: "#111",
+    background: "#fafafa",
+    textDecoration: "none",
+  };
+
+  return (
+    <nav aria-label="Quick colors" style={wrap}>
+      <div style={title}>{onBundles ? "Fiber Bundles" : "Fibers"} · Quick colors</div>
+      <div style={row}>
+        {COLORS.map((c) => (
+          <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
+            <a aria-label={`Filter by color ${c}`} style={chip}>{c}</a>
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}
 
 export default function MyApp({ Component, pageProps }) {
   useEffect(() => {
@@ -82,6 +135,7 @@ export default function MyApp({ Component, pageProps }) {
         Skip to content
       </a>
       <Component {...pageProps} />
+      <QuickColorToolbar />
       <BuildBadge />
     </>
   );
