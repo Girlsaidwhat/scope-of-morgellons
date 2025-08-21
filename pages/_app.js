@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.15a_2025-08-21
+// Build 36.16_2025-08-21
 import "../styles/globals.css";
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
-export const BUILD_VERSION = "Build 36.15a_2025-08-21";
+export const BUILD_VERSION = "Build 36.16_2025-08-21";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -50,7 +50,7 @@ const srOnlyFocus = {
   display: "inline-block",
 };
 
-// Global quick-color toolbar (Fibers, Fiber Bundles, Blebs) with robust route detection
+// Global quick-color toolbar (Fibers, Fiber Bundles, Blebs)
 function QuickColorToolbar() {
   const router = useRouter();
   const asPath = router?.asPath || "";
@@ -90,10 +90,17 @@ function QuickColorToolbar() {
     ? "/category/fibers"
     : "/category/clear_to_brown_blebs";
 
+  const activeColor =
+    typeof q.color === "string"
+      ? q.color
+      : Array.isArray(q.color)
+      ? q.color[0]
+      : "";
+
   const wrap = {
     position: "fixed",
     left: 8,
-    bottom: 48, // keep clear of the build badge
+    bottom: 48, // leave space for the build badge
     zIndex: 9998,
     background: "#fff",
     border: "1px solid #ddd",
@@ -104,6 +111,7 @@ function QuickColorToolbar() {
   };
   const title = { fontSize: 12, fontWeight: 600, marginBottom: 6 };
   const row = { display: "flex", flexWrap: "wrap", gap: 8 };
+
   const chip = {
     display: "inline-block",
     border: "1px solid #ccc",
@@ -114,18 +122,55 @@ function QuickColorToolbar() {
     background: "#fafafa",
     textDecoration: "none",
   };
+  const chipActive = {
+    ...chip,
+    color: "#fff",
+    background: "#111",
+    borderColor: "#111",
+  };
+  const chipClear = {
+    ...chip,
+    background: "#f6f6f6",
+    borderStyle: "dashed",
+  };
 
   return (
     <nav aria-label="Quick colors" style={wrap}>
       <div style={title}>
         {onBundles ? "Fiber Bundles" : onFibers ? "Fibers" : "Blebs (clear to brown)"} · Quick colors
+        {activeColor ? ` · Active: ${activeColor}` : ""}
       </div>
       <div style={row}>
-        {COLORS.map((c) => (
-          <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
-            <a aria-label={`Filter by color ${c}`} style={chip}>{c}</a>
-          </Link>
-        ))}
+        {/* Clear filter */}
+        <Link href={baseHref} legacyBehavior>
+          <a
+            aria-label="Clear color filter"
+            style={activeColor ? chipClear : chip}
+          >
+            Clear color
+          </a>
+        </Link>
+
+        {/* Color options */}
+        {COLORS.map((c) => {
+          const isActive =
+            (activeColor || "")?.toLowerCase() === c.toLowerCase();
+          return (
+            <Link
+              key={c}
+              href={`${baseHref}?color=${encodeURIComponent(c)}`}
+              legacyBehavior
+            >
+              <a
+                aria-label={`Filter by color ${c}`}
+                aria-current={isActive ? "page" : undefined}
+                style={isActive ? chipActive : chip}
+              >
+                {c}
+              </a>
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );
