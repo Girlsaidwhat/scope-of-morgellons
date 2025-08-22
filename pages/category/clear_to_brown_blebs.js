@@ -1,308 +1,302 @@
-// Build: 36.12_2025-08-20
-// Blebs page a11y: main landmark, aria-live statuses, labeled buttons. Keeps pagination and filters.
-
+// pages/category/clear_to_brown_blebs.js
+// Build 36.22_2025-08-22
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import QuickColors from "../../components/QuickColors";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const PAGE_SIZE = 24;
 const CATEGORY_LABEL = "Blebs (clear to brown)";
-const COLOR_COLUMN = "bleb_color";
+const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
+const PAGE_SIZE = 24;
 
-function prettyDate(s) {
-  try {
-    const d = new Date(s);
-    return d.toLocaleString();
-  } catch {
-    return s || "";
-  }
-}
+const supabase =
+  typeof window !== "undefined"
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
 
-function Badge({ children }) {
-  return (
-    <span style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #ddd", borderRadius: 999 }}>
-      {children}
-    </span>
-  );
-}
+// simple inline styles (no framework reliance)
+const pageStyle = { maxWidth: 980, margin: "0 auto", padding: "16px" };
+const headerRow = {
+  display: "flex",
+  alignItems: "baseline",
+  justifyContent: "space-between",
+  gap: 12,
+  marginBottom: 10,
+};
+const h1Style = { fontSize: 22, fontWeight: 700, margin: 0 };
+const countStyle = { fontSize: 13, color: "#444" };
+const statusStyle = { fontSize: 13, color: "#555", marginBottom: 12 };
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
+  gap: 12,
+};
+const card = {
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  overflow: "hidden",
+  background: "#fff",
+  display: "flex",
+  flexDirection: "column",
+};
+const thumbWrap = { aspectRatio: "4 / 3", background: "#f5f5f5" };
+const imgStyle = { width: "100%", height: "100%", objectFit: "cover", display: "block" };
+const meta = { padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 };
+const badgeRow = { display: "flex", flexWrap: "wrap", gap: 6 };
+const badge = {
+  display: "inline-block",
+  fontSize: 11,
+  border: "1px solid #ccc",
+  borderRadius: 999,
+  padding: "3px 8px",
+  background: "#fafafa",
+  color: "#111",
+};
+const actions = {
+  marginTop: 6,
+  display: "flex",
+  gap: 8,
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+const btn = {
+  fontSize: 12,
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  padding: "6px 10px",
+  background: "#fff",
+  cursor: "pointer",
+  textDecoration: "none",
+  color: "#111",
+};
+const loadMoreWrap = { display: "flex", justifyContent: "center", marginTop: 14 };
 
-export default function BlebsCategoryPage() {
+export default function ClearToBrownBlebsPage() {
   const router = useRouter();
-  const urlColor = typeof router.query?.color === "string" ? router.query.color : "";
+  const colorParam = useMemo(() => {
+    const c = router.query?.color;
+    return typeof c === "string" ? c : Array.isArray(c) ? c[0] : "";
+  }, [router.query]);
 
-  const [user, setUser] = useState(null);
-  const [count, setCount] = useState(null);
+  const [userPresent, setUserPresent] = useState(null);
+  const [status, setStatus] = useState("Loading…");
   const [items, setItems] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
+  const [count, setCount] = useState(null);
+  const [page, setPage] = useState(0);
+  const [loadingPage, setLoadingPage] = useState(false);
+  const [more, setMore] = useState(true);
 
-  const [copiedMap, setCopiedMap] = useState({});
-
-  // Auth
   useEffect(() => {
-    let mounted = true;
+    let on = true;
     (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!mounted) return;
-      setUser(data?.user ?? null);
+      if (!supabase) return;
+      // determine if signed in (a11y status)
+      const { data: authData } = await supabase.auth.getUser();
+      if (!on) return;
+      setUserPresent(!!authData?.user);
     })();
-    return () => { mounted = false; };
+    return () => {
+      on = false;
+    };
   }, []);
 
-  // Reset list
+  // reset when color changes
   useEffect(() => {
     setItems([]);
-    setOffset(0);
     setCount(null);
-    setStatus("");
-    setCopiedMap({});
-  }, [urlColor]);
+    setPage(0);
+    setMore(true);
+  }, [colorParam]);
 
-  // Count
+  // fetch count
   useEffect(() => {
-    if (!user?.id) return;
-    let canceled = false;
+    let on = true;
     (async () => {
-      const base = supabase
+      if (!supabase) return;
+      setStatus("Loading…");
+      let q = supabase
         .from("image_metadata")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
         .eq("category", CATEGORY_LABEL);
-
-      const q = urlColor ? base.eq(COLOR_COLUMN, urlColor) : base;
-      const { count: total, error } = await q;
-
-      if (canceled) return;
-      if (error) {
-        setCount(null);
-        return;
+      if (colorParam) {
+        // support either bleb_color or color column
+        q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
       }
-      setCount(typeof total === "number" ? total : null);
+      const { count: c, error } = await q;
+      if (!on) return;
+      if (error) {
+        console.error("count error:", error);
+        setCount(0);
+        setStatus("Failed to load.");
+      } else {
+        setCount(c || 0);
+        setStatus("");
+      }
     })();
-    return () => { canceled = true; };
-  }, [user?.id, urlColor]);
+    return () => {
+      on = false;
+    };
+  }, [colorParam]);
 
-  // Load page
-  async function loadMore() {
-    if (!user?.id) return;
-    setLoading(true);
-    setStatus(items.length === 0 ? "Loading..." : "");
+  // fetch a page
+  async function fetchPage(nextPage) {
+    if (!supabase || loadingPage || !more) return;
+    setLoadingPage(true);
+    const from = nextPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let q = supabase
       .from("image_metadata")
-      .select("id, path, filename, category, bleb_color, created_at", { count: "exact" })
-      .eq("user_id", user.id)
+      .select("*")
       .eq("category", CATEGORY_LABEL)
       .order("created_at", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
+      .range(from, to);
 
-    if (urlColor) q = q.eq(COLOR_COLUMN, urlColor);
+    if (colorParam) {
+      q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
+    }
 
     const { data, error } = await q;
-
     if (error) {
-      setStatus(`Load error: ${error.message}`);
-      setLoading(false);
+      console.error("page fetch error:", error);
+      setStatus("Failed to load.");
+      setLoadingPage(false);
+      setMore(false);
       return;
     }
 
-    const batch = data || [];
-    setItems((prev) => [...prev, ...batch]);
-    setOffset((prev) => prev + batch.length);
-    setLoading(false);
-    setStatus("");
+    const rows = Array.isArray(data) ? data : [];
+    setItems((prev) => [...prev, ...rows]);
+    setPage(nextPage);
+    setLoadingPage(false);
+    if (rows.length < PAGE_SIZE) setMore(false);
   }
 
-  // Initial
+  // initial page & on color change
   useEffect(() => {
-    if (user?.id && offset === 0 && items.length === 0) {
-      loadMore();
-    }
+    fetchPage(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, urlColor]);
+  }, [colorParam]);
 
-  const hasMore = useMemo(() => {
-    if (loading) return false;
-    if (items.length === 0) return false;
-    if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0;
-  }, [items.length, count, loading]);
-
-  function cardColorBadge(row) {
-    if (row.category === CATEGORY_LABEL && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
-    return null;
+  // helper to get public URL from row
+  function getPublicUrl(row) {
+    // prefer stored URL if present
+    if (row?.public_url) return row.public_url;
+    // else derive from storage path if available
+    const path = row?.storage_path || row?.file_path;
+    if (supabase && path) {
+      const { data } = supabase.storage.from("images").getPublicUrl(path);
+      return data?.publicUrl || "";
+    }
+    return "";
   }
 
-  async function handleCopy(e, url, id) {
-    e.preventDefault();
-    e.stopPropagation();
+  // copy link action
+  async function handleCopy(url) {
     try {
       await navigator.clipboard.writeText(url);
-      setCopiedMap((m) => ({ ...m, [id]: true }));
-      setTimeout(() => setCopiedMap((m) => {
-        const n = { ...m };
-        delete n[id];
-        return n;
-      }), 1000);
-    } catch {
+      alert("Image link copied.");
+    } catch (e) {
+      console.error("copy failed:", e);
       alert("Copy failed.");
     }
   }
 
-  function handleOpen(e, url) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      window.open(url, "_blank", "noopener");
-    } catch {}
-  }
+  const statusText = userPresent === false
+    ? "Not signed in. Your items may be empty."
+    : status;
 
   return (
-    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>
-          {CATEGORY_LABEL}
-          {urlColor ? (
-            <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
-          ) : null}
-        </h1>
-      </header>
+    <main id="main" style={pageStyle}>
+      <div style={headerRow}>
+        <h1 style={h1Style}>{CATEGORY_LABEL}</h1>
+        <span aria-live="polite" style={countStyle}>
+          {count === null ? "" : `${count} item${count === 1 ? "" : "s"}`}
+        </span>
+      </div>
 
-      {!user ? (
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>Please sign in to view this page.</div>
-      ) : (
-        <>
-          <div style={{ marginBottom: 12, fontSize: 14 }}>
-            Total in this category{urlColor ? " (filtered)" : ""}:{" "}
-            <strong>{typeof count === "number" ? count : "…"}</strong>
-          </div>
+      {/* Quick color toolbar specific to Blebs */}
+      <QuickColors
+        baseHref="/category/clear_to_brown_blebs"
+        label="Blebs (clear to brown)"
+        colors={BLEB_COLORS}
+        activeColor={colorParam}
+        showClear={true}
+      />
 
-          <div role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 12 }}>
-            {status && items.length === 0 ? (
-              <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{status}</div>
-            ) : null}
-          </div>
+      <p aria-live="polite" style={statusStyle}>{statusText}</p>
 
-          {/* Grid */}
-          {items.length > 0 ? (
-            <div
-              role="list"
-              aria-label={`${CATEGORY_LABEL} images`}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {items.map((row) => {
-                const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
-                const url = pub?.publicUrl || "";
-                const copied = !!copiedMap[row.id];
-                return (
-                  <a
-                    role="listitem"
-                    key={row.id}
-                    href={`/image/${row.id}`}
-                    aria-label={`Open details for ${row.filename}`}
-                    style={{
-                      display: "block",
-                      textDecoration: "none",
-                      color: "inherit",
-                      border: "1px solid #e5e5e5",
-                      borderRadius: 8,
-                      overflow: "hidden",
-                      background: "#fff",
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={row.filename}
-                      style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
-                    />
-                    <div style={{ padding: 10 }}>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                        <Badge>{row.category}</Badge>
-                        {cardColorBadge(row)}
-                      </div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
-
-                      {/* Card actions */}
-                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        <button
-                          onClick={(e) => handleCopy(e, url, row.id)}
-                          aria-label={`Copy public link for ${row.filename}`}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            border: "1px solid #cbd5e1",
-                            background: "#f8fafc",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: 600,
-                          }}
-                          title="Copy image link"
-                        >
-                          {copied ? "Link copied!" : "Copy image link"}
-                        </button>
-                        <button
-                          onClick={(e) => handleOpen(e, url)}
-                          aria-label={`Open ${row.filename} in a new tab`}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            border: "1px solid #cbd5e1",
-                            background: "#f8fafc",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: 600,
-                          }}
-                          title="Open image in new tab"
-                        >
-                          Open image
-                        </button>
-                      </div>
+      <section aria-labelledby="gallery-heading">
+        <h2 id="gallery-heading" style={{ position: "absolute", left: -9999, top: "auto" }}>
+          Gallery
+        </h2>
+        <ul style={grid}>
+          {items.map((row) => {
+            const url = getPublicUrl(row);
+            const color = row?.bleb_color || row?.color || "";
+            return (
+              <li key={row.id} style={card}>
+                <div style={thumbWrap}>
+                  {url ? (
+                    <img src={url} alt={row.filename || "Image"} style={imgStyle} />
+                  ) : (
+                    <div style={{...imgStyle, display:"flex", alignItems:"center", justifyContent:"center", color:"#888", fontSize:12}}>
+                      No preview
                     </div>
-                  </a>
-                );
-              })}
-            </div>
-          ) : null}
+                  )}
+                </div>
+                <div style={meta}>
+                  <div style={badgeRow}>
+                    <span style={badge} aria-label="Category">{CATEGORY_LABEL}</span>
+                    {color ? (
+                      <span style={badge} aria-label="Color">{color}</span>
+                    ) : null}
+                  </div>
+                  <div style={actions}>
+                    {url ? (
+                      <>
+                        <button style={btn} onClick={() => handleCopy(url)} aria-label="Copy image link">
+                          Copy image link
+                        </button>
+                        <a style={btn} href={url} target="_blank" rel="noopener noreferrer" aria-label="Open image in new tab">
+                          Open image
+                        </a>
+                      </>
+                    ) : null}
+                    <Link href={`/image/${row.id}`} legacyBehavior>
+                      <a style={btn} aria-label="Open image details">Details</a>
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
-          {/* Load more / end-of-list / empty */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-            {hasMore ? (
-              <button
-                onClick={loadMore}
-                disabled={loading}
-                aria-label="Load more images"
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #0f766e",
-                  background: loading ? "#8dd3cd" : "#14b8a6",
-                  color: "white",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                {loading ? "Loading..." : "Load more"}
-              </button>
-            ) : items.length > 0 ? (
-              <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
-            ) : (
-              <div style={{ fontSize: 12, opacity: 0.7 }}>No items in this category yet.</div>
-            )}
-          </div>
-        </>
-      )}
+      <div style={loadMoreWrap}>
+        {more ? (
+          <button
+            style={btn}
+            onClick={() => fetchPage(page + 1)}
+            aria-busy={loadingPage ? "true" : "false"}
+            disabled={loadingPage}
+          >
+            {loadingPage ? "Loading…" : "Load more"}
+          </button>
+        ) : (
+          <span style={{ fontSize: 12, color: "#666" }}>
+            {items.length === 0 ? "No items." : "End of results."}
+          </span>
+        )}
+      </div>
     </main>
   );
 }
+
 
 
