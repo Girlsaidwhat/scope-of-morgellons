@@ -1,15 +1,21 @@
 // components/QuickColors.js
-// Build 36.24_2025-08-22
+// Build 36.25_2025-08-22
 import Link from "next/link";
 
 export default function QuickColors({
   baseHref,
-  label,
-  colors = [],
-  activeColor = "",
-  showClear = true,
+  label = "Colors",
+  colors = [],           // accepts ["Red", ...] or [{ label, value }]
+  activeColor = "",      // the current value from ?color=...
 }) {
-  // compact, left-aligned, single-row (wraps as needed)
+  const items = (colors || []).map((c) =>
+    typeof c === "string" ? { label: c, value: c } : c
+  );
+  const active = (activeColor || "").toLowerCase();
+  const activeItem =
+    items.find((i) => (i.value || "").toLowerCase() === active) || null;
+
+  // compact, left-aligned, single row (wraps as needed)
   const wrap = {
     display: "inline-flex",
     alignItems: "center",
@@ -29,56 +35,46 @@ export default function QuickColors({
     fontWeight: 700,
     color: "#fff",
     marginRight: 2,
+    lineHeight: 1,
   };
 
+  // user preference: white buttons with black text (active = inverted)
   const chip = {
     display: "inline-block",
-    border: "1px solid #555",
+    border: "1px solid #ccc",
     borderRadius: 999,
     padding: "6px 10px",
     fontSize: 12,
-    color: "#fff",
-    background: "transparent",
+    color: "#111",
+    background: "#fff",
     textDecoration: "none",
     lineHeight: 1,
   };
   const chipActive = {
     ...chip,
-    background: "#0b5fff",
-    borderColor: "#0b5fff",
+    background: "#111",
+    borderColor: "#111",
     color: "#fff",
-  };
-  const chipClear = {
-    ...chip,
-    borderStyle: "dashed",
-    borderColor: "#777",
-    color: "#ddd",
   };
 
   return (
     <nav aria-label="Quick colors" style={wrap}>
       <span style={titleChip}>
-        {label}{activeColor ? ` · ${activeColor}` : ""}
+        {label}
+        {activeItem ? ` · ${activeItem.label}` : ""}
       </span>
 
-      {showClear && (
-        <Link href={baseHref} legacyBehavior>
-          <a aria-label="Clear color filter" style={activeColor ? chipClear : chip}>
-            Clear color
-          </a>
-        </Link>
-      )}
-
-      {colors.map((c) => {
-        const isActive = (activeColor || "")?.toLowerCase() === c.toLowerCase();
+      {items.map((item) => {
+        const isActive = (item.value || "").toLowerCase() === active;
+        const href = `${baseHref}?color=${encodeURIComponent(item.value)}`;
         return (
-          <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
+          <Link key={item.value} href={href} legacyBehavior>
             <a
-              aria-label={`Filter by color ${c}`}
+              aria-label={`Filter by color ${item.label}`}
               aria-current={isActive ? "page" : undefined}
               style={isActive ? chipActive : chip}
             >
-              {c}
+              {item.label}
             </a>
           </Link>
         );
@@ -86,4 +82,5 @@ export default function QuickColors({
     </nav>
   );
 }
+
 

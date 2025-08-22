@@ -1,5 +1,5 @@
 // pages/category/clear_to_brown_blebs.js
-// Build 36.24_2025-08-22
+// Build 36.25_2025-08-22
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -7,7 +7,14 @@ import { createClient } from "@supabase/supabase-js";
 import QuickColors from "../../components/QuickColors";
 
 const CATEGORY_LABEL = "Blebs (clear to brown)";
-const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
+// Display "Clear/White" but query value "Clear" to match DB
+const BLEB_COLORS = [
+  { label: "Clear/White", value: "Clear" },
+  { label: "Yellow", value: "Yellow" },
+  { label: "Orange", value: "Orange" },
+  { label: "Red", value: "Red" },
+  { label: "Brown", value: "Brown" },
+];
 const PAGE_SIZE = 24;
 
 const supabase =
@@ -109,7 +116,7 @@ export default function ClearToBrownBlebsPage() {
     setMore(true);
   }, [colorParam]);
 
-  // fetch count
+  // count (case-insensitive match on either bleb_color or color)
   useEffect(() => {
     let on = true;
     (async () => {
@@ -119,7 +126,11 @@ export default function ClearToBrownBlebsPage() {
         .from("image_metadata")
         .select("id", { count: "exact", head: true })
         .eq("category", CATEGORY_LABEL);
-      if (colorParam) q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
+      if (colorParam) {
+        q = q.or(
+          `bleb_color.ilike.${colorParam},color.ilike.${colorParam}`
+        );
+      }
       const { count: c, error } = await q;
       if (!on) return;
       if (error) {
@@ -134,7 +145,7 @@ export default function ClearToBrownBlebsPage() {
     return () => { on = false; };
   }, [colorParam]);
 
-  // fetch a page
+  // fetch a page (same filter)
   async function fetchPage(nextPage) {
     if (!supabase || loadingPage || !more) return;
     setLoadingPage(true);
@@ -148,7 +159,9 @@ export default function ClearToBrownBlebsPage() {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (colorParam) q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
+    if (colorParam) {
+      q = q.or(`bleb_color.ilike.${colorParam},color.ilike.${colorParam}`);
+    }
 
     const { data, error } = await q;
     if (error) {
@@ -204,14 +217,13 @@ export default function ClearToBrownBlebsPage() {
         </span>
       </div>
 
-      {/* Keep toolbar left-aligned, under the header */}
+      {/* Compact, white buttons on dark bar; no 'Clear color' button */}
       <div style={{ display: "flex", justifyContent: "flex-start" }}>
         <QuickColors
           baseHref="/category/clear_to_brown_blebs"
-          label="Quick colors"
+          label="Colors"
           colors={BLEB_COLORS}
           activeColor={colorParam}
-          showClear={true}
         />
       </div>
 
@@ -282,6 +294,7 @@ export default function ClearToBrownBlebsPage() {
     </main>
   );
 }
+
 
 
 
