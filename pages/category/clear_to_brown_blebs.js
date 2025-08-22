@@ -1,5 +1,5 @@
 // pages/category/clear_to_brown_blebs.js
-// Build 36.22_2025-08-22
+// Build 36.24_2025-08-22
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -18,18 +18,18 @@ const supabase =
       )
     : null;
 
-// simple inline styles (no framework reliance)
+// simple inline styles
 const pageStyle = { maxWidth: 980, margin: "0 auto", padding: "16px" };
 const headerRow = {
   display: "flex",
   alignItems: "baseline",
   justifyContent: "space-between",
   gap: 12,
-  marginBottom: 10,
+  marginBottom: 6,
 };
 const h1Style = { fontSize: 22, fontWeight: 700, margin: 0 };
 const countStyle = { fontSize: 13, color: "#444" };
-const statusStyle = { fontSize: 13, color: "#555", marginBottom: 12 };
+const statusStyle = { fontSize: 13, color: "#555", margin: "8px 0 12px" };
 const grid = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
@@ -94,17 +94,14 @@ export default function ClearToBrownBlebsPage() {
     let on = true;
     (async () => {
       if (!supabase) return;
-      // determine if signed in (a11y status)
       const { data: authData } = await supabase.auth.getUser();
       if (!on) return;
       setUserPresent(!!authData?.user);
     })();
-    return () => {
-      on = false;
-    };
+    return () => { on = false; };
   }, []);
 
-  // reset when color changes
+  // reset on color change
   useEffect(() => {
     setItems([]);
     setCount(null);
@@ -122,10 +119,7 @@ export default function ClearToBrownBlebsPage() {
         .from("image_metadata")
         .select("id", { count: "exact", head: true })
         .eq("category", CATEGORY_LABEL);
-      if (colorParam) {
-        // support either bleb_color or color column
-        q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
-      }
+      if (colorParam) q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
       const { count: c, error } = await q;
       if (!on) return;
       if (error) {
@@ -137,9 +131,7 @@ export default function ClearToBrownBlebsPage() {
         setStatus("");
       }
     })();
-    return () => {
-      on = false;
-    };
+    return () => { on = false; };
   }, [colorParam]);
 
   // fetch a page
@@ -156,9 +148,7 @@ export default function ClearToBrownBlebsPage() {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (colorParam) {
-      q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
-    }
+    if (colorParam) q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
 
     const { data, error } = await q;
     if (error) {
@@ -182,11 +172,8 @@ export default function ClearToBrownBlebsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorParam]);
 
-  // helper to get public URL from row
   function getPublicUrl(row) {
-    // prefer stored URL if present
     if (row?.public_url) return row.public_url;
-    // else derive from storage path if available
     const path = row?.storage_path || row?.file_path;
     if (supabase && path) {
       const { data } = supabase.storage.from("images").getPublicUrl(path);
@@ -195,13 +182,11 @@ export default function ClearToBrownBlebsPage() {
     return "";
   }
 
-  // copy link action
   async function handleCopy(url) {
     try {
       await navigator.clipboard.writeText(url);
       alert("Image link copied.");
-    } catch (e) {
-      console.error("copy failed:", e);
+    } catch {
       alert("Copy failed.");
     }
   }
@@ -219,14 +204,16 @@ export default function ClearToBrownBlebsPage() {
         </span>
       </div>
 
-      {/* Quick color toolbar specific to Blebs */}
-      <QuickColors
-        baseHref="/category/clear_to_brown_blebs"
-        label="Blebs (clear to brown)"
-        colors={BLEB_COLORS}
-        activeColor={colorParam}
-        showClear={true}
-      />
+      {/* Keep toolbar left-aligned, under the header */}
+      <div style={{ display: "flex", justifyContent: "flex-start" }}>
+        <QuickColors
+          baseHref="/category/clear_to_brown_blebs"
+          label="Quick colors"
+          colors={BLEB_COLORS}
+          activeColor={colorParam}
+          showClear={true}
+        />
+      </div>
 
       <p aria-live="polite" style={statusStyle}>{statusText}</p>
 
@@ -252,9 +239,7 @@ export default function ClearToBrownBlebsPage() {
                 <div style={meta}>
                   <div style={badgeRow}>
                     <span style={badge} aria-label="Category">{CATEGORY_LABEL}</span>
-                    {color ? (
-                      <span style={badge} aria-label="Color">{color}</span>
-                    ) : null}
+                    {color ? <span style={badge} aria-label="Color">{color}</span> : null}
                   </div>
                   <div style={actions}>
                     {url ? (
@@ -297,6 +282,7 @@ export default function ClearToBrownBlebsPage() {
     </main>
   );
 }
+
 
 
 

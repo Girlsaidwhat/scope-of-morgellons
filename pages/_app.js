@@ -1,8 +1,8 @@
 // pages/_app.js
-// Build 36.23_2025-08-22
+// Build 36.24_2025-08-22
 import "../styles/globals.css";
 
-export const BUILD_VERSION = "Build 36.23_2025-08-22";
+export const BUILD_VERSION = "Build 36.24_2025-08-22";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -19,15 +19,8 @@ function BuildBadge() {
     boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
   };
   return (
-    <div id="global-build-badge" aria-label="Build version" style={badgeStyle}>
-      {/* Force visible text, even if global CSS tries to override */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html:
-            "#global-build-badge [data-badge-text]{color:#fff !important;font-family:system-ui,Segoe UI,Arial,sans-serif !important;font-weight:600}",
-        }}
-      />
-      <span data-badge-text>{BUILD_VERSION}</span>
+    <div aria-label="Build version" style={badgeStyle}>
+      {BUILD_VERSION}
     </div>
   );
 }
@@ -82,6 +75,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 

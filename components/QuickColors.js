@@ -1,5 +1,5 @@
 // components/QuickColors.js
-// Build 36.23_2025-08-22
+// Build 36.24_2025-08-22
 import Link from "next/link";
 
 export default function QuickColors({
@@ -9,20 +9,27 @@ export default function QuickColors({
   activeColor = "",
   showClear = true,
 }) {
+  // compact, left-aligned, single-row (wraps as needed)
   const wrap = {
-    position: "relative",
-    zIndex: 1,
+    display: "inline-flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
     background: "#111",
     border: "1px solid #000",
-    borderRadius: 10,
+    borderRadius: 999,
     boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-    padding: "10px 12px",
-    maxWidth: "100%",
-    margin: "12px 0",
+    padding: "6px 8px",
     color: "#fff",
+    margin: "8px 0",
   };
-  const title = { fontSize: 12, fontWeight: 700, marginBottom: 6, color: "#fff" };
-  const row = { display: "flex", flexWrap: "wrap", gap: 8 };
+
+  const titleChip = {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#fff",
+    marginRight: 2,
+  };
 
   const chip = {
     display: "inline-block",
@@ -33,38 +40,50 @@ export default function QuickColors({
     color: "#fff",
     background: "transparent",
     textDecoration: "none",
+    lineHeight: 1,
   };
-  const chipActive = { ...chip, background: "#0b5fff", borderColor: "#0b5fff", color: "#fff" };
-  const chipClear = { ...chip, borderStyle: "dashed", borderColor: "#777", color: "#ddd" };
+  const chipActive = {
+    ...chip,
+    background: "#0b5fff",
+    borderColor: "#0b5fff",
+    color: "#fff",
+  };
+  const chipClear = {
+    ...chip,
+    borderStyle: "dashed",
+    borderColor: "#777",
+    color: "#ddd",
+  };
 
   return (
     <nav aria-label="Quick colors" style={wrap}>
-      <div style={title}>
-        {label} · Quick colors{activeColor ? ` · Active: ${activeColor}` : ""}
-      </div>
-      <div style={row}>
-        {showClear && (
-          <Link href={baseHref} legacyBehavior>
-            <a aria-label="Clear color filter" style={activeColor ? chipClear : chip}>
-              Clear color
+      <span style={titleChip}>
+        {label}{activeColor ? ` · ${activeColor}` : ""}
+      </span>
+
+      {showClear && (
+        <Link href={baseHref} legacyBehavior>
+          <a aria-label="Clear color filter" style={activeColor ? chipClear : chip}>
+            Clear color
+          </a>
+        </Link>
+      )}
+
+      {colors.map((c) => {
+        const isActive = (activeColor || "")?.toLowerCase() === c.toLowerCase();
+        return (
+          <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
+            <a
+              aria-label={`Filter by color ${c}`}
+              aria-current={isActive ? "page" : undefined}
+              style={isActive ? chipActive : chip}
+            >
+              {c}
             </a>
           </Link>
-        )}
-        {colors.map((c) => {
-          const isActive = (activeColor || "")?.toLowerCase() === c.toLowerCase();
-          return (
-            <Link key={c} href={`${baseHref}?color=${encodeURIComponent(c)}`} legacyBehavior>
-              <a
-                aria-label={`Filter by color ${c}`}
-                aria-current={isActive ? "page" : undefined}
-                style={isActive ? chipActive : chip}
-              >
-                {c}
-              </a>
-            </Link>
-          );
-        })}
-      </div>
+        );
+      })}
     </nav>
   );
 }
+
