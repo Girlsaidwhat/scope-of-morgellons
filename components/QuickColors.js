@@ -1,12 +1,12 @@
 // components/QuickColors.js
-// Build 36.26_2025-08-22
+// Build 36.27_2025-08-22
 import Link from "next/link";
 
 export default function QuickColors({
   baseHref,
   label = "Colors",
-  colors = [],           // accepts ["Red", ...] or [{ label, value }]
-  activeColor = "",      // the current value from ?color=...
+  colors = [],
+  activeColor = "",
 }) {
   const items = (colors || []).map((c) =>
     typeof c === "string" ? { label: c, value: c } : c
@@ -15,7 +15,6 @@ export default function QuickColors({
   const activeItem =
     items.find((i) => (i.value || "").toLowerCase() === active) || null;
 
-  // compact, left-aligned, single row (wraps as needed)
   const wrap = {
     display: "inline-flex",
     alignItems: "center",
@@ -38,15 +37,15 @@ export default function QuickColors({
     lineHeight: 1,
   };
 
-  // soften: off-white chip with black text; active = inverted
+  // softer: a shade dimmer than before
   const chip = {
     display: "inline-block",
-    border: "1px solid #d0d0d0",
+    border: "1px solid #c8c8c8",
     borderRadius: 999,
     padding: "6px 10px",
     fontSize: 12,
     color: "#111",
-    background: "#f2f2f2",
+    background: "#e9e9e9",
     textDecoration: "none",
     lineHeight: 1,
   };
@@ -82,6 +81,7 @@ export default function QuickColors({
     </nav>
   );
 }
+
 
 
 

@@ -1,5 +1,5 @@
 // pages/category/clear_to_brown_blebs.js
-// Build 36.26_2025-08-22
+// Build 36.27_2025-08-22
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -7,7 +7,6 @@ import { createClient } from "@supabase/supabase-js";
 import QuickColors from "../../components/QuickColors";
 
 const CATEGORY_LABEL = "Blebs (clear to brown)";
-// Display "Clear/White" but query value "Clear" to match DB
 const BLEB_COLORS = [
   { label: "Clear/White", value: "Clear" },
   { label: "Yellow", value: "Yellow" },
@@ -90,7 +89,7 @@ export default function ClearToBrownBlebsPage() {
   }, [router.query]);
 
   const [userPresent, setUserPresent] = useState(null);
-  const [status, setStatus] = useState("Loading…");
+  const [status, setStatus] = useState("Loading…"); // status strictly for page data (not count)
   const [items, setItems] = useState([]);
   const [count, setCount] = useState(null);
   const [page, setPage] = useState(0);
@@ -116,34 +115,36 @@ export default function ClearToBrownBlebsPage() {
     setMore(true);
   }, [colorParam]);
 
-  // count using exact-match equality on either column (RLS-safe)
+  // count (do not affect top status to avoid scary banner)
   useEffect(() => {
     let on = true;
     (async () => {
       if (!supabase) return;
-      setStatus("Loading…");
-      let q = supabase
-        .from("image_metadata")
-        .select("id", { count: "exact", head: true })
-        .eq("category", CATEGORY_LABEL);
-      if (colorParam) {
-        q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
-      }
-      const { count: c, error } = await q;
-      if (!on) return;
-      if (error) {
-        console.error("count error:", error);
-        setCount(0);
-        setStatus("Failed to load.");
-      } else {
-        setCount(c || 0);
-        setStatus("");
+      try {
+        let q = supabase
+          .from("image_metadata")
+          .select("id", { count: "exact", head: true })
+          .eq("category", CATEGORY_LABEL);
+        if (colorParam) {
+          q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
+        }
+        const { count: c, error } = await q;
+        if (!on) return;
+        if (error) {
+          console.error("count error:", error);
+          setCount(null); // leave header minimal rather than showing fail text
+        } else {
+          setCount(c || 0);
+        }
+      } catch (err) {
+        console.error("count exception:", err);
+        if (on) setCount(null);
       }
     })();
     return () => { on = false; };
   }, [colorParam]);
 
-  // fetch a page (same filter)
+  // fetch a page (controls the user-visible status)
   async function fetchPage(nextPage) {
     if (!supabase || loadingPage || !more) return;
     setLoadingPage(true);
@@ -164,7 +165,7 @@ export default function ClearToBrownBlebsPage() {
     const { data, error } = await q;
     if (error) {
       console.error("page fetch error:", error);
-      setStatus("Failed to load.");
+      setStatus("Failed to load."); // only the page fetch controls the banner
       setLoadingPage(false);
       setMore(false);
       return;
@@ -174,6 +175,7 @@ export default function ClearToBrownBlebsPage() {
     setItems((prev) => [...prev, ...rows]);
     setPage(nextPage);
     setLoadingPage(false);
+    setStatus(""); // clear banner on success
     if (rows.length < PAGE_SIZE) setMore(false);
   }
 
@@ -215,7 +217,6 @@ export default function ClearToBrownBlebsPage() {
         </span>
       </div>
 
-      {/* Compact toolbar; softened chip color; no Clear button */}
       <div style={{ display: "flex", justifyContent: "flex-start" }}>
         <QuickColors
           baseHref="/category/clear_to_brown_blebs"
@@ -292,6 +293,7 @@ export default function ClearToBrownBlebsPage() {
     </main>
   );
 }
+
 
 
 
