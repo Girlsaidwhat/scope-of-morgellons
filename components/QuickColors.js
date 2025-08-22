@@ -1,5 +1,5 @@
 // components/QuickColors.js
-// Build 36.25_2025-08-22
+// Build 36.26_2025-08-22
 import Link from "next/link";
 
 export default function QuickColors({
@@ -38,15 +38,15 @@ export default function QuickColors({
     lineHeight: 1,
   };
 
-  // user preference: white buttons with black text (active = inverted)
+  // soften: off-white chip with black text; active = inverted
   const chip = {
     display: "inline-block",
-    border: "1px solid #ccc",
+    border: "1px solid #d0d0d0",
     borderRadius: 999,
     padding: "6px 10px",
     fontSize: 12,
     color: "#111",
-    background: "#fff",
+    background: "#f2f2f2",
     textDecoration: "none",
     lineHeight: 1,
   };
@@ -82,5 +82,6 @@ export default function QuickColors({
     </nav>
   );
 }
+
 
 
