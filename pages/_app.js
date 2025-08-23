@@ -1,8 +1,8 @@
 // pages/_app.js
-// Build 36.27_2025-08-22
+// Build 36.28_2025-08-22
 import "../styles/globals.css";
 
-export const BUILD_VERSION = "Build 36.27_2025-08-22";
+export const BUILD_VERSION = "Build 36.28_2025-08-22";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -40,7 +40,7 @@ const srOnlyFocus = {
   height: "auto",
   overflow: "visible",
   padding: "4px 8px",
-  border: "1px solid #ccc",
+  border: "1px solid "#ccc",
   borderRadius: 6,
   background: "#fff",
   margin: 8,
@@ -75,6 +75,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 

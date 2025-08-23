@@ -1,5 +1,5 @@
 // pages/category/clear_to_brown_blebs.js
-// Build 36.27_2025-08-22
+// Build 36.28_2025-08-22
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -89,7 +89,7 @@ export default function ClearToBrownBlebsPage() {
   }, [router.query]);
 
   const [userPresent, setUserPresent] = useState(null);
-  const [status, setStatus] = useState("Loading…"); // status strictly for page data (not count)
+  const [status, setStatus] = useState("Loading…"); // status strictly for page data
   const [items, setItems] = useState([]);
   const [count, setCount] = useState(null);
   const [page, setPage] = useState(0);
@@ -115,7 +115,7 @@ export default function ClearToBrownBlebsPage() {
     setMore(true);
   }, [colorParam]);
 
-  // count (do not affect top status to avoid scary banner)
+  // count (filter only on bleb_color for this category)
   useEffect(() => {
     let on = true;
     (async () => {
@@ -125,14 +125,12 @@ export default function ClearToBrownBlebsPage() {
           .from("image_metadata")
           .select("id", { count: "exact", head: true })
           .eq("category", CATEGORY_LABEL);
-        if (colorParam) {
-          q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
-        }
+        if (colorParam) q = q.eq("bleb_color", colorParam);
         const { count: c, error } = await q;
         if (!on) return;
         if (error) {
           console.error("count error:", error);
-          setCount(null); // leave header minimal rather than showing fail text
+          setCount(null);
         } else {
           setCount(c || 0);
         }
@@ -144,7 +142,7 @@ export default function ClearToBrownBlebsPage() {
     return () => { on = false; };
   }, [colorParam]);
 
-  // fetch a page (controls the user-visible status)
+  // fetch a page (same filter)
   async function fetchPage(nextPage) {
     if (!supabase || loadingPage || !more) return;
     setLoadingPage(true);
@@ -158,14 +156,12 @@ export default function ClearToBrownBlebsPage() {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if (colorParam) {
-      q = q.or(`bleb_color.eq.${colorParam},color.eq.${colorParam}`);
-    }
+    if (colorParam) q = q.eq("bleb_color", colorParam);
 
     const { data, error } = await q;
     if (error) {
       console.error("page fetch error:", error);
-      setStatus("Failed to load."); // only the page fetch controls the banner
+      setStatus("Failed to load.");
       setLoadingPage(false);
       setMore(false);
       return;
@@ -217,6 +213,7 @@ export default function ClearToBrownBlebsPage() {
         </span>
       </div>
 
+      {/* Compact toolbar; Blebs filters work via bleb_color */}
       <div style={{ display: "flex", justifyContent: "flex-start" }}>
         <QuickColors
           baseHref="/category/clear_to_brown_blebs"
@@ -226,7 +223,9 @@ export default function ClearToBrownBlebsPage() {
         />
       </div>
 
-      <p aria-live="polite" style={statusStyle}>{statusText}</p>
+      <p aria-live="polite" style={statusText ? statusStyle : { display: "none" }}>
+        {statusText}
+      </p>
 
       <section aria-labelledby="gallery-heading">
         <h2 id="gallery-heading" style={{ position: "absolute", left: -9999, top: "auto" }}>
@@ -293,6 +292,7 @@ export default function ClearToBrownBlebsPage() {
     </main>
   );
 }
+
 
 
 

@@ -1,5 +1,5 @@
 // components/QuickColors.js
-// Build 36.27_2025-08-22
+// Build 36.28_2025-08-22
 import Link from "next/link";
 
 export default function QuickColors({
@@ -37,15 +37,15 @@ export default function QuickColors({
     lineHeight: 1,
   };
 
-  // softer: a shade dimmer than before
+  // dimmer than before
   const chip = {
     display: "inline-block",
-    border: "1px solid #c8c8c8",
+    border: "1px solid #c4c4c4",
     borderRadius: 999,
     padding: "6px 10px",
     fontSize: 12,
     color: "#111",
-    background: "#e9e9e9",
+    background: "#e3e3e3",
     textDecoration: "none",
     lineHeight: 1,
   };
@@ -81,6 +81,7 @@ export default function QuickColors({
     </nav>
   );
 }
+
 
 
 
