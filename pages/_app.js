@@ -1,8 +1,8 @@
 // pages/_app.js
-// Build 36.31_2025-08-23
+// Build 36.32_2025-08-23
 import "../styles/globals.css";
 
-export const BUILD_VERSION = "Build 36.31_2025-08-23";
+export const BUILD_VERSION = "Build 36.32_2025-08-23";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -71,6 +71,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
