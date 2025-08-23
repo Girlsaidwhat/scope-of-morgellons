@@ -1,10 +1,10 @@
 // pages/_app.js
-// Build 36.37_2025-08-23
+// Build 36.43_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.37_2025-08-23";
+export const BUILD_VERSION = "Build 36.43_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -35,7 +35,7 @@ function BuildBadge() {
   );
 }
 
-// Top-right Account control: shows "Sign in" (logged out) or "Sign out" (logged in)
+// Always-visible Account control: "Sign in" when logged out, "Sign out" when logged in
 function AccountButton() {
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -73,16 +73,9 @@ function AccountButton() {
     boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
   };
 
-  if (!signedIn) {
-    return (
-      <a
-        href="/"
-        aria-label="Go to sign in"
-        style={{ ...baseBtn, textDecoration: "none", display: "inline-block" }}
-      >
-        Sign in
-      </a>
-    );
+  function goToHomeSignIn() {
+    const v = encodeURIComponent(BUILD_VERSION);
+    window.location.href = `/?signin=1#signin&v=${v}`;
   }
 
   async function handleSignOut() {
@@ -91,9 +84,22 @@ function AccountButton() {
     try {
       await supabase.auth.signOut();
     } finally {
-      // Send to your existing sign-in experience on Home
-      window.location.href = "/";
+      const v = encodeURIComponent(BUILD_VERSION);
+      window.location.href = `/?signedout=1#signin&v=${v}`;
     }
+  }
+
+  if (!signedIn) {
+    return (
+      <button
+        type="button"
+        onClick={goToHomeSignIn}
+        aria-label="Go to sign in"
+        style={{ ...baseBtn, cursor: "pointer" }}
+      >
+        Sign in
+      </button>
+    );
   }
 
   return (
@@ -156,6 +162,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
