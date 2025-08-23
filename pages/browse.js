@@ -1,8 +1,10 @@
 // pages/browse.js
-// Build 36.13_2025-08-20
-import { useEffect, useMemo, useState } from "react";
+// Build 36.30_2025-08-23
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
+import QuickColors from "../components/QuickColors";
 
 const supabase =
   typeof window !== "undefined"
@@ -12,174 +14,195 @@ const supabase =
       )
     : null;
 
+// Categories per your baseline
 const CATEGORIES = [
-  { label: "Blebs (clear to brown)", slug: "clear_to_brown_blebs" },
-  { label: "Biofilm", slug: "biofilm" },
-  { label: "Fiber Bundles", slug: "fiber_bundles" },
-  { label: "Fibers", slug: "fibers" },
-  { label: "Hexagons", slug: "hexagons" },
-  { label: "Crystalline Structures", slug: "crystalline_structures" },
-  { label: "Feathers", slug: "feathers" },
-  { label: "Miscellaneous", slug: "miscellaneous" },
-  { label: "Hairs", slug: "hairs" },
-  { label: "Skin", slug: "skin" },
-  { label: "Wounds", slug: "wounds" },
+  "Blebs (clear to brown)",
+  "Biofilm",
+  "Fiber Bundles",
+  "Fibers",
+  "Hexagons",
+  "Crystalline Structures",
+  "Feathers",
+  "Miscellaneous",
+  "Hairs",
+  "Skin",
+  "Wounds",
 ];
 
-const BLEB_COLORS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
-const FIBER_COMMON_COLORS = ["white/clear", "blue", "black", "red", "other"];
+// Quick color sets
+const BLEB_COLORS = [
+  { label: "Clear/White", value: "Clear" },
+  { label: "Yellow", value: "Yellow" },
+  { label: "Orange", value: "Orange" },
+  { label: "Red", value: "Red" },
+  { label: "Brown", value: "Brown" },
+];
 
-// Inline styles (no framework needed)
-const pageStyle = { maxWidth: 880, margin: "0 auto", padding: "16px" };
-const h1Style = { fontSize: "28px", fontWeight: 700, marginBottom: "10px" };
-const h2Style = { fontSize: "18px", fontWeight: 600, margin: "16px 0 8px" };
-const h3Style = { fontSize: "14px", fontWeight: 600, margin: "8px 0 6px" };
-const statusStyle = { fontSize: "13px", color: "#555", marginBottom: "12px" };
-const listWrapStyle = { border: "1px solid #ddd", borderRadius: 6, overflow: "hidden" };
-const listItemStyle = {
+const BUNDLE_COLORS = ["white/clear", "blue", "black", "red", "other"];
+const FIBER_COLORS = ["white/clear", "blue", "black", "red", "other"];
+
+function slugForCategory(cat) {
+  // Dedicated Blebs route per baseline
+  if (cat === "Blebs (clear to brown)") return "clear_to_brown_blebs";
+  // Underscore slug for others
+  return cat.toLowerCase().replace(/\s+/g, "_");
+}
+
+// Simple styles
+const pageStyle = { maxWidth: 980, margin: "0 auto", padding: "16px" };
+const h1Style = { fontSize: 22, fontWeight: 700, margin: 0 };
+const header = {
   display: "flex",
+  alignItems: "baseline",
   justifyContent: "space-between",
-  alignItems: "center",
-  padding: "10px 12px",
-  borderTop: "1px solid #eee",
+  gap: 12,
+  marginBottom: 10,
 };
-const firstListItemStyle = { ...listItemStyle, borderTop: "none" };
-const chipRowStyle = { display: "flex", flexWrap: "wrap", marginTop: 4 };
-const chipAStyle = {
-  display: "inline-block",
-  border: "1px solid #ccc",
-  borderRadius: 999,
-  padding: "6px 10px",
+const statusStyle = { fontSize: 13, color: "#555", margin: "8px 0 12px" };
+const list = { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 };
+const card = { border: "1px solid #ddd", borderRadius: 8, padding: "10px 12px", background: "#fff" };
+const catTitle = { fontSize: 16, fontWeight: 700, marginBottom: 6 };
+const countStyle = { fontSize: 12, color: "#444", marginBottom: 10 };
+const linkRow = { display: "flex", gap: 8, flexWrap: "wrap" };
+const linkBtn = {
   fontSize: 12,
-  color: "#111",
+  border: "1px solid #ccc",
+  borderRadius: 6,
+  padding: "6px 10px",
   background: "#fff",
   textDecoration: "none",
-  marginRight: 8,
-  marginBottom: 8,
+  color: "#111",
 };
-const catLinkAStyle = { color: "#0b5fff", textDecoration: "none", fontWeight: 500 };
 
-export default function Browse() {
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState([]);
-  const [signedIn, setSignedIn] = useState(null);
+export default function BrowsePage() {
+  const router = useRouter();
+  const [userPresent, setUserPresent] = useState(null);
+  const [status, setStatus] = useState("Loading…");
+  const [counts, setCounts] = useState({});
 
   useEffect(() => {
-    let isMounted = true;
+    let on = true;
     (async () => {
       if (!supabase) return;
-      const { data: { user } = {} } = await supabase.auth.getUser();
-      if (!isMounted) return;
-      setSignedIn(!!user);
+      const { data: authData } = await supabase.auth.getUser();
+      if (!on) return;
+      setUserPresent(!!authData?.user);
 
-      const { data, error } = await supabase
-        .from("image_metadata")
-        .select("id, category"); // RLS: only your rows
-
-      if (!isMounted) return;
-      if (error) {
-        console.error("browse fetch error:", error);
-        setRows([]);
-      } else {
-        setRows(Array.isArray(data) ? data : []);
-      }
-      setLoading(false);
+      // fetch counts per category (RLS ensures own rows)
+      setStatus("Loading…");
+      const results = await Promise.all(
+        CATEGORIES.map(async (cat) => {
+          const { count, error } = await supabase
+            .from("image_metadata")
+            .select("id", { count: "exact", head: true })
+            .eq("category", cat);
+          return { cat, count: error ? 0 : (count || 0) };
+        })
+      );
+      if (!on) return;
+      const map = {};
+      results.forEach(({ cat, count }) => (map[cat] = count));
+      setCounts(map);
+      setStatus("");
     })();
-    return () => {
-      isMounted = false;
-    };
+    return () => { on = false; };
   }, []);
 
-  const counts = useMemo(() => {
-    const map = new Map(CATEGORIES.map((c) => [c.label, 0]));
-    for (const r of rows) {
-      if (map.has(r.category)) map.set(r.category, (map.get(r.category) || 0) + 1);
-    }
-    return map;
-  }, [rows]);
-
-  const Chip = ({ href, label }) => (
-    <Link href={href} legacyBehavior>
-      <a aria-label={label} style={chipAStyle}>{label}</a>
-    </Link>
+  // Build quick color bars
+  const blebsBar = (
+    <QuickColors
+      baseHref="/category/clear_to_brown_blebs"
+      label="Blebs colors"
+      colors={BLEB_COLORS}
+      activeColor={router.query?.color || ""}
+    />
+  );
+  const bundlesBar = (
+    <QuickColors
+      baseHref="/category/fiber_bundles"
+      label="Fiber Bundles colors"
+      colors={BUNDLE_COLORS}
+      activeColor={router.query?.color || ""}
+    />
+  );
+  const fibersBar = (
+    <QuickColors
+      baseHref="/category/fibers"
+      label="Fibers colors"
+      colors={FIBER_COLORS}
+      activeColor={router.query?.color || ""}
+    />
   );
 
-  const CatLink = ({ href, label }) => (
-    <Link href={href} legacyBehavior>
-      <a aria-label={`Open ${label} category`} style={catLinkAStyle}>{label}</a>
-    </Link>
-  );
+  const statusText = userPresent === false
+    ? "Not signed in. Your items may be empty."
+    : status;
 
   return (
     <main id="main" style={pageStyle}>
-      <h1 style={h1Style}>Browse</h1>
-
-      <p aria-live="polite" id="browse-status" style={statusStyle}>
-        {loading
-          ? "Loading your category counts…"
-          : signedIn
-          ? "Showing your categories."
-          : "Not signed in. Category counts may be empty."}
-      </p>
-
-      {/* Quick color links */}
-      <section aria-labelledby="quick-colors-heading" role="navigation" style={{ marginBottom: 16 }}>
-        <h2 id="quick-colors-heading" style={h2Style}>Quick colors</h2>
-
-        {/* Blebs quick links */}
-        <div style={{ marginBottom: 10 }}>
-          <h3 style={h3Style}>Blebs (clear to brown)</h3>
-          <div style={chipRowStyle}>
-            {BLEB_COLORS.map((c) => (
-              <Chip
-                key={`blebs-${c}`}
-                href={`/category/clear_to_brown_blebs?color=${encodeURIComponent(c)}`}
-                label={c}
-              />
-            ))}
-          </div>
+      <div style={header}>
+        <h1 style={h1Style}>Browse categories</h1>
+        <div style={{ fontSize: 12, color: "#666" }}>
+          {Object.values(counts).reduce((a, b) => a + (b || 0), 0)} total
         </div>
+      </div>
 
-        {/* Fiber Bundles quick links */}
-        <div style={{ marginBottom: 10 }}>
-          <h3 style={h3Style}>Fiber Bundles</h3>
-          <div style={chipRowStyle}>
-            {FIBER_COMMON_COLORS.map((c) => (
-              <Chip
-                key={`bundles-${c}`}
-                href={`/category/fiber_bundles?color=${encodeURIComponent(c)}`}
-                label={c}
-              />
-            ))}
-          </div>
-        </div>
+      {/* Quick color bars at the top (Blebs + Fiber Bundles + Fibers) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+        {blebsBar}
+        {bundlesBar}
+        {fibersBar}
+      </div>
 
-        {/* Fibers quick links */}
-        <div>
-          <h3 style={h3Style}>Fibers</h3>
-          <div style={chipRowStyle}>
-            {FIBER_COMMON_COLORS.map((c) => (
-              <Chip
-                key={`fibers-${c}`}
-                href={`/category/fibers?color=${encodeURIComponent(c)}`}
-                label={c}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+      <p aria-live="polite" style={statusStyle}>{statusText}</p>
 
-      {/* Category list with per-user counts */}
-      <section aria-labelledby="categories-heading">
-        <h2 id="categories-heading" style={h2Style}>Your categories</h2>
-        <ul style={listWrapStyle}>
-          {CATEGORIES.map((cat, idx) => {
-            const count = counts.get(cat.label) ?? 0;
-            const itemStyle = idx === 0 ? firstListItemStyle : listItemStyle;
+      <section aria-labelledby="catlist-heading">
+        <h2 id="catlist-heading" style={{ position: "absolute", left: -9999, top: "auto" }}>
+          Categories
+        </h2>
+        <ul style={list}>
+          {CATEGORIES.map((cat) => {
+            const slug = slugForCategory(cat);
+            const href = `/category/${slug}`;
+            const count = counts[cat] ?? 0;
+
+            // Show small, relevant per-category color links only for the three groups
+            const quickLinks = (cat === "Blebs (clear to brown)" || cat === "Fiber Bundles" || cat === "Fibers");
+
             return (
-              <li key={cat.slug} style={itemStyle}>
-                <CatLink href={`/category/${cat.slug}`} label={cat.label} />
-                <span aria-label={`${cat.label} count`} style={{ fontSize: 13 }}>{count}</span>
+              <li key={cat} style={card}>
+                <div style={catTitle}>{cat}</div>
+                <div style={countStyle}>{count} item{count === 1 ? "" : "s"}</div>
+                <div style={linkRow}>
+                  <Link href={href} legacyBehavior><a style={linkBtn} aria-label={`Open ${cat}`}>Open</a></Link>
+                  {quickLinks && (
+                    <Link href={
+                      cat === "Blebs (clear to brown)"
+                        ? "/category/clear_to_brown_blebs?color=Clear"
+                        : cat === "Fiber Bundles"
+                        ? "/category/fiber_bundles?color=white%2Fclear"
+                        : "/category/fibers?color=white%2Fclear"
+                    } legacyBehavior>
+                      <a style={linkBtn} aria-label="Quick: white/clear">white/clear</a>
+                    </Link>
+                  )}
+                  {quickLinks && (cat !== "Blebs (clear to brown)") && (
+                    <>
+                      <Link href={`/category/${slug}?color=blue`} legacyBehavior><a style={linkBtn}>blue</a></Link>
+                      <Link href={`/category/${slug}?color=black`} legacyBehavior><a style={linkBtn}>black</a></Link>
+                      <Link href={`/category/${slug}?color=red`} legacyBehavior><a style={linkBtn}>red</a></Link>
+                      <Link href={`/category/${slug}?color=other`} legacyBehavior><a style={linkBtn}>other</a></Link>
+                    </>
+                  )}
+                  {quickLinks && cat === "Blebs (clear to brown)" && (
+                    <>
+                      <Link href="/category/clear_to_brown_blebs?color=Yellow" legacyBehavior><a style={linkBtn}>Yellow</a></Link>
+                      <Link href="/category/clear_to_brown_blebs?color=Orange" legacyBehavior><a style={linkBtn}>Orange</a></Link>
+                      <Link href="/category/clear_to_brown_blebs?color=Red" legacyBehavior><a style={linkBtn}>Red</a></Link>
+                      <Link href="/category/clear_to_brown_blebs?color=Brown" legacyBehavior><a style={linkBtn}>Brown</a></Link>
+                    </>
+                  )}
+                </div>
               </li>
             );
           })}
@@ -188,6 +211,7 @@ export default function Browse() {
     </main>
   );
 }
+
 
 
 

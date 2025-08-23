@@ -1,8 +1,8 @@
 // pages/_app.js
-// Build 36.29_2025-08-23
+// Build 36.30_2025-08-23
 import "../styles/globals.css";
 
-export const BUILD_VERSION = "Build 36.29_2025-08-23";
+export const BUILD_VERSION = "Build 36.30_2025-08-23";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -51,17 +51,13 @@ export default function MyApp({ Component, pageProps }) {
   function handleSkipFocus(e) {
     e.currentTarget.setAttribute(
       "style",
-      Object.entries(srOnlyFocus)
-        .map(([k, v]) => `${k}:${v}`)
-        .join(";")
+      Object.entries(srOnlyFocus).map(([k, v]) => `${k}:${v}`).join(";")
     );
   }
   function handleSkipBlur(e) {
     e.currentTarget.setAttribute(
       "style",
-      Object.entries(srOnly)
-        .map(([k, v]) => `${k}:${v}`)
-        .join(";")
+      Object.entries(srOnly).map(([k, v]) => `${k}:${v}`).join(";")
     );
   }
 
@@ -75,6 +71,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
