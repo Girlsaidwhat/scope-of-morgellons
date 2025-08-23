@@ -1,5 +1,5 @@
 // components/QuickColors.js
-// Build 36.32_2025-08-23
+// Build 36.33_2025-08-23
 import Link from "next/link";
 import { useState } from "react";
 
@@ -8,6 +8,8 @@ export default function QuickColors({
   label = "Colors",
   colors = [],           // accepts ["Red", ...] or [{ label, value }]
   activeColor = "",      // current value from ?color=...
+  includeAll = false,    // if true, show an "All" chip that goes to baseHref
+  allLabel = "All",      // label for the All chip
 }) {
   const items = (colors || []).map((c) =>
     typeof c === "string" ? { label: c, value: c } : c
@@ -16,7 +18,7 @@ export default function QuickColors({
   const activeItem =
     items.find((i) => (i.value || "").toLowerCase() === active) || null;
 
-  // Minimal inline group (no big container)
+  // Minimal inline group
   const wrap = {
     display: "flex",
     alignItems: "center",
@@ -33,10 +35,10 @@ export default function QuickColors({
     lineHeight: 1,
   };
 
-  // Compact chips: softer gray, tighter padding
+  // Compact chips: calm gray, tighter padding
   const chipBase = {
     display: "inline-block",
-    border: "1px solid #cfcfcf",
+    border: "1px solid #d4d4d4",
     borderRadius: 999,
     padding: "5px 9px",
     fontSize: 12,
@@ -48,7 +50,7 @@ export default function QuickColors({
   const chip = {
     ...chipBase,
     color: "#111",
-    background: "#dedede",
+    background: "#e5e5e5",
   };
   const chipActive = {
     ...chipBase,
@@ -96,6 +98,10 @@ export default function QuickColors({
         {activeItem ? ` · ${activeItem.label}` : ""}
       </span>
 
+      {includeAll && (
+        <Chip href={baseHref} label={allLabel} active={!activeItem} />
+      )}
+
       {items.map((item) => {
         const isActive = (item.value || "").toLowerCase() === active;
         const href = `${baseHref}?color=${encodeURIComponent(item.value)}`;
@@ -106,6 +112,7 @@ export default function QuickColors({
     </nav>
   );
 }
+
 
 
 

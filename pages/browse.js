@@ -1,5 +1,5 @@
 // pages/browse.js
-// Build 36.30_2025-08-23
+// Build 36.33_2025-08-23
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -37,14 +37,11 @@ const BLEB_COLORS = [
   { label: "Red", value: "Red" },
   { label: "Brown", value: "Brown" },
 ];
-
 const BUNDLE_COLORS = ["white/clear", "blue", "black", "red", "other"];
 const FIBER_COLORS = ["white/clear", "blue", "black", "red", "other"];
 
 function slugForCategory(cat) {
-  // Dedicated Blebs route per baseline
   if (cat === "Blebs (clear to brown)") return "clear_to_brown_blebs";
-  // Underscore slug for others
   return cat.toLowerCase().replace(/\s+/g, "_");
 }
 
@@ -108,31 +105,12 @@ export default function BrowsePage() {
     return () => { on = false; };
   }, []);
 
-  // Build quick color bars
-  const blebsBar = (
-    <QuickColors
-      baseHref="/category/clear_to_brown_blebs"
-      label="Blebs colors"
-      colors={BLEB_COLORS}
-      activeColor={router.query?.color || ""}
-    />
-  );
-  const bundlesBar = (
-    <QuickColors
-      baseHref="/category/fiber_bundles"
-      label="Fiber Bundles colors"
-      colors={BUNDLE_COLORS}
-      activeColor={router.query?.color || ""}
-    />
-  );
-  const fibersBar = (
-    <QuickColors
-      baseHref="/category/fibers"
-      label="Fibers colors"
-      colors={FIBER_COLORS}
-      activeColor={router.query?.color || ""}
-    />
-  );
+  const total = Object.values(counts).reduce((a, b) => a + (b || 0), 0);
+
+  // Only show a color bar if that category has items
+  const showBlebsBar = (counts["Blebs (clear to brown)"] || 0) > 0;
+  const showBundlesBar = (counts["Fiber Bundles"] || 0) > 0;
+  const showFibersBar = (counts["Fibers"] || 0) > 0;
 
   const statusText = userPresent === false
     ? "Not signed in. Your items may be empty."
@@ -142,16 +120,41 @@ export default function BrowsePage() {
     <main id="main" style={pageStyle}>
       <div style={header}>
         <h1 style={h1Style}>Browse categories</h1>
-        <div style={{ fontSize: 12, color: "#666" }}>
-          {Object.values(counts).reduce((a, b) => a + (b || 0), 0)} total
-        </div>
+        <div style={{ fontSize: 12, color: "#666" }}>{total} total</div>
       </div>
 
-      {/* Quick color bars at the top (Blebs + Fiber Bundles + Fibers) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
-        {blebsBar}
-        {bundlesBar}
-        {fibersBar}
+      {/* Minimal color bars at the top (only for categories with items) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+        {showBlebsBar && (
+          <QuickColors
+            baseHref="/category/clear_to_brown_blebs"
+            label="Blebs"
+            colors={BLEB_COLORS}
+            activeColor={router.query?.color || ""}
+            includeAll={true}
+            allLabel="All"
+          />
+        )}
+        {showBundlesBar && (
+          <QuickColors
+            baseHref="/category/fiber_bundles"
+            label="Fiber Bundles"
+            colors={BUNDLE_COLORS}
+            activeColor={router.query?.color || ""}
+            includeAll={true}
+            allLabel="All"
+          />
+        )}
+        {showFibersBar && (
+          <QuickColors
+            baseHref="/category/fibers"
+            label="Fibers"
+            colors={FIBER_COLORS}
+            activeColor={router.query?.color || ""}
+            includeAll={true}
+            allLabel="All"
+          />
+        )}
       </div>
 
       <p aria-live="polite" style={statusStyle}>{statusText}</p>
@@ -166,7 +169,6 @@ export default function BrowsePage() {
             const href = `/category/${slug}`;
             const count = counts[cat] ?? 0;
 
-            // Show small, relevant per-category color links only for the three groups
             const quickLinks = (cat === "Blebs (clear to brown)" || cat === "Fiber Bundles" || cat === "Fibers");
 
             return (
@@ -178,28 +180,31 @@ export default function BrowsePage() {
                   {quickLinks && (
                     <Link href={
                       cat === "Blebs (clear to brown)"
-                        ? "/category/clear_to_brown_blebs?color=Clear"
-                        : cat === "Fiber Bundles"
-                        ? "/category/fiber_bundles?color=white%2Fclear"
-                        : "/category/fibers?color=white%2Fclear"
+                        ? "/category/clear_to_brown_blebs"
+                        : `/category/${slug}`
                     } legacyBehavior>
-                      <a style={linkBtn} aria-label="Quick: white/clear">white/clear</a>
+                      <a style={linkBtn} aria-label="All">All</a>
                     </Link>
                   )}
-                  {quickLinks && (cat !== "Blebs (clear to brown)") && (
+                  {quickLinks && (
                     <>
-                      <Link href={`/category/${slug}?color=blue`} legacyBehavior><a style={linkBtn}>blue</a></Link>
-                      <Link href={`/category/${slug}?color=black`} legacyBehavior><a style={linkBtn}>black</a></Link>
-                      <Link href={`/category/${slug}?color=red`} legacyBehavior><a style={linkBtn}>red</a></Link>
-                      <Link href={`/category/${slug}?color=other`} legacyBehavior><a style={linkBtn}>other</a></Link>
-                    </>
-                  )}
-                  {quickLinks && cat === "Blebs (clear to brown)" && (
-                    <>
-                      <Link href="/category/clear_to_brown_blebs?color=Yellow" legacyBehavior><a style={linkBtn}>Yellow</a></Link>
-                      <Link href="/category/clear_to_brown_blebs?color=Orange" legacyBehavior><a style={linkBtn}>Orange</a></Link>
-                      <Link href="/category/clear_to_brown_blebs?color=Red" legacyBehavior><a style={linkBtn}>Red</a></Link>
-                      <Link href="/category/clear_to_brown_blebs?color=Brown" legacyBehavior><a style={linkBtn}>Brown</a></Link>
+                      {cat === "Blebs (clear to brown)" ? (
+                        <>
+                          <Link href="/category/clear_to_brown_blebs?color=Clear" legacyBehavior><a style={linkBtn}>Clear/White</a></Link>
+                          <Link href="/category/clear_to_brown_blebs?color=Yellow" legacyBehavior><a style={linkBtn}>Yellow</a></Link>
+                          <Link href="/category/clear_to_brown_blebs?color=Orange" legacyBehavior><a style={linkBtn}>Orange</a></Link>
+                          <Link href="/category/clear_to_brown_blebs?color=Red" legacyBehavior><a style={linkBtn}>Red</a></Link>
+                          <Link href="/category/clear_to_brown_blebs?color=Brown" legacyBehavior><a style={linkBtn}>Brown</a></Link>
+                        </>
+                      ) : (
+                        <>
+                          <Link href={`/category/${slug}?color=white%2Fclear`} legacyBehavior><a style={linkBtn}>white/clear</a></Link>
+                          <Link href={`/category/${slug}?color=blue`} legacyBehavior><a style={linkBtn}>blue</a></Link>
+                          <Link href={`/category/${slug}?color=black`} legacyBehavior><a style={linkBtn}>black</a></Link>
+                          <Link href={`/category/${slug}?color=red`} legacyBehavior><a style={linkBtn}>red</a></Link>
+                          <Link href={`/category/${slug}?color=other`} legacyBehavior><a style={linkBtn}>other</a></Link>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
