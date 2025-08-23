@@ -1,10 +1,10 @@
 // pages/_app.js
-// Build 36.36d_2025-08-23
+// Build 36.37_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.36d_2025-08-23";
+export const BUILD_VERSION = "Build 36.37_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -35,45 +35,8 @@ function BuildBadge() {
   );
 }
 
-// Try to discover your actual sign-in page automatically
-async function detectAuthPath() {
-  const candidates = [
-    "/signin",
-    "/sign-in",
-    "/login",
-    "/auth",
-    "/account",
-    "/account/signin",
-    "/account/login",
-    "/users/signin",
-    "/users/login",
-    "/profile",
-  ];
-  const hints = /(sign[\s-]?in|sign[\s-]?up|log[\s-]?in)/i;
-
-  for (const path of candidates) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 1500);
-      const res = await fetch(`${path}?v=${encodeURIComponent(BUILD_VERSION)}`, {
-        cache: "no-store",
-        credentials: "omit",
-        signal: ctrl.signal,
-      });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const html = await res.text();
-      if (hints.test(html)) return path;
-    } catch {
-      // ignore and try next
-    }
-  }
-  // Fallback to Home if nothing clearly auth-like is found
-  return "/";
-}
-
-// Minimal “Sign out” button shown only when authenticated
-function SignOutButton() {
+// Top-right Account control: shows "Sign in" (logged out) or "Sign out" (logged in)
+function AccountButton() {
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -96,9 +59,7 @@ function SignOutButton() {
     };
   }, []);
 
-  if (!signedIn) return null;
-
-  const btnStyle = {
+  const baseBtn = {
     position: "fixed",
     right: 8,
     top: 8,
@@ -106,22 +67,31 @@ function SignOutButton() {
     fontSize: 12,
     padding: "4px 8px",
     borderRadius: 6,
-    color: "#111",
     background: "#fff",
     border: "1px solid #ccc",
+    color: "#111",
     boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-    cursor: busy ? "not-allowed" : "pointer",
   };
+
+  if (!signedIn) {
+    return (
+      <a
+        href="/"
+        aria-label="Go to sign in"
+        style={{ ...baseBtn, textDecoration: "none", display: "inline-block" }}
+      >
+        Sign in
+      </a>
+    );
+  }
 
   async function handleSignOut() {
     if (busy || !supabase) return;
     setBusy(true);
     try {
       await supabase.auth.signOut();
-      const target = await detectAuthPath();
-      window.location.href = target;
-    } catch {
-      // If detection fails for any reason, still take user Home
+    } finally {
+      // Send to your existing sign-in experience on Home
       window.location.href = "/";
     }
   }
@@ -132,7 +102,7 @@ function SignOutButton() {
       onClick={handleSignOut}
       aria-label="Sign out"
       disabled={busy}
-      style={btnStyle}
+      style={{ ...baseBtn, cursor: busy ? "not-allowed" : "pointer" }}
     >
       {busy ? "Signing out…" : "Sign out"}
     </button>
@@ -181,11 +151,12 @@ export default function MyApp({ Component, pageProps }) {
         Skip to content
       </a>
       <Component {...pageProps} />
-      <SignOutButton />
+      <AccountButton />
       <BuildBadge />
     </>
   );
 }
+
 
 
 
