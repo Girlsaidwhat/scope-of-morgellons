@@ -1,12 +1,12 @@
 // pages/_app.js
-// Build 36.35_2025-08-23
+// Build 36.35a_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.35_2025-08-23";
+export const BUILD_VERSION = "Build 36.35a_2025-08-23";
 
-// Single Supabase client for sign-out
+// One Supabase client for auth state + sign out
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -41,6 +41,7 @@ function SignOutButton() {
   useEffect(() => {
     let mounted = true;
     (async () => {
+      if (!supabase) return;
       const { data } = await supabase.auth.getUser();
       if (mounted) setSignedIn(!!data?.user);
     })();
@@ -77,7 +78,6 @@ function SignOutButton() {
     try {
       await supabase.auth.signOut();
     } finally {
-      // Return to home after sign out
       window.location.href = "/";
     }
   }
@@ -95,7 +95,7 @@ function SignOutButton() {
   );
 }
 
-// Visually hidden skip link that appears on focus
+// Visually hidden skip link
 const srOnly = {
   position: "absolute",
   left: "-10000px",
@@ -142,6 +142,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
