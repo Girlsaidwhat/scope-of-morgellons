@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.50_2025-08-23
+// Build 36.51_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.50_2025-08-23";
+export const BUILD_VERSION = "Build 36.51_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -115,7 +115,7 @@ function HomeAuthScreen() {
   const [msg, setMsg] = useState("");
 
   const page = { maxWidth: 520, margin: "0 auto", padding: "24px 16px" };
-  const h1 = { fontSize: 22, fontWeight: 700, margin: "0 0 8px" };
+  const h1 = { fontSize: 22, fontWeight: 700, margin: "0 0 32px" }; // increased spacing
   const p = { fontSize: 14, color: "#444", margin: "0 0 16px" };
   const formRow = { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" };
   const label = { fontSize: 12, fontWeight: 700, minWidth: 60 };
