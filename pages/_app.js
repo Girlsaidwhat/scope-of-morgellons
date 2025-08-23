@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.49_2025-08-23
+// Build 36.50_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.49_2025-08-23";
+export const BUILD_VERSION = "Build 36.50_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -78,7 +78,6 @@ function AccountButton() {
   };
 
   if (!signedIn) {
-    // Always navigate to Home, which now IS the sign-in page when logged out
     return (
       <a href="/" aria-label="Go to sign in" style={{ ...baseBtn, textDecoration: "none" }}>
         Sign in
@@ -92,7 +91,6 @@ function AccountButton() {
     try {
       await supabase.auth.signOut();
     } finally {
-      // After sign-out, go directly to Home (auth screen)
       window.location.href = "/";
     }
   }
@@ -152,7 +150,7 @@ function HomeAuthScreen() {
 
   return (
     <main id="main" style={page}>
-      <h1 style={h1}>Sign in / Sign up</h1>
+      <h1 style={h1}>Welcome to The Scope of Morgellons</h1>
       <p style={p}>
         Enter your email to receive a magic sign-in link. New users are created automatically on first sign-in.
       </p>
@@ -184,8 +182,6 @@ function HomeAuthScreen() {
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const signedIn = useAuthPresence();
-
-  // On Home: if logged out, show the auth screen instead of the normal Home content.
   const showAuthOnHome = router.pathname === "/" && !signedIn;
 
   // Visually hidden skip link for a11y
