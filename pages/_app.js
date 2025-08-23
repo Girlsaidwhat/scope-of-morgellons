@@ -1,16 +1,18 @@
 // pages/_app.js
-// Build 36.35a_2025-08-23
+// Build 36.36c_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.35a_2025-08-23";
+export const BUILD_VERSION = "Build 36.36c_2025-08-23";
 
-// One Supabase client for auth state + sign out
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const supabase =
+  typeof window !== "undefined"
+    ? createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )
+    : null;
 
 function BuildBadge() {
   const badgeStyle = {
@@ -33,7 +35,6 @@ function BuildBadge() {
   );
 }
 
-// Minimal “Sign out” button shown only when authenticated
 function SignOutButton() {
   const [signedIn, setSignedIn] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -46,9 +47,11 @@ function SignOutButton() {
       if (mounted) setSignedIn(!!data?.user);
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(!!session?.user);
-    });
+    const { data: sub } =
+      supabase?.auth.onAuthStateChange?.((_event, session) => {
+        setSignedIn(!!session?.user);
+      }) || { data: null };
+
     return () => {
       mounted = false;
       sub?.subscription?.unsubscribe?.();
@@ -73,11 +76,12 @@ function SignOutButton() {
   };
 
   async function handleSignOut() {
-    if (busy) return;
+    if (busy || !supabase) return;
     setBusy(true);
     try {
       await supabase.auth.signOut();
     } finally {
+      // Go to your existing sign-in/sign-up on Home
       window.location.href = "/";
     }
   }
@@ -95,7 +99,7 @@ function SignOutButton() {
   );
 }
 
-// Visually hidden skip link
+// Visually hidden skip link that appears on focus
 const srOnly = {
   position: "absolute",
   left: "-10000px",
