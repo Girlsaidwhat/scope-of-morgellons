@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.51_2025-08-23
+// Build 36.52_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.51_2025-08-23";
+export const BUILD_VERSION = "Build 36.52_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -115,7 +115,7 @@ function HomeAuthScreen() {
   const [msg, setMsg] = useState("");
 
   const page = { maxWidth: 520, margin: "0 auto", padding: "24px 16px" };
-  const h1 = { fontSize: 22, fontWeight: 700, margin: "0 0 32px" }; // increased spacing
+  const h1 = { fontSize: 22, fontWeight: 700, margin: "0 0 32px" };
   const p = { fontSize: 14, color: "#444", margin: "0 0 16px" };
   const formRow = { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" };
   const label = { fontSize: 12, fontWeight: 700, minWidth: 60 };
@@ -168,7 +168,7 @@ function HomeAuthScreen() {
             onChange={(e) => setEmail(e.target.value)}
             style={input}
           />
-          <button type="submit" style={btn} disabled={busy} aria-busy={busy ? "true" : "false"}>
+        <button type="submit" style={btn} disabled={busy} aria-busy={busy ? "true" : "false"}>
             {busy ? "Sending…" : "Send sign-in link"}
           </button>
         </div>
@@ -177,6 +177,52 @@ function HomeAuthScreen() {
       <p aria-live="polite" style={statusStyle}>{msg}</p>
     </main>
   );
+}
+
+/** After sign-in, replace the big "Home" heading with "Welcome, <first name>" on the Home page */
+function SignedInWelcomeFix() {
+  const router = useRouter();
+  useEffect(() => {
+    let stop = false;
+
+    async function getFirstName() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        const u = data?.user;
+        const meta = u?.user_metadata || {};
+        const full = meta.full_name || meta.name || "";
+        const firstFromFull = full ? String(full).trim().split(/\s+/)[0] : "";
+        const first = meta.first_name || firstFromFull || (u?.email ? u.email.split("@")[0] : "there");
+        return first;
+      } catch {
+        return "there";
+      }
+    }
+
+    async function apply() {
+      const first = await getFirstName();
+      const isHome = router.pathname === "/";
+      if (!isHome) return;
+
+      const until = Date.now() + 3000; // try for up to ~3s
+      const int = setInterval(() => {
+        if (stop) { clearInterval(int); return; }
+        // look for a large heading that says "Home"
+        const candidates = Array.from(document.querySelectorAll("h1, h2, [role='heading']"));
+        const target = candidates.find((el) => (el.textContent || "").trim() === "Home");
+        if (target) {
+          target.textContent = `Welcome, ${first}`;
+          target.setAttribute("aria-label", `Welcome, ${first}`);
+          clearInterval(int);
+        }
+        if (Date.now() > until) clearInterval(int);
+      }, 150);
+    }
+
+    apply();
+    return () => { stop = true; };
+  }, [router.pathname]);
+  return null;
 }
 
 export default function MyApp({ Component, pageProps }) {
@@ -227,11 +273,15 @@ export default function MyApp({ Component, pageProps }) {
 
       {showAuthOnHome ? <HomeAuthScreen /> : <Component {...pageProps} />}
 
+      {/* When signed in and on Home, swap the "Home" heading text */}
+      {!showAuthOnHome && <SignedInWelcomeFix />}
+
       <AccountButton />
       <BuildBadge />
     </>
   );
 }
+
 
 
 
