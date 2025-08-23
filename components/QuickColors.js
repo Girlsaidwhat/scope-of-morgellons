@@ -1,6 +1,7 @@
 // components/QuickColors.js
 // Build 36.32_2025-08-23
 import Link from "next/link";
+import { useState } from "react";
 
 export default function QuickColors({
   baseHref,
@@ -63,10 +64,9 @@ export default function QuickColors({
     boxShadow: "0 0 0 2px rgba(11,95,255,0.5)",
   };
 
-  // tiny wrapper so we can apply :hover/:focus via inline on events
   function Chip({ href, label, active }) {
-    const [hover, setHover] = React.useState(false);
-    const [focus, setFocus] = React.useState(false);
+    const [hover, setHover] = useState(false);
+    const [focus, setFocus] = useState(false);
     const style = {
       ...(active ? chipActive : chip),
       ...(hover ? chipHover : null),
@@ -106,6 +106,7 @@ export default function QuickColors({
     </nav>
   );
 }
+
 
 
 
