@@ -1,8 +1,16 @@
 // pages/_app.js
-// Build 36.33_2025-08-23
+// Build 36.35_2025-08-23
 import "../styles/globals.css";
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.33_2025-08-23";
+export const BUILD_VERSION = "Build 36.35_2025-08-23";
+
+// Single Supabase client for sign-out
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 function BuildBadge() {
   const badgeStyle = {
@@ -22,6 +30,68 @@ function BuildBadge() {
     <div aria-label="Build version" style={badgeStyle}>
       {BUILD_VERSION}
     </div>
+  );
+}
+
+// Minimal “Sign out” button shown only when authenticated
+function SignOutButton() {
+  const [signedIn, setSignedIn] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      if (mounted) setSignedIn(!!data?.user);
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSignedIn(!!session?.user);
+    });
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
+  if (!signedIn) return null;
+
+  const btnStyle = {
+    position: "fixed",
+    right: 8,
+    top: 8,
+    zIndex: 10000,
+    fontSize: 12,
+    padding: "4px 8px",
+    borderRadius: 6,
+    color: "#111",
+    background: "#fff",
+    border: "1px solid #ccc",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    cursor: busy ? "not-allowed" : "pointer",
+  };
+
+  async function handleSignOut() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      // Return to home after sign out
+      window.location.href = "/";
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleSignOut}
+      aria-label="Sign out"
+      disabled={busy}
+      style={btnStyle}
+    >
+      {busy ? "Signing out…" : "Sign out"}
+    </button>
   );
 }
 
@@ -67,10 +137,12 @@ export default function MyApp({ Component, pageProps }) {
         Skip to content
       </a>
       <Component {...pageProps} />
+      <SignOutButton />
       <BuildBadge />
     </>
   );
 }
+
 
 
 
