@@ -40,7 +40,7 @@ const srOnlyFocus = {
   height: "auto",
   overflow: "visible",
   padding: "4px 8px",
-  border: "1px solid "#ccc",
+  border: "1px solid #ccc", // <- fixed the quote so it’s valid JS
   borderRadius: 6,
   background: "#fff",
   margin: 8,
@@ -75,6 +75,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
