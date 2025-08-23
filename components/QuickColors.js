@@ -1,12 +1,12 @@
 // components/QuickColors.js
-// Build 36.28_2025-08-22
+// Build 36.31_2025-08-23
 import Link from "next/link";
 
 export default function QuickColors({
   baseHref,
   label = "Colors",
-  colors = [],
-  activeColor = "",
+  colors = [],           // accepts ["Red", ...] or [{ label, value }]
+  activeColor = "",      // current value from ?color=...
 }) {
   const items = (colors || []).map((c) =>
     typeof c === "string" ? { label: c, value: c } : c
@@ -15,37 +15,32 @@ export default function QuickColors({
   const activeItem =
     items.find((i) => (i.value || "").toLowerCase() === active) || null;
 
+  // Minimal inline group (no big container pill)
   const wrap = {
-    display: "inline-flex",
+    display: "flex",
     alignItems: "center",
     flexWrap: "wrap",
     gap: 8,
-    background: "#111",
-    border: "1px solid #000",
-    borderRadius: 999,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-    padding: "6px 8px",
-    color: "#fff",
-    margin: "8px 0",
+    margin: "6px 0 10px",
   };
 
-  const titleChip = {
+  const title = {
     fontSize: 12,
     fontWeight: 700,
-    color: "#fff",
+    color: "#333",
     marginRight: 2,
     lineHeight: 1,
   };
 
-  // dimmer than before
+  // Compact chips
   const chip = {
     display: "inline-block",
-    border: "1px solid #c4c4c4",
+    border: "1px solid #c8c8c8",
     borderRadius: 999,
     padding: "6px 10px",
     fontSize: 12,
     color: "#111",
-    background: "#e3e3e3",
+    background: "#e9e9e9",
     textDecoration: "none",
     lineHeight: 1,
   };
@@ -58,7 +53,7 @@ export default function QuickColors({
 
   return (
     <nav aria-label="Quick colors" style={wrap}>
-      <span style={titleChip}>
+      <span style={title}>
         {label}
         {activeItem ? ` · ${activeItem.label}` : ""}
       </span>
@@ -81,6 +76,7 @@ export default function QuickColors({
     </nav>
   );
 }
+
 
 
 
