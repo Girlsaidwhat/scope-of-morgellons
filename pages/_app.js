@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.53_2025-08-23
+// Build 36.54_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.53_2025-08-23";
+export const BUILD_VERSION = "Build 36.54_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -108,7 +108,7 @@ function AccountButton() {
   );
 }
 
-/** Home auth screen: Email+Password Sign in / Sign up, Forgot password, Magic link, and “?” password tips */
+/** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, and hover “?” password tips */
 function HomeAuthScreen() {
   const [mode, setMode] = useState("signin"); // 'signin' | 'signup' | 'reset'
   const [email, setEmail] = useState("");
@@ -286,6 +286,16 @@ function HomeAuthScreen() {
     }
   }
 
+  // Shared styles for the visually hidden submit (keeps Enter-to-submit working without a visible button)
+  const srSubmit = {
+    position: "absolute",
+    left: "-10000px",
+    top: "auto",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+  };
+
   return (
     <main id="main" style={page} data-auth-ui="v2">
       {mode !== "reset" ? (
@@ -314,95 +324,201 @@ function HomeAuthScreen() {
             </button>
           </div>
 
-          <div style={formRow}>
-            <label htmlFor="email" style={label}>Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={input}
-            />
-          </div>
-
-          <div style={{ ...formRow, alignItems: "flex-start" }}>
-            <label htmlFor="password" style={label}>Password</label>
-            <div style={{ flex: "1 1 280px" }}>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required={mode === "signup" || mode === "signin"}
-                placeholder={mode === "signup" ? "Create a password (12+ chars)" : "Your password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ ...input, width: "100%" }}
-              />
-              <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowPwHelp((s) => !s)}
-                  aria-expanded={showPwHelp ? "true" : "false"}
-                  aria-controls="pw-help"
-                  style={linkBtn}
-                >
-                  ?
-                </button>
-                <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
-              </div>
-              {showPwHelp && (
-                <div
-                  id="pw-help"
-                  role="region"
-                  aria-label="Password tips (modern guidance)"
-                  style={{
-                    marginTop: 8,
-                    padding: "10px 12px",
-                    border: "1px solid #ddd",
-                    borderRadius: 8,
-                    background: "#fafafa",
-                    fontSize: 13,
-                    lineHeight: 1.35,
-                  }}
-                >
-                  <strong>Password tips (modern guidance)</strong>
-                  <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
-                    <li>Longer is stronger: 12+ characters (16 is better).</li>
-                    <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
-                    <li>Symbols are optional; length + unpredictability matter more.</li>
-                    <li>Use a unique password here; a password manager helps.</li>
-                    <li>Forgot it? Use <em>Forgot password</em>. Prefer not to type it? Use the email sign-in link.</li>
-                  </ul>
+          {/* SIGN IN */}
+          {mode === "signin" && (
+            <>
+              <form onSubmit={handleSignIn} aria-label="Sign in form" style={{ margin: 0, padding: 0 }}>
+                <div style={formRow}>
+                  <label htmlFor="email" style={label}>Email</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={input}
+                  />
                 </div>
-              )}
-            </div>
-          </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-            {mode === "signin" ? (
-              <>
-                <button onClick={handleSignIn} disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
-                  {busy ? "Working…" : "Sign in"}
-                </button>
+                <div style={{ ...formRow, alignItems: "flex-start" }}>
+                  <label htmlFor="password" style={label}>Password</label>
+                  <div style={{ flex: "1 1 280px" }}>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      required
+                      placeholder="Your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{ ...input, width: "100%" }}
+                    />
+                    {/* Hover container for the '?' and tip card */}
+                    <div
+                      style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", position: "relative" }}
+                      onMouseEnter={() => setShowPwHelp(true)}
+                      onMouseLeave={() => setShowPwHelp(false)}
+                    >
+                      <button
+                        type="button"
+                        onFocus={() => setShowPwHelp(true)}
+                        onBlur={() => setShowPwHelp(false)}
+                        aria-haspopup="true"
+                        aria-expanded={showPwHelp ? "true" : "false"}
+                        aria-controls="pw-help"
+                        style={linkBtn}
+                        title="Password tips"
+                      >
+                        ?
+                      </button>
+                      <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
+
+                      {showPwHelp && (
+                        <div
+                          id="pw-help"
+                          role="tooltip"
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            marginTop: 8,
+                            padding: "10px 12px",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            background: "#fafafa",
+                            fontSize: 13,
+                            lineHeight: 1.35,
+                            width: 360,
+                            boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+                            zIndex: 5,
+                          }}
+                        >
+                          <strong>Password tips (modern guidance)</strong>
+                          <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                            <li>Longer is stronger: 12+ characters (16 is better).</li>
+                            <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
+                            <li>Symbols are optional; length + unpredictability matter more.</li>
+                            <li>Use a unique password here; a password manager helps.</li>
+                            <li>Forgot it? Use <em>Forgot password</em>. Prefer not to type it? Use the email sign-in link.</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Invisible submit keeps Enter-to-submit working without a visible "Sign in" button */}
+                <button type="submit" style={srSubmit} tabIndex={-1} aria-hidden="true">Submit</button>
+              </form>
+
+              {/* Secondary actions (no visible Sign in button) */}
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                 <button onClick={handleForgotPw} disabled={busy} style={ghost}>
                   Forgot password?
                 </button>
                 <button onClick={handleMagicLink} disabled={busy} style={ghost} title="Email me a one-time link">
                   Email me a sign-in link
                 </button>
-              </>
-            ) : (
-              <>
-                <button onClick={handleSignUp} disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
-                  {busy ? "Working…" : "Create account"}
-                </button>
-                <span style={fine}>We’ll ask you to verify your email after sign-up.</span>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
+
+          {/* SIGN UP */}
+          {mode === "signup" && (
+            <>
+              <form onSubmit={handleSignUp} aria-label="Sign up form" style={{ margin: 0, padding: 0 }}>
+                <div style={formRow}>
+                  <label htmlFor="email" style={label}>Email</label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    required
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    style={input}
+                  />
+                </div>
+
+                <div style={{ ...formRow, alignItems: "flex-start" }}>
+                  <label htmlFor="password" style={label}>Password</label>
+                  <div style={{ flex: "1 1 280px" }}>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      required
+                      placeholder="Create a password (12+ chars)"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{ ...input, width: "100%" }}
+                    />
+                    {/* Hover tips reused */}
+                    <div
+                      style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", position: "relative" }}
+                      onMouseEnter={() => setShowPwHelp(true)}
+                      onMouseLeave={() => setShowPwHelp(false)}
+                    >
+                      <button
+                        type="button"
+                        onFocus={() => setShowPwHelp(true)}
+                        onBlur={() => setShowPwHelp(false)}
+                        aria-haspopup="true"
+                        aria-expanded={showPwHelp ? "true" : "false"}
+                        aria-controls="pw-help"
+                        style={linkBtn}
+                        title="Password tips"
+                      >
+                        ?
+                      </button>
+                      <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
+
+                      {showPwHelp && (
+                        <div
+                          id="pw-help"
+                          role="tooltip"
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            left: 0,
+                            marginTop: 8,
+                            padding: "10px 12px",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            background: "#fafafa",
+                            fontSize: 13,
+                            lineHeight: 1.35,
+                            width: 360,
+                            boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+                            zIndex: 5,
+                          }}
+                        >
+                          <strong>Password tips (modern guidance)</strong>
+                          <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                            <li>Longer is stronger: 12+ characters (16 is better).</li>
+                            <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
+                            <li>Symbols are optional; length + unpredictability matter more.</li>
+                            <li>Use a unique password here; a password manager helps.</li>
+                            <li>Forgot it? Use <em>Forgot password</em>. Prefer not to type it? Use the email sign-in link.</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
+                  <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
+                    {busy ? "Working…" : "Create account"}
+                  </button>
+                  <span style={fine}>We’ll ask you to verify your email after sign-up.</span>
+                </div>
+              </form>
+            </>
+          )}
 
           <p aria-live="polite" style={statusStyle}>{msg}</p>
         </>
@@ -508,7 +624,6 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
 
 
