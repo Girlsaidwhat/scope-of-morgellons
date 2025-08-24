@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.52_2025-08-23
+// Build 36.53_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.52_2025-08-23";
+export const BUILD_VERSION = "Build 36.53_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -46,7 +46,7 @@ function useAuthPresence() {
       if (mounted) setSignedIn(!!data?.user);
     })();
     const { data: sub } =
-      supabase?.auth.onAuthStateChange?.((event, session) => {
+      supabase?.auth.onAuthStateChange?.((_event, session) => {
         setSignedIn(!!session?.user);
       }) || { data: null };
     return () => {
@@ -108,7 +108,7 @@ function AccountButton() {
   );
 }
 
-/** Full auth UI on Home when logged out: Email+Password Sign in / Sign up, Forgot password, Magic link option, and “?” password tips */
+/** Home auth screen: Email+Password Sign in / Sign up, Forgot password, Magic link, and “?” password tips */
 function HomeAuthScreen() {
   const [mode, setMode] = useState("signin"); // 'signin' | 'signup' | 'reset'
   const [email, setEmail] = useState("");
@@ -119,15 +119,13 @@ function HomeAuthScreen() {
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
 
-  // Detect Supabase password-recovery state or URL flags and switch to reset mode
   useEffect(() => {
-    const unsub = supabase?.auth.onAuthStateChange?.((event) => {
+    const sub = supabase?.auth.onAuthStateChange?.((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setMode("reset");
         setMsg("Enter a new password to finish resetting.");
       }
     });
-    // Also inspect URL (Supabase may redirect with type=recovery)
     try {
       const url = new URL(window.location.href);
       if ((url.searchParams.get("type") || "").toLowerCase() === "recovery") {
@@ -135,7 +133,7 @@ function HomeAuthScreen() {
         setMsg("Enter a new password to finish resetting.");
       }
     } catch {}
-    return () => unsub?.data?.subscription?.unsubscribe?.();
+    return () => sub?.data?.subscription?.unsubscribe?.();
   }, []);
 
   const page = { maxWidth: 520, margin: "0 auto", padding: "24px 16px" };
@@ -175,7 +173,6 @@ function HomeAuthScreen() {
         setMsg(error.message || "Sign-in failed. Check your email or password.");
       } else {
         setMsg("");
-        // Signed in; page content will update automatically.
       }
     } catch {
       setMsg("Sign-in failed. Please try again.");
@@ -290,7 +287,7 @@ function HomeAuthScreen() {
   }
 
   return (
-    <main id="main" style={page}>
+    <main id="main" style={page} data-auth-ui="v2">
       {mode !== "reset" ? (
         <>
           <h1 style={h1}>Welcome to The Scope of Morgellons</h1>
@@ -317,7 +314,6 @@ function HomeAuthScreen() {
             </button>
           </div>
 
-          {/* Email */}
           <div style={formRow}>
             <label htmlFor="email" style={label}>Email</label>
             <input
@@ -332,7 +328,6 @@ function HomeAuthScreen() {
             />
           </div>
 
-          {/* Password + help */}
           <div style={{ ...formRow, alignItems: "flex-start" }}>
             <label htmlFor="password" style={label}>Password</label>
             <div style={{ flex: "1 1 280px" }}>
@@ -386,7 +381,6 @@ function HomeAuthScreen() {
             </div>
           </div>
 
-          {/* Actions row */}
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
             {mode === "signin" ? (
               <>
