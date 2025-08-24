@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.59_2025-08-23
+// Build 36.60_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.59_2025-08-23";
+export const BUILD_VERSION = "Build 36.60_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -57,9 +57,21 @@ function useAuthPresence() {
   return signedIn;
 }
 
-/** Detect password-recovery flags (query or hash), and react to Supabase events */
+/** Detect password-recovery flags (query or hash) ASAP, then keep listening. */
 function useRecoveryFlag() {
-  const [recovery, setRecovery] = useState(false);
+  const initialRecovery =
+    typeof window !== "undefined" &&
+    (() => {
+      const search = window.location.search || "";
+      const hash = window.location.hash || "";
+      return (
+        /(^|[?&])type=recovery(&|$)/i.test(search) ||
+        /(^|[&#])type=recovery(&|$)/i.test(hash)
+      );
+    })();
+
+  const [recovery, setRecovery] = useState(!!initialRecovery);
+
   useEffect(() => {
     const check = () => {
       if (typeof window === "undefined") return;
@@ -83,6 +95,7 @@ function useRecoveryFlag() {
       window.removeEventListener("popstate", check);
     };
   }, []);
+
   return recovery;
 }
 
@@ -92,7 +105,7 @@ function AccountButton() {
   const signedIn = useAuthPresence();
   const [busy, setBusy] = useState(false);
 
-  // Hide tiny "Sign in" on Home when logged out (your preference)
+  // Hide tiny "Sign in" on Home when logged out
   if (!signedIn && router.pathname === "/") {
     return null;
   }
@@ -154,10 +167,11 @@ function HomeAuthScreen({ forceReset }) {
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
 
-  // Keep an ear out for recovery event; also detect via URL (query or hash)
+  // React to Supabase recovery event and URL changes
   useEffect(() => {
     if (forceReset) {
       setMode("reset");
+      setMsg("Enter a new password to finish resetting.");
       return;
     }
     const sub = supabase?.auth.onAuthStateChange?.((event) => {
@@ -658,11 +672,8 @@ function SignedInWelcomeFix() {
 
     async function init() {
       if (router.pathname !== "/") return;
-      // Try immediately
       await applySwap();
       if (appliedRef.current) return;
-
-      // Observe changes for up to 8 seconds to catch re-renders/hydration swaps
       const deadline = Date.now() + 8000;
       observer = new MutationObserver(async () => {
         if (Date.now() > deadline) {
@@ -671,12 +682,7 @@ function SignedInWelcomeFix() {
         }
         if (!appliedRef.current) await applySwap();
       });
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
-
-      // Final timed attempts as a fallback
+      observer.observe(document.documentElement, { childList: true, subtree: true });
       const tick = setInterval(async () => {
         if (appliedRef.current || Date.now() > deadline) {
           clearInterval(tick);
@@ -688,7 +694,6 @@ function SignedInWelcomeFix() {
     }
 
     init();
-
     return () => {
       cancel = true;
       observer?.disconnect();
@@ -749,7 +754,6 @@ export default function MyApp({ Component, pageProps }) {
 
       {showAuthOnHome ? <HomeAuthScreen forceReset={recovery} /> : <Component {...pageProps} />}
 
-      {/* When signed in and on Home, swap the "Home" heading text (robust) */}
       {!showAuthOnHome && <SignedInWelcomeFix />}
 
       <AccountButton />
