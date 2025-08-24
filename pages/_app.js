@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.55_2025-08-23
+// Build 36.56_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.55_2025-08-23";
+export const BUILD_VERSION = "Build 36.56_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -63,7 +63,7 @@ function AccountButton() {
   const signedIn = useAuthPresence();
   const [busy, setBusy] = useState(false);
 
-  // Hide tiny "Sign in" on Home when logged out (your request)
+  // Hide tiny "Sign in" on Home when logged out (per your preference)
   if (!signedIn && router.pathname === "/") {
     return null;
   }
@@ -160,7 +160,7 @@ function HomeAuthScreen() {
   const input = { flex: "1 1 280px", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
   const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
   const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
-  const fine = { fontSize: 12, color: "#555" };
+  const fine = { fontSize: 11, color: "#666" }; // smaller tip text per your request
   const linkQuiet = { background: "transparent", border: "none", padding: 0, color: "#555", fontSize: 12, cursor: "pointer" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
 
@@ -302,6 +302,23 @@ function HomeAuthScreen() {
     overflow: "hidden",
   };
 
+  // Smaller tooltip box style (used in both Sign in / Sign up)
+  const tooltipStyle = {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    marginTop: 6,
+    padding: "8px 10px",               // smaller padding
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    background: "#fafafa",
+    fontSize: 12,                      // smaller font
+    lineHeight: 1.35,
+    width: 260,                        // narrower box
+    boxShadow: "0 6px 16px rgba(0,0,0,0.10)",
+    zIndex: 5,
+  };
+
   return (
     <main id="main" style={page} data-auth-ui="v2">
       {mode !== "reset" ? (
@@ -382,27 +399,9 @@ function HomeAuthScreen() {
                       <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
 
                       {showPwHelp && (
-                        <div
-                          id="pw-help"
-                          role="tooltip"
-                          style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            marginTop: 8,
-                            padding: "10px 12px",
-                            border: "1px solid #ddd",
-                            borderRadius: 8,
-                            background: "#fafafa",
-                            fontSize: 13,
-                            lineHeight: 1.35,
-                            width: 360,
-                            boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-                            zIndex: 5,
-                          }}
-                        >
+                        <div id="pw-help" role="tooltip" style={tooltipStyle}>
                           <strong>Password tips (modern guidance)</strong>
-                          <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                          <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
                             <li>Longer is stronger: 12+ characters (16 is better).</li>
                             <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
                             <li>Symbols are optional; length + unpredictability matter more.</li>
@@ -419,7 +418,7 @@ function HomeAuthScreen() {
                 <button type="submit" style={srSubmit} tabIndex={-1} aria-hidden="true">Submit</button>
               </form>
 
-              {/* Secondary actions — now discreet text links */}
+              {/* Secondary actions — discreet text links */}
               <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                 <button onClick={handleForgotPw} disabled={busy} style={linkQuiet}>
                   Forgot password?
@@ -483,27 +482,9 @@ function HomeAuthScreen() {
                       <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
 
                       {showPwHelp && (
-                        <div
-                          id="pw-help"
-                          role="tooltip"
-                          style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            marginTop: 8,
-                            padding: "10px 12px",
-                            border: "1px solid #ddd",
-                            borderRadius: 8,
-                            background: "#fafafa",
-                            fontSize: 13,
-                            lineHeight: 1.35,
-                            width: 360,
-                            boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-                            zIndex: 5,
-                          }}
-                        >
+                        <div id="pw-help" role="tooltip" style={tooltipStyle}>
                           <strong>Password tips (modern guidance)</strong>
-                          <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                          <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
                             <li>Longer is stronger: 12+ characters (16 is better).</li>
                             <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
                             <li>Symbols are optional; length + unpredictability matter more.</li>
@@ -520,7 +501,7 @@ function HomeAuthScreen() {
                   <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
                     {busy ? "Working…" : "Create account"}
                   </button>
-                  <span style={fine}>We’ll ask you to verify your email after sign-up.</span>
+                  <span style={{ fontSize: 12, color: "#555" }}>We’ll ask you to verify your email after sign-up.</span>
                 </div>
               </form>
             </>
@@ -564,7 +545,12 @@ function HomeAuthScreen() {
               <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
                 {busy ? "Updating…" : "Update password"}
               </button>
-              <button type="button" onClick={() => setMode("signin")} disabled={busy} style={{ ...linkQuiet, color: "#111" }}>
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                disabled={busy}
+                style={{ background: "transparent", border: "none", padding: 0, color: "#111", fontSize: 12, cursor: "pointer" }}
+              >
                 Cancel
               </button>
             </div>
