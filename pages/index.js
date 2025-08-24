@@ -1,9 +1,5 @@
 // pages/index.js
-// The Scope of Morgellons — Home (Profile + Gallery)
-// Build: 36.4b_2025-08-18
-
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -11,425 +7,254 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Category labels for badges
-const CATEGORIES = [
-  { value: "biofilm", label: "Biofilm" },
-  { value: "clear_to_brown_blebs", label: 'Clear--Brown "Blebs"' },
-  { value: "fiber_bundles", label: "Fiber Bundles" },
-  { value: "fibers", label: "Fibers" },
-  { value: "hexagons", label: "Hexagons" },
-  { value: "crystalline_structures", label: "Crystalline Structures" },
-  { value: "feathers", label: "Feathers" },
-  { value: "miscellaneous", label: "Miscellaneous" },
-];
+export default function Home() {
+  const [session, setSession] = useState(null);
 
-const Status = ({ kind = "info", children }) => {
-  const color =
-    kind === "error" ? "#b91c1c" : kind === "success" ? "#065f46" : "#374151";
-  const bg =
-    kind === "error" ? "#fee2e2" : kind === "success" ? "#d1fae5" : "#e5e7eb";
-  return (
-    <div
-      style={{
-        background: bg,
-        color,
-        padding: "8px 10px",
-        borderRadius: 8,
-        fontSize: 14,
-        lineHeight: 1.3,
-        marginTop: 8,
-      }}
-    >
-      {children}
-    </div>
-  );
-};
+  // Auth form state
+  const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
 
-export default function HomePage() {
-  const [user, setUser] = useState(null);
+  // Upload state
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [items, setItems] = useState([]); // {name, url}[]
 
-  // Profile state
-  const [initials, setInitials] = useState("");
-  const [age, setAge] = useState("");
-  const [locationText, setLocationText] = useState("");
-  const [contactOptIn, setContactOptIn] = useState(false);
-  const [profileStatus, setProfileStatus] = useState({ type: "info", msg: "" });
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  // Gallery
-  const [items, setItems] = useState([]);
-  const [loadingGallery, setLoadingGallery] = useState(false);
-
-  const publicUrlFor = (path) => {
-    const { data } = supabase.storage.from("images").getPublicUrl(path);
-    return data?.publicUrl || "";
-  };
-
+  // Watch auth session
   useEffect(() => {
     let mounted = true;
 
-    async function bootstrap() {
-      const { data: auth } = await supabase.auth.getUser();
-      const currentUser = auth?.user || null;
-      if (!mounted) return;
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setSession(data.session || null);
+    });
 
-      setUser(currentUser);
-
-      if (currentUser) {
-        await Promise.all([loadProfile(currentUser.id), loadGallery(currentUser.id)]);
-      }
-    }
-
-    bootstrap();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user || null;
-      setUser(currentUser);
-      if (currentUser) {
-        loadProfile(currentUser.id);
-        loadGallery(currentUser.id);
-      } else {
-        setItems([]);
-      }
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+      if (mounted) setSession(s);
     });
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      listener?.subscription?.unsubscribe?.();
     };
   }, []);
 
-  async function loadProfile(userId) {
-    const { data, error } = await supabase
-      .from("user_profile")
-      .select("initials, age, location, contact_opt_in")
-      .eq("user_id", userId)
-      .maybeSingle();
+  // Load user images when signed in
+  useEffect(() => {
+    if (!session) return;
+    const load = async () => {
+      setMessage("");
+      const prefix = `${session.user.id}/`;
+      const { data, error } = await supabase.storage
+        .from("images")
+        .list(prefix, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
 
-    if (error) return;
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
 
-    if (data) {
-      setInitials(data.initials ?? "");
-      setAge(data.age ?? "");
-      setLocationText(data.location ?? "");
-      setContactOptIn(Boolean(data.contact_opt_in));
-    }
-  }
-
-  async function loadGallery(userId) {
-    setLoadingGallery(true);
-    const { data, error } = await supabase
-      .from("image_metadata")
-      .select("id, user_id, path, filename, category, bleb_color, created_at")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false });
-
-    setLoadingGallery(false);
-    if (error) return;
-
-    setItems(Array.isArray(data) ? data : []);
-  }
-
-  async function saveProfile(e) {
-    e.preventDefault();
-    if (!user) return;
-    setProfileStatus({ type: "info", msg: "" });
-    setIsSavingProfile(true);
-
-    const payload = {
-      user_id: user.id,
-      initials: initials?.trim() || null,
-      age: age === "" ? null : Number(age),
-      location: locationText?.trim() || null,
-      contact_opt_in: !!contactOptIn,
-      updated_at: new Date().toISOString(),
+      const rows =
+        (data || []).map((obj) => {
+          const { data: pub } = supabase.storage.from("images").getPublicUrl(prefix + obj.name);
+          return { name: obj.name, url: pub.publicUrl };
+        }) || [];
+      setItems(rows);
     };
+    load();
+  }, [session]);
 
-    const { error } = await supabase.from("user_profile").upsert(payload, {
-      onConflict: "user_id",
-    });
-
-    setIsSavingProfile(false);
-
-    if (error) {
-      setProfileStatus({
-        type: "error",
-        msg: "Profile save failed. Please try again.",
-      });
-      return;
+  // Sign in / Sign up
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setMessage("");
+    if (mode === "sign_in") {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) setMessage(error.message);
+      else setMessage(`Signed in as ${data.user?.email || "user"}.`);
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) setMessage(error.message);
+      else setMessage("Check your email for a confirmation link.");
     }
-    setProfileStatus({ type: "success", msg: "Profile saved." });
-  }
+  };
 
-  const signedIn = useMemo(() => Boolean(user?.id), [user]);
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setItems([]);
+    setMessage("Signed out.");
+  };
+
+  // Upload
+  const upload = async () => {
+    if (!file || !session) return;
+    setUploading(true);
+    setMessage("");
+    try {
+      const prefix = `${session.user.id}/`;
+      const path = `${prefix}${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage.from("images").upload(path, file, { upsert: false });
+      if (error) throw error;
+
+      const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
+      setItems((prev) => [{ name: file.name, url: pub.publicUrl }, ...prev]);
+      setFile(null);
+      setMessage("Uploaded.");
+    } catch (err) {
+      setMessage(err?.message || "Upload error");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
-    <div
-      style={{
-        maxWidth: 980,
-        margin: "32px auto",
-        padding: "0 16px 64px",
-        fontFamily:
-          '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
-      }}
-    >
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4b_2025-08-18</div>
-      </header>
+    <div style={{ maxWidth: 760, margin: "40px auto", fontFamily: "system-ui, sans-serif", padding: "0 16px" }}>
+      {!session ? (
+        <>
+          <h1 style={{ marginBottom: 12 }}>Welcome</h1>
 
-      {/* Simple nav */}
-      <nav style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <Link
-          href="/upload"
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #e5e7eb",
-            background: "#111827",
-            color: "#fff",
-            fontSize: 13,
-            textDecoration: "none",
-          }}
-        >
-          Go to Uploader
-        </Link>
-        <Link
-          href="/browse"
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #e5e7eb",
-            background: "#fff",
-            color: "#111827",
-            fontSize: 13,
-            textDecoration: "none",
-          }}
-        >
-          Browse by Category
-        </Link>
-      </nav>
-
-      {!signedIn ? (
-        <Status kind="info" >
-          You must be signed in to save your profile and see your gallery.
-        </Status>
-      ) : null}
-
-      {/* Profile */}
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Profile</h2>
-        <p style={{ marginTop: 0, color: "#4b5563", fontSize: 14 }}>
-          Save your profile. Each upload stores a snapshot of these fields.
-        </p>
-
-        <form onSubmit={saveProfile} style={cardStyle()}>
-          <div style={grid2()}>
-            <div>
-              <label style={labelStyle()}>Initials</label>
-              <input
-                type="text"
-                value={initials}
-                onChange={(e) => setInitials(e.target.value)}
-                placeholder="EC"
-                style={inputStyle()}
-                maxLength={8}
-              />
-            </div>
-            <div>
-              <label style={labelStyle()}>Age</label>
-              <input
-                type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder="42"
-                style={inputStyle()}
-                min={0}
-              />
-            </div>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <label style={labelStyle()}>Location</label>
-            <input
-              type="text"
-              value={locationText}
-              onChange={(e) => setLocationText(e.target.value)}
-              placeholder="Pennsylvania, USA"
-              style={inputStyle()}
-              maxLength={120}
-            />
-          </div>
-          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              id="optin"
-              type="checkbox"
-              checked={contactOptIn}
-              onChange={(e) => setContactOptIn(e.target.checked)}
-            />
-            <label htmlFor="optin" style={{ fontSize: 14 }}>
-              Open to being contacted by researchers or other members
-            </label>
-          </div>
-          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
+          {/* Toggle */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
             <button
-              type="submit"
-              disabled={!signedIn || isSavingProfile}
-              style={buttonStyle(!signedIn || isSavingProfile)}
+              type="button"
+              onClick={() => setMode("sign_in")}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: mode === "sign_in" ? "#eee" : "#fff",
+                cursor: "pointer",
+                flex: 1,
+              }}
             >
-              {isSavingProfile ? "Saving..." : "Save Profile"}
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("sign_up")}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: mode === "sign_up" ? "#eee" : "#fff",
+                cursor: "pointer",
+                flex: 1,
+              }}
+            >
+              Sign up
             </button>
           </div>
-          {profileStatus.msg ? (
-            <Status kind={profileStatus.type}>{profileStatus.msg}</Status>
-          ) : null}
-        </form>
-      </section>
 
-      {/* Gallery */}
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Your Gallery</h2>
-        {!signedIn ? (
-          <p style={{ color: "#6b7280" }}>Sign in to see your images.</p>
-        ) : loadingGallery ? (
-          <p style={{ color: "#6b7280" }}>Loading...</p>
-        ) : items.length === 0 ? (
-          <p style={{ color: "#6b7280" }}>No images yet.</p>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: 16,
-            }}
-          >
-            {items.map((it) => (
-              <article
-                key={it.id}
+          {/* Auth form */}
+          <form onSubmit={handleAuth} style={{ display: "grid", gap: 12, maxWidth: 420 }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Password</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
+                style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+              />
+            </label>
+            <button
+              type="submit"
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid #333",
+                background: "#111",
+                color: "#fff",
+                cursor: "pointer",
+                width: 120,
+              }}
+            >
+              {mode === "sign_in" ? "Sign in" : "Sign up"}
+            </button>
+          </form>
+
+          {message ? (
+            <div style={{ marginTop: 12, padding: 10, background: "#f6f6f6", borderRadius: 8 }}>
+              {message}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+            <h2>Welcome, {session.user?.email}</h2>
+            <button
+              onClick={signOut}
+              type="button"
+              style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", cursor: "pointer" }}
+            >
+              Sign out
+            </button>
+          </div>
+
+          <div style={{ marginTop: 16, padding: 16, border: "1px solid #e5e5e5", borderRadius: 10 }}>
+            <h3 style={{ marginTop: 0 }}>Upload an image</h3>
+            <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+            <div style={{ marginTop: 10 }}>
+              <button
+                onClick={upload}
+                disabled={!file || uploading}
+                type="button"
                 style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  background: "#fff",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #333",
+                  background: uploading ? "#999" : "#111",
+                  color: "#fff",
+                  cursor: uploading ? "not-allowed" : "pointer",
                 }}
               >
-                <div
-                  style={{
-                    width: "100%",
-                    aspectRatio: "1 / 1",
-                    background: "#f3f4f6",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                  }}
-                >
-                  <img
-                    src={publicUrlFor(it.path)}
-                    alt={it.filename || "uploaded image"}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    loading="lazy"
-                  />
-                </div>
-                <div style={{ padding: 12 }}>
-                  <div style={{ marginBottom: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        fontSize: 12,
-                        padding: "4px 8px",
-                        background: "#eef2ff",
-                        color: "#3730a3",
-                        borderRadius: 999,
-                      }}
-                      title={it.category || "Uncategorized"}
-                    >
-                      {badgeLabel(it.category)}
-                    </span>
-                    {it.category === "clear_to_brown_blebs" && it.bleb_color ? (
-                      <span
-                        style={{
-                          display: "inline-block",
-                          fontSize: 12,
-                          padding: "4px 8px",
-                          background: "#ecfeff",
-                          color: "#155e75",
-                          borderRadius: 999,
-                        }}
-                        title={`Bleb Color: ${it.bleb_color}`}
-                      >
-                        {it.bleb_color}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: "#111827",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                    title={it.filename}
-                  >
-                    {it.filename}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                    {new Date(it.created_at).toLocaleString()}
-                  </div>
-                </div>
-              </article>
-            ))}
+                {uploading ? "Uploading..." : "Upload"}
+              </button>
+            </div>
+            {message ? (
+              <div style={{ marginTop: 12, padding: 10, background: "#f6f6f6", borderRadius: 8 }}>
+                {message}
+              </div>
+            ) : null}
           </div>
-        )}
-      </section>
+
+          <div style={{ marginTop: 24 }}>
+            <h3>Your images</h3>
+            {items.length === 0 ? (
+              <p>No images yet.</p>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                {items.map((it) => (
+                  <div key={it.url} style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 8 }}>
+                    <img src={it.url} alt={it.name} style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }} />
+                    <div style={{ fontSize: 12, marginTop: 6, wordBreak: "break-word" }}>{it.name}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function badgeLabel(v) {
-  const found = CATEGORIES.find((c) => c.value === v);
-  return found ? found.label : "Uncategorized";
-}
-
-// Styles
-function cardStyle() {
-  return {
-    border: "1px solid #e5e7eb",
-    borderRadius: 12,
-    padding: 16,
-    background: "#fff",
-  };
-}
-function inputStyle() {
-  return {
-    width: "100%",
-    border: "1px solid #d1d5db",
-    borderRadius: 8,
-    padding: "10px 12px",
-    fontSize: 14,
-    outline: "none",
-  };
-}
-function labelStyle() {
-  return { display: "block", fontSize: 13, color: "#374151", marginBottom: 6 };
-}
-function buttonStyle(disabled) {
-  return {
-    background: disabled ? "#9ca3af" : "#111827",
-    color: "#fff",
-    border: 0,
-    borderRadius: 8,
-    padding: "10px 14px",
-    fontSize: 14,
-    cursor: disabled ? "not-allowed" : "pointer",
-  };
-}
-function grid2() {
-  return {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-  };
-}
