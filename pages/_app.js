@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.56_2025-08-23
+// Build 36.58_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.56_2025-08-23";
+export const BUILD_VERSION = "Build 36.58_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -57,13 +57,42 @@ function useAuthPresence() {
   return signedIn;
 }
 
+/** Detect password-recovery flags (query or hash), and react to Supabase events */
+function useRecoveryFlag() {
+  const [recovery, setRecovery] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      if (typeof window === "undefined") return;
+      const search = window.location.search || "";
+      const hash = window.location.hash || "";
+      const found =
+        /(^|[?&])type=recovery(&|$)/i.test(search) ||
+        /(^|[&#])type=recovery(&|$)/i.test(hash);
+      setRecovery(!!found);
+    };
+    check();
+    const { data: sub } =
+      supabase?.auth.onAuthStateChange?.((event) => {
+        if (event === "PASSWORD_RECOVERY") setRecovery(true);
+      }) || { data: null };
+    window.addEventListener("hashchange", check);
+    window.addEventListener("popstate", check);
+    return () => {
+      sub?.subscription?.unsubscribe?.();
+      window.removeEventListener("hashchange", check);
+      window.removeEventListener("popstate", check);
+    };
+  }, []);
+  return recovery;
+}
+
 /** Top-right Account control, visible on every page (hidden on Home when logged out) */
 function AccountButton() {
   const router = useRouter();
   const signedIn = useAuthPresence();
   const [busy, setBusy] = useState(false);
 
-  // Hide tiny "Sign in" on Home when logged out (per your preference)
+  // Hide tiny "Sign in" on Home when logged out (your preference)
   if (!signedIn && router.pathname === "/") {
     return null;
   }
@@ -77,7 +106,7 @@ function AccountButton() {
     padding: "4px 8px",
     borderRadius: 6,
     background: "#fff",
-    border: "1px solid #ccc",
+    border: "1px solid "#ccc",
     color: "#111",
     boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
     cursor: "pointer",
@@ -115,17 +144,22 @@ function AccountButton() {
 }
 
 /** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, hover “?” password tips */
-function HomeAuthScreen() {
-  const [mode, setMode] = useState("signin"); // 'signin' | 'signup' | 'reset'
+function HomeAuthScreen({ forceReset }) {
+  const [mode, setMode] = useState(forceReset ? "reset" : "signin"); // 'signin' | 'signup' | 'reset'
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState(forceReset ? "Enter a new password to finish resetting." : "");
   const [showPwHelp, setShowPwHelp] = useState(false);
   const [newPw, setNewPw] = useState("");
   const [newPw2, setNewPw2] = useState("");
 
+  // Keep an ear out for recovery event; also detect via URL (query or hash)
   useEffect(() => {
+    if (forceReset) {
+      setMode("reset");
+      return;
+    }
     const sub = supabase?.auth.onAuthStateChange?.((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setMode("reset");
@@ -133,14 +167,15 @@ function HomeAuthScreen() {
       }
     });
     try {
-      const url = new URL(window.location.href);
-      if ((url.searchParams.get("type") || "").toLowerCase() === "recovery") {
+      const search = window.location.search || "";
+      const hash = window.location.hash || "";
+      if (/[?&]type=recovery/i.test(search) || /[#&]type=recovery/i.test(hash)) {
         setMode("reset");
         setMsg("Enter a new password to finish resetting.");
       }
     } catch {}
     return () => sub?.data?.subscription?.unsubscribe?.();
-  }, []);
+  }, [forceReset]);
 
   const page = { maxWidth: 520, margin: "0 auto", padding: "24px 16px" };
   const h1 = { fontSize: 22, fontWeight: 700, margin: "0 0 32px" };
@@ -160,7 +195,7 @@ function HomeAuthScreen() {
   const input = { flex: "1 1 280px", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
   const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
   const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
-  const fine = { fontSize: 11, color: "#666" }; // smaller tip text per your request
+  const fine = { fontSize: 11, color: "#666" };
   const linkQuiet = { background: "transparent", border: "none", padding: 0, color: "#555", fontSize: 12, cursor: "pointer" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
 
@@ -253,7 +288,8 @@ function HomeAuthScreen() {
     setMsg("Sending password reset email…");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: typeof window !== "undefined" ? `${window.location.origin}?type=recovery` : undefined,
+        redirectTo:
+          typeof window !== "undefined" ? `${window.location.origin}?type=recovery` : undefined,
       });
       if (error) {
         setMsg(error.message || "Could not send reset email.");
@@ -282,6 +318,13 @@ function HomeAuthScreen() {
         setMsg(error.message || "Could not update password.");
       } else {
         setMsg("Password updated. You can now sign in.");
+        // Clear recovery flags from the URL so normal UI returns
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("type");
+          url.hash = "";
+          window.history.replaceState({}, "", url.toString());
+        } catch {}
         setMode("signin");
         setPassword("");
       }
@@ -292,7 +335,7 @@ function HomeAuthScreen() {
     }
   }
 
-  // Shared styles for the visually hidden submit (keeps Enter-to-submit working without a visible button)
+  // Invisible submit keeps Enter-to-submit working without a visible button
   const srSubmit = {
     position: "absolute",
     left: "-10000px",
@@ -302,19 +345,19 @@ function HomeAuthScreen() {
     overflow: "hidden",
   };
 
-  // Smaller tooltip box style (used in both Sign in / Sign up)
+  // Smaller tooltip box style
   const tooltipStyle = {
     position: "absolute",
     top: "100%",
     left: 0,
     marginTop: 6,
-    padding: "8px 10px",               // smaller padding
+    padding: "8px 10px",
     border: "1px solid #ddd",
     borderRadius: 8,
     background: "#fafafa",
-    fontSize: 12,                      // smaller font
+    fontSize: 12,
     lineHeight: 1.35,
-    width: 260,                        // narrower box
+    width: 260,
     boxShadow: "0 6px 16px rgba(0,0,0,0.10)",
     zIndex: 5,
   };
@@ -563,10 +606,62 @@ function HomeAuthScreen() {
   );
 }
 
+/** After sign-in on Home, rewrite the big "Home" heading to "Welcome, <first name>" */
+function SignedInWelcomeFix() {
+  const router = useRouter();
+  useEffect(() => {
+    let cancelled = false;
+
+    async function getFirstName() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        const u = data?.user;
+        const meta = u?.user_metadata || {};
+        const full = meta.full_name || meta.name || "";
+        const firstFromFull = full ? String(full).trim().split(/\s+/)[0] : "";
+        const first =
+          meta.first_name ||
+          firstFromFull ||
+          (u?.email ? u.email.split("@")[0] : "there");
+        return first;
+      } catch {
+        return "there";
+      }
+    }
+
+    async function apply() {
+      const first = await getFirstName();
+      const isHome = router.pathname === "/";
+      if (!isHome) return;
+
+      const deadline = Date.now() + 3000;
+      const int = setInterval(() => {
+        if (cancelled) { clearInterval(int); return; }
+        const candidates = Array.from(document.querySelectorAll("h1, h2, [role='heading']"));
+        const target = candidates.find((el) => (el.textContent || "").trim() === "Home");
+        if (target) {
+          target.textContent = `Welcome, ${first}`;
+          target.setAttribute("aria-label", `Welcome, ${first}`);
+          clearInterval(int);
+        }
+        if (Date.now() > deadline) clearInterval(int);
+      }, 150);
+    }
+
+    apply();
+    return () => { cancelled = true; };
+  }, [router.pathname]);
+
+  return null;
+}
+
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const signedIn = useAuthPresence();
-  const showAuthOnHome = router.pathname === "/" && !signedIn;
+  const recovery = useRecoveryFlag();
+
+  // Show the auth screen on Home if logged out, OR if a recovery link is present.
+  const showAuthOnHome = router.pathname === "/" && (!signedIn || recovery);
 
   // Visually hidden skip link for a11y
   const srOnly = {
@@ -609,18 +704,16 @@ export default function MyApp({ Component, pageProps }) {
         Skip to content
       </a>
 
-      {showAuthOnHome ? <HomeAuthScreen /> : <Component {...pageProps} />}
+      {showAuthOnHome ? <HomeAuthScreen forceReset={recovery} /> : <Component {...pageProps} />}
+
+      {/* When signed in and on Home, swap the "Home" heading text */}
+      {!showAuthOnHome && <SignedInWelcomeFix />}
 
       <AccountButton />
       <BuildBadge />
     </>
   );
 }
-
-
-
-
-
 
 
 
