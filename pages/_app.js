@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.54_2025-08-23
+// Build 36.55_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.54_2025-08-23";
+export const BUILD_VERSION = "Build 36.55_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -57,10 +57,16 @@ function useAuthPresence() {
   return signedIn;
 }
 
-/** Top-right Account control, visible on every page */
+/** Top-right Account control, visible on every page (hidden on Home when logged out) */
 function AccountButton() {
+  const router = useRouter();
   const signedIn = useAuthPresence();
   const [busy, setBusy] = useState(false);
+
+  // Hide tiny "Sign in" on Home when logged out (your request)
+  if (!signedIn && router.pathname === "/") {
+    return null;
+  }
 
   const baseBtn = {
     position: "fixed",
@@ -108,7 +114,7 @@ function AccountButton() {
   );
 }
 
-/** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, and hover “?” password tips */
+/** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, hover “?” password tips */
 function HomeAuthScreen() {
   const [mode, setMode] = useState("signin"); // 'signin' | 'signup' | 'reset'
   const [email, setEmail] = useState("");
@@ -153,9 +159,9 @@ function HomeAuthScreen() {
   const label = { fontSize: 12, fontWeight: 700, minWidth: 80 };
   const input = { flex: "1 1 280px", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
   const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-  const ghost = { padding: "8px 12px", border: "1px solid #ccc", borderRadius: 8, background: "#fff", color: "#111", fontSize: 13, cursor: "pointer" };
   const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
   const fine = { fontSize: 12, color: "#555" };
+  const linkQuiet = { background: "transparent", border: "none", padding: 0, color: "#555", fontSize: 12, cursor: "pointer" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
 
   function pwPolicyOk(pw) {
@@ -413,12 +419,12 @@ function HomeAuthScreen() {
                 <button type="submit" style={srSubmit} tabIndex={-1} aria-hidden="true">Submit</button>
               </form>
 
-              {/* Secondary actions (no visible Sign in button) */}
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-                <button onClick={handleForgotPw} disabled={busy} style={ghost}>
+              {/* Secondary actions — now discreet text links */}
+              <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+                <button onClick={handleForgotPw} disabled={busy} style={linkQuiet}>
                   Forgot password?
                 </button>
-                <button onClick={handleMagicLink} disabled={busy} style={ghost} title="Email me a one-time link">
+                <button onClick={handleMagicLink} disabled={busy} style={linkQuiet} title="Email me a one-time link">
                   Email me a sign-in link
                 </button>
               </div>
@@ -558,7 +564,7 @@ function HomeAuthScreen() {
               <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
                 {busy ? "Updating…" : "Update password"}
               </button>
-              <button type="button" onClick={() => setMode("signin")} disabled={busy} style={ghost}>
+              <button type="button" onClick={() => setMode("signin")} disabled={busy} style={{ ...linkQuiet, color: "#111" }}>
                 Cancel
               </button>
             </div>
@@ -624,6 +630,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
