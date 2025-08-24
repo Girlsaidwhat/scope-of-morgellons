@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.58_2025-08-23
+// Build 36.59_2025-08-23
 import "../styles/globals.css";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.58_2025-08-23";
+export const BUILD_VERSION = "Build 36.59_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -106,7 +106,7 @@ function AccountButton() {
     padding: "4px 8px",
     borderRadius: 6,
     background: "#fff",
-    border: "1px solid "#ccc",
+    border: "1px solid #ccc",
     color: "#111",
     boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
     cursor: "pointer",
@@ -318,7 +318,7 @@ function HomeAuthScreen({ forceReset }) {
         setMsg(error.message || "Could not update password.");
       } else {
         setMsg("Password updated. You can now sign in.");
-        // Clear recovery flags from the URL so normal UI returns
+        // Clear recovery flags so normal UI returns
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete("type");
@@ -606,11 +606,14 @@ function HomeAuthScreen({ forceReset }) {
   );
 }
 
-/** After sign-in on Home, rewrite the big "Home" heading to "Welcome, <first name>" */
+/** After sign-in on Home, reliably swap the "Home" heading to "Welcome, <first name>" */
 function SignedInWelcomeFix() {
   const router = useRouter();
-  useEffect(() => {
-    let cancelled = false;
+  const appliedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    let cancel = false;
+    let observer;
 
     async function getFirstName() {
       try {
@@ -629,27 +632,67 @@ function SignedInWelcomeFix() {
       }
     }
 
-    async function apply() {
-      const first = await getFirstName();
-      const isHome = router.pathname === "/";
-      if (!isHome) return;
+    function findPageHeading() {
+      const root =
+        document.querySelector("main#main") ||
+        document.querySelector("main") ||
+        document.body;
+      const candidates = root.querySelectorAll("h1, h2, [role='heading']");
+      for (const el of candidates) {
+        const text = (el.textContent || "").trim().toLowerCase();
+        if (text === "home") return el;
+      }
+      return null;
+    }
 
-      const deadline = Date.now() + 3000;
-      const int = setInterval(() => {
-        if (cancelled) { clearInterval(int); return; }
-        const candidates = Array.from(document.querySelectorAll("h1, h2, [role='heading']"));
-        const target = candidates.find((el) => (el.textContent || "").trim() === "Home");
-        if (target) {
-          target.textContent = `Welcome, ${first}`;
-          target.setAttribute("aria-label", `Welcome, ${first}`);
-          clearInterval(int);
+    async function applySwap() {
+      if (cancel || appliedRef.current) return;
+      const h = findPageHeading();
+      if (!h) return;
+      const first = await getFirstName();
+      if (cancel) return;
+      h.textContent = `Welcome, ${first}`;
+      h.setAttribute("aria-label", `Welcome, ${first}`);
+      appliedRef.current = true;
+    }
+
+    async function init() {
+      if (router.pathname !== "/") return;
+      // Try immediately
+      await applySwap();
+      if (appliedRef.current) return;
+
+      // Observe changes for up to 8 seconds to catch re-renders/hydration swaps
+      const deadline = Date.now() + 8000;
+      observer = new MutationObserver(async () => {
+        if (Date.now() > deadline) {
+          observer?.disconnect();
+          return;
         }
-        if (Date.now() > deadline) clearInterval(int);
+        if (!appliedRef.current) await applySwap();
+      });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
+
+      // Final timed attempts as a fallback
+      const tick = setInterval(async () => {
+        if (appliedRef.current || Date.now() > deadline) {
+          clearInterval(tick);
+          observer?.disconnect();
+          return;
+        }
+        await applySwap();
       }, 150);
     }
 
-    apply();
-    return () => { cancelled = true; };
+    init();
+
+    return () => {
+      cancel = true;
+      observer?.disconnect();
+    };
   }, [router.pathname]);
 
   return null;
@@ -706,7 +749,7 @@ export default function MyApp({ Component, pageProps }) {
 
       {showAuthOnHome ? <HomeAuthScreen forceReset={recovery} /> : <Component {...pageProps} />}
 
-      {/* When signed in and on Home, swap the "Home" heading text */}
+      {/* When signed in and on Home, swap the "Home" heading text (robust) */}
       {!showAuthOnHome && <SignedInWelcomeFix />}
 
       <AccountButton />
