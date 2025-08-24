@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.60_2025-08-23
+// Build 36.61_2025-08-23
 import "../styles/globals.css";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.60_2025-08-23";
+export const BUILD_VERSION = "Build 36.61_2025-08-23";
 
 const supabase =
   typeof window !== "undefined"
@@ -99,11 +99,13 @@ function useRecoveryFlag() {
   return recovery;
 }
 
-/** Top-right Account control, visible on every page (hidden on Home when logged out) */
-function AccountButton() {
+/** Top-right Account control (hidden on Home when logged out; hidden during reset overlay) */
+function AccountButton({ hidden }) {
   const router = useRouter();
   const signedIn = useAuthPresence();
   const [busy, setBusy] = useState(false);
+
+  if (hidden) return null;
 
   // Hide tiny "Sign in" on Home when logged out
   if (!signedIn && router.pathname === "/") {
@@ -338,6 +340,8 @@ function HomeAuthScreen({ forceReset }) {
           url.searchParams.delete("type");
           url.hash = "";
           window.history.replaceState({}, "", url.toString());
+          // Notify our detector to re-check
+          window.dispatchEvent(new Event("popstate"));
         } catch {}
         setMode("signin");
         setPassword("");
@@ -708,8 +712,11 @@ export default function MyApp({ Component, pageProps }) {
   const signedIn = useAuthPresence();
   const recovery = useRecoveryFlag();
 
-  // Show the auth screen on Home if logged out, OR if a recovery link is present.
-  const showAuthOnHome = router.pathname === "/" && (!signedIn || recovery);
+  // If recovery link is present, show the Reset overlay on ANY route (before anything else).
+  const showResetOverlay = !!recovery;
+
+  // Otherwise, show the auth screen on Home when logged out.
+  const showAuthOnHome = router.pathname === "/" && !signedIn;
 
   // Visually hidden skip link for a11y
   const srOnly = {
@@ -746,14 +753,41 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
+  if (showResetOverlay) {
+    // Full-screen overlay for password reset, blocks the rest of the app
+    return (
+      <>
+        <a href="#main" onFocus={handleSkipFocus} onBlur={handleSkipBlur} style={srOnly}>
+          Skip to content
+        </a>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "#fff",
+            zIndex: 9990,
+            overflowY: "auto",
+          }}
+          aria-live="polite"
+        >
+          <HomeAuthScreen forceReset />
+        </div>
+        {/* Hide account button while resetting to avoid confusion */}
+        <AccountButton hidden />
+        <BuildBadge />
+      </>
+    );
+  }
+
   return (
     <>
       <a href="#main" onFocus={handleSkipFocus} onBlur={handleSkipBlur} style={srOnly}>
         Skip to content
       </a>
 
-      {showAuthOnHome ? <HomeAuthScreen forceReset={recovery} /> : <Component {...pageProps} />}
+      {showAuthOnHome ? <HomeAuthScreen forceReset={false} /> : <Component {...pageProps} />}
 
+      {/* When signed in and on Home, swap the "Home" heading text (robust) */}
       {!showAuthOnHome && <SignedInWelcomeFix />}
 
       <AccountButton />
@@ -761,6 +795,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
