@@ -1,497 +1,435 @@
-// Build: 36.12_2025-08-20
-// Home: same features + a11y improvements (main landmark, aria-live statuses, button labels).
+// pages/index.js
+// The Scope of Morgellons — Home (Profile + Gallery)
+// Build: 36.4b_2025-08-18
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-const PAGE_SIZE = 24;
+// Category labels for badges
+const CATEGORIES = [
+  { value: "biofilm", label: "Biofilm" },
+  { value: "clear_to_brown_blebs", label: 'Clear--Brown "Blebs"' },
+  { value: "fiber_bundles", label: "Fiber Bundles" },
+  { value: "fibers", label: "Fibers" },
+  { value: "hexagons", label: "Hexagons" },
+  { value: "crystalline_structures", label: "Crystalline Structures" },
+  { value: "feathers", label: "Feathers" },
+  { value: "miscellaneous", label: "Miscellaneous" },
+];
 
-function prettyDate(s) {
-  try {
-    const d = new Date(s);
-    return d.toLocaleString();
-  } catch {
-    return s || "";
-  }
-}
-
-function Badge({ children }) {
+const Status = ({ kind = "info", children }) => {
+  const color =
+    kind === "error" ? "#b91c1c" : kind === "success" ? "#065f46" : "#374151";
+  const bg =
+    kind === "error" ? "#fee2e2" : kind === "success" ? "#d1fae5" : "#e5e7eb";
   return (
-    <span style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #ddd", borderRadius: 999 }}>
+    <div
+      style={{
+        background: bg,
+        color,
+        padding: "8px 10px",
+        borderRadius: 8,
+        fontSize: 14,
+        lineHeight: 1.3,
+        marginTop: 8,
+      }}
+    >
       {children}
-    </span>
+    </div>
   );
-}
+};
 
 export default function HomePage() {
   const [user, setUser] = useState(null);
 
-  // Profile form
+  // Profile state
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
-  const [location, setLocation] = useState("");
+  const [locationText, setLocationText] = useState("");
   const [contactOptIn, setContactOptIn] = useState(false);
-  const [profileStatus, setProfileStatus] = useState("");
+  const [profileStatus, setProfileStatus] = useState({ type: "info", msg: "" });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Gallery
-  const [count, setCount] = useState(null);
   const [items, setItems] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [galleryStatus, setGalleryStatus] = useState("");
+  const [loadingGallery, setLoadingGallery] = useState(false);
 
-  const [copiedMap, setCopiedMap] = useState({});
+  const publicUrlFor = (path) => {
+    const { data } = supabase.storage.from("images").getPublicUrl(path);
+    return data?.publicUrl || "";
+  };
 
-  // Auth
   useEffect(() => {
     let mounted = true;
-    (async () => {
-      const { data } = await supabase.auth.getUser();
+
+    async function bootstrap() {
+      const { data: auth } = await supabase.auth.getUser();
+      const currentUser = auth?.user || null;
       if (!mounted) return;
-      setUser(data?.user ?? null);
-    })();
-    return () => { mounted = false; };
+
+      setUser(currentUser);
+
+      if (currentUser) {
+        await Promise.all([loadProfile(currentUser.id), loadGallery(currentUser.id)]);
+      }
+    }
+
+    bootstrap();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+      if (currentUser) {
+        loadProfile(currentUser.id);
+        loadGallery(currentUser.id);
+      } else {
+        setItems([]);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
-  // Load profile
-  useEffect(() => {
-    if (!user?.id) return;
-    let canceled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("user_profile")
-        .select("initials, age, location, contact_opt_in")
-        .eq("user_id", user.id)
-        .single();
-      if (canceled) return;
-      if (error && error.code !== "PGRST116") {
-        setProfileStatus(`Profile load error: ${error.message}`);
-        return;
-      }
-      if (data) {
-        setInitials(data.initials || "");
-        setAge(data.age ?? "");
-        setLocation(data.location || "");
-        setContactOptIn(!!data.contact_opt_in);
-      }
-    })();
-    return () => { canceled = true; };
-  }, [user?.id]);
+  async function loadProfile(userId) {
+    const { data, error } = await supabase
+      .from("user_profile")
+      .select("initials, age, location, contact_opt_in")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  // Save profile
-  async function saveProfile(e) {
-    e.preventDefault();
-    if (!user?.id) return;
-    setProfileStatus("Saving...");
-    const payload = {
-      user_id: user.id,
-      initials: initials || null,
-      age: age === "" ? null : Number(age),
-      location: location || null,
-      contact_opt_in: contactOptIn,
-    };
-    const { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
-    if (error) {
-      setProfileStatus(`Save error: ${error.message}`);
-      return;
+    if (error) return;
+
+    if (data) {
+      setInitials(data.initials ?? "");
+      setAge(data.age ?? "");
+      setLocationText(data.location ?? "");
+      setContactOptIn(Boolean(data.contact_opt_in));
     }
-    setProfileStatus("Profile saved.");
-    setTimeout(() => setProfileStatus(""), 1500);
   }
 
-  // Reset gallery on user change
-  useEffect(() => {
-    setItems([]);
-    setOffset(0);
-    setCount(null);
-    setGalleryStatus("");
-    setCopiedMap({});
-  }, [user?.id]);
-
-  // Count
-  useEffect(() => {
-    if (!user?.id) return;
-    let canceled = false;
-    (async () => {
-      const { count: total, error } = await supabase
-        .from("image_metadata")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
-      if (canceled) return;
-      if (error) {
-        setCount(null);
-        return;
-      }
-      setCount(typeof total === "number" ? total : null);
-    })();
-    return () => { canceled = true; };
-  }, [user?.id]);
-
-  // Load a page
-  async function loadMore() {
-    if (!user?.id) return;
-    setLoading(true);
-    setGalleryStatus(items.length === 0 ? "Loading..." : "");
+  async function loadGallery(userId) {
+    setLoadingGallery(true);
     const { data, error } = await supabase
       .from("image_metadata")
-      .select("id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-
-    if (error) {
-      setGalleryStatus(`Load error: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    const batch = data || [];
-    setItems((prev) => [...prev, ...batch]);
-    setOffset((prev) => prev + batch.length);
-    setGalleryStatus("");
-    setLoading(false);
-  }
-
-  // Initial load
-  useEffect(() => {
-    if (user?.id && offset === 0 && items.length === 0) {
-      loadMore();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  const hasMore = useMemo(() => {
-    if (loading) return false;
-    if (items.length === 0) return false;
-    if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0;
-  }, [items.length, count, loading]);
-
-  // CSV export
-  async function exportCSV() {
-    if (!user?.id) return;
-    const { data, error } = await supabase
-      .from("image_metadata")
-      .select("*")
-      .eq("user_id", user.id)
+      .select("id, user_id, path, filename, category, bleb_color, created_at")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
+    setLoadingGallery(false);
+    if (error) return;
+
+    setItems(Array.isArray(data) ? data : []);
+  }
+
+  async function saveProfile(e) {
+    e.preventDefault();
+    if (!user) return;
+    setProfileStatus({ type: "info", msg: "" });
+    setIsSavingProfile(true);
+
+    const payload = {
+      user_id: user.id,
+      initials: initials?.trim() || null,
+      age: age === "" ? null : Number(age),
+      location: locationText?.trim() || null,
+      contact_opt_in: !!contactOptIn,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from("user_profile").upsert(payload, {
+      onConflict: "user_id",
+    });
+
+    setIsSavingProfile(false);
+
     if (error) {
-      alert(`CSV error: ${error.message}`);
+      setProfileStatus({
+        type: "error",
+        msg: "Profile save failed. Please try again.",
+      });
       return;
     }
-
-    const rows = data || [];
-    if (rows.length === 0) {
-      alert("No rows to export.");
-      return;
-    }
-
-    const headers = Object.keys(rows[0]);
-    const csv = [
-      headers.join(","),
-      ...rows.map((r) =>
-        headers
-          .map((h) => {
-            const v = r[h];
-            if (v === null || v === undefined) return "";
-            const s = String(v).replace(/"/g, '""');
-            return /[",\n]/.test(s) ? `"${s}"` : s;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "image_metadata.csv";
-    a.click();
-    URL.revokeObjectURL(url);
+    setProfileStatus({ type: "success", msg: "Profile saved." });
   }
 
-  function cardColorBadge(row) {
-    if (row.category === "Blebs (clear to brown)" && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
-    if (row.category === "Fiber Bundles" && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
-    if (row.category === "Fibers" && row.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
-    return null;
-  }
-
-  async function handleCopy(e, url, id) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedMap((m) => ({ ...m, [id]: true }));
-      setTimeout(() => setCopiedMap((m) => {
-        const n = { ...m };
-        delete n[id];
-        return n;
-      }), 1000);
-    } catch {
-      alert("Copy failed.");
-    }
-  }
-
-  function handleOpen(e, url) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      window.open(url, "_blank", "noopener");
-    } catch {}
-  }
+  const signedIn = useMemo(() => Boolean(user?.id), [user]);
 
   return (
-    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      {/* Header */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>Home</h1>
-        <div style={{ fontSize: 14, opacity: 0.8 }}>
-          Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
-        </div>
+    <div
+      style={{
+        maxWidth: 980,
+        margin: "32px auto",
+        padding: "0 16px 64px",
+        fontFamily:
+          '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+      }}
+    >
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h1 style={{ fontSize: 28, margin: 0 }}>The Scope of Morgellons</h1>
+        <div style={{ fontSize: 12, color: "#6b7280" }}>Build 36.4b_2025-08-18</div>
       </header>
 
-      {/* Profile form */}
-      {!user ? (
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-          Please sign in to view your profile and gallery.
-        </div>
-      ) : (
-        <>
-          <form
-            onSubmit={saveProfile}
-            aria-labelledby="profile-form-heading"
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 12,
-              padding: 12,
-              border: "1px solid #e5e5e5",
-              borderRadius: 10,
-              background: "#fff",
-              marginBottom: 16,
-            }}
-          >
-            <h2 id="profile-form-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>
-              Profile
-            </h2>
+      {/* Simple nav */}
+      <nav style={{ marginTop: 12, display: "flex", gap: 8 }}>
+        <Link
+          href="/upload"
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            background: "#111827",
+            color: "#fff",
+            fontSize: 13,
+            textDecoration: "none",
+          }}
+        >
+          Go to Uploader
+        </Link>
+        <Link
+          href="/browse"
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #e5e7eb",
+            background: "#fff",
+            color: "#111827",
+            fontSize: 13,
+            textDecoration: "none",
+          }}
+        >
+          Browse by Category
+        </Link>
+      </nav>
+
+      {!signedIn ? (
+        <Status kind="info" >
+          You must be signed in to save your profile and see your gallery.
+        </Status>
+      ) : null}
+
+      {/* Profile */}
+      <section style={{ marginTop: 24 }}>
+        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Profile</h2>
+        <p style={{ marginTop: 0, color: "#4b5563", fontSize: 14 }}>
+          Save your profile. Each upload stores a snapshot of these fields.
+        </p>
+
+        <form onSubmit={saveProfile} style={cardStyle()}>
+          <div style={grid2()}>
             <div>
-              <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Initials</label>
+              <label style={labelStyle()}>Initials</label>
               <input
-                id="initials"
+                type="text"
                 value={initials}
                 onChange={(e) => setInitials(e.target.value)}
-                style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
+                placeholder="EC"
+                style={inputStyle()}
+                maxLength={8}
               />
             </div>
             <div>
-              <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Age</label>
+              <label style={labelStyle()}>Age</label>
               <input
-                id="age"
                 type="number"
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
-                style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
+                placeholder="42"
+                style={inputStyle()}
+                min={0}
               />
             </div>
-            <div>
-              <label htmlFor="location" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Location</label>
-              <input
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-              />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input
-                id="optin"
-                type="checkbox"
-                checked={contactOptIn}
-                onChange={(e) => setContactOptIn(e.target.checked)}
-              />
-              <label htmlFor="optin" style={{ fontSize: 12 }}>Contact opt-in</label>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button
-                type="submit"
-                aria-label="Save profile"
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #0f766e",
-                  background: "#14b8a6",
-                  color: "white",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Save Profile
-              </button>
-              <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-                {profileStatus}
-              </span>
-            </div>
-          </form>
-
-          {/* Actions row */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <a href="/upload" style={{ textDecoration: "none", color: "#0b4", fontWeight: 600 }}>
-              Go to Uploads
-            </a>
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <label style={labelStyle()}>Location</label>
+            <input
+              type="text"
+              value={locationText}
+              onChange={(e) => setLocationText(e.target.value)}
+              placeholder="Pennsylvania, USA"
+              style={inputStyle()}
+              maxLength={120}
+            />
+          </div>
+          <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              id="optin"
+              type="checkbox"
+              checked={contactOptIn}
+              onChange={(e) => setContactOptIn(e.target.checked)}
+            />
+            <label htmlFor="optin" style={{ fontSize: 14 }}>
+              Open to being contacted by researchers or other members
+            </label>
+          </div>
+          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
             <button
-              onClick={exportCSV}
-              aria-label="Export all image metadata to CSV"
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #1e293b",
-                background: "#1f2937",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
+              type="submit"
+              disabled={!signedIn || isSavingProfile}
+              style={buttonStyle(!signedIn || isSavingProfile)}
             >
-              Export CSV
+              {isSavingProfile ? "Saving..." : "Save Profile"}
             </button>
           </div>
-
-          {/* Gallery status */}
-          <div role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 12 }}>
-            {galleryStatus && items.length === 0 ? (
-              <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{galleryStatus}</div>
-            ) : null}
-          </div>
-
-          {/* Gallery grid */}
-          {items.length > 0 ? (
-            <div
-              role="list"
-              aria-label="Your images"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {items.map((row) => {
-                const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
-                const url = pub?.publicUrl || "";
-                const copied = !!copiedMap[row.id];
-                return (
-                  <a
-                    role="listitem"
-                    key={row.id}
-                    href={`/image/${row.id}`}
-                    style={{
-                      display: "block",
-                      textDecoration: "none",
-                      color: "inherit",
-                      border: "1px solid #e5e5e5",
-                      borderRadius: 8,
-                      overflow: "hidden",
-                      background: "#fff",
-                    }}
-                    aria-label={`Open details for ${row.filename}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={url}
-                      alt={row.filename}
-                      style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
-                    />
-                    <div style={{ padding: 10 }}>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                        <Badge>{row.category}</Badge>
-                        {row.category === "Blebs (clear to brown)" && row.bleb_color ? (
-                          <Badge>Color: {row.bleb_color}</Badge>
-                        ) : null}
-                        {row.category === "Fiber Bundles" && row.fiber_bundles_color ? (
-                          <Badge>Color: {row.fiber_bundles_color}</Badge>
-                        ) : null}
-                        {row.category === "Fibers" && row.fibers_color ? (
-                          <Badge>Color: {row.fibers_color}</Badge>
-                        ) : null}
-                      </div>
-                      <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
-
-                      {/* Card actions */}
-                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        <button
-                          onClick={(e) => handleCopy(e, url, row.id)}
-                          aria-label={`Copy public link for ${row.filename}`}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            border: "1px solid #cbd5e1",
-                            background: "#f8fafc",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: 600,
-                          }}
-                          title="Copy image link"
-                        >
-                          {copied ? "Link copied!" : "Copy image link"}
-                        </button>
-                        <button
-                          onClick={(e) => handleOpen(e, url)}
-                          aria-label={`Open ${row.filename} in a new tab`}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            border: "1px solid #cbd5e1",
-                            background: "#f8fafc",
-                            cursor: "pointer",
-                            fontSize: 12,
-                            fontWeight: 600,
-                          }}
-                          title="Open image in new tab"
-                        >
-                          Open image
-                        </button>
-                      </div>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
+          {profileStatus.msg ? (
+            <Status kind={profileStatus.type}>{profileStatus.msg}</Status>
           ) : null}
+        </form>
+      </section>
 
-          {/* Load more / end-of-list / empty */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-            {items.length === 0 && !galleryStatus ? (
-              <div style={{ fontSize: 12, opacity: 0.7 }}>No items yet.</div>
-            ) : hasMore ? (
-              <button
-                onClick={loadMore}
-                disabled={loading}
-                aria-label="Load more images"
+      {/* Gallery */}
+      <section style={{ marginTop: 24 }}>
+        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Your Gallery</h2>
+        {!signedIn ? (
+          <p style={{ color: "#6b7280" }}>Sign in to see your images.</p>
+        ) : loadingGallery ? (
+          <p style={{ color: "#6b7280" }}>Loading...</p>
+        ) : items.length === 0 ? (
+          <p style={{ color: "#6b7280" }}>No images yet.</p>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: 16,
+            }}
+          >
+            {items.map((it) => (
+              <article
+                key={it.id}
                 style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #0f766e",
-                  background: loading ? "#8dd3cd" : "#14b8a6",
-                  color: "white",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontWeight: 600,
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  background: "#fff",
                 }}
               >
-                {loading ? "Loading..." : "Load more"}
-              </button>
-            ) : items.length > 0 ? (
-              <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
-            ) : null}
+                <div
+                  style={{
+                    width: "100%",
+                    aspectRatio: "1 / 1",
+                    background: "#f3f4f6",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={publicUrlFor(it.path)}
+                    alt={it.filename || "uploaded image"}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    loading="lazy"
+                  />
+                </div>
+                <div style={{ padding: 12 }}>
+                  <div style={{ marginBottom: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        background: "#eef2ff",
+                        color: "#3730a3",
+                        borderRadius: 999,
+                      }}
+                      title={it.category || "Uncategorized"}
+                    >
+                      {badgeLabel(it.category)}
+                    </span>
+                    {it.category === "clear_to_brown_blebs" && it.bleb_color ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontSize: 12,
+                          padding: "4px 8px",
+                          background: "#ecfeff",
+                          color: "#155e75",
+                          borderRadius: 999,
+                        }}
+                        title={`Bleb Color: ${it.bleb_color}`}
+                      >
+                        {it.bleb_color}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#111827",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={it.filename}
+                  >
+                    {it.filename}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                    {new Date(it.created_at).toLocaleString()}
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
-        </>
-      )}
-    </main>
+        )}
+      </section>
+    </div>
   );
 }
 
+function badgeLabel(v) {
+  const found = CATEGORIES.find((c) => c.value === v);
+  return found ? found.label : "Uncategorized";
+}
 
-
+// Styles
+function cardStyle() {
+  return {
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: 16,
+    background: "#fff",
+  };
+}
+function inputStyle() {
+  return {
+    width: "100%",
+    border: "1px solid #d1d5db",
+    borderRadius: 8,
+    padding: "10px 12px",
+    fontSize: 14,
+    outline: "none",
+  };
+}
+function labelStyle() {
+  return { display: "block", fontSize: 13, color: "#374151", marginBottom: 6 };
+}
+function buttonStyle(disabled) {
+  return {
+    background: disabled ? "#9ca3af" : "#111827",
+    color: "#fff",
+    border: 0,
+    borderRadius: 8,
+    padding: "10px 14px",
+    fontSize: 14,
+    cursor: disabled ? "not-allowed" : "pointer",
+  };
+}
+function grid2() {
+  return {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 12,
+  };
+}
