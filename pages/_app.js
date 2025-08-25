@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.88_2025-08-25
+// Build 36.90_2025-08-25
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.88_2025-08-25";
+export const BUILD_VERSION = "Build 36.90_2025-08-25";
 
 const supabase =
   typeof window !== "undefined"
@@ -324,7 +324,7 @@ function HomeAuthScreen() {
       {mode !== "reset" ? (
         <>
           <h1 style={h1}>Welcome to The Scope of Morgellons</h1>
-          <p style={p}>Use 12+ characters. Spaces are allowed. Symbols are optional.</p>
+          <p style={p}></p>
 
           <div style={tabs} role="tablist" aria-label="Authentication mode">
             <button
