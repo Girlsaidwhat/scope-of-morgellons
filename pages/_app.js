@@ -1,8 +1,8 @@
-// Build 36.63_2025-08-24
+// Build 36.66_2025-08-24
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 
-const BUILD_TAG = "Build 36.63_2025-08-24";
+const BUILD_TAG = "Build 36.66_2025-08-24";
 
 function BuildBadge() {
   return (
@@ -26,27 +26,33 @@ function BuildBadge() {
   );
 }
 
+// Minimal gate: if the URL contains recovery tokens, jump to /auth/reset BEFORE anything paints.
 function ResetGate({ children }) {
   const [proceed, setProceed] = useState(false);
 
   useEffect(() => {
-    // If a reset link lands anywhere other than /auth/reset, forward it there WITH tokens.
     const { pathname, search, hash } = window.location;
 
-    const query = new URLSearchParams(search);
-    const code = query.get("code"); // modern Supabase flow
+    // Query params
+    const qs = new URLSearchParams(search);
+    const code = qs.get("code");                 // PKCE-style reset
+    const qType = (qs.get("type") || "").toLowerCase();
+    const qToken = qs.get("token") || qs.get("recovery_token"); // older variants
 
-    const hashParams = new URLSearchParams((hash || "").replace(/^#/, ""));
-    const type = hashParams.get("type"); // e.g., "recovery"
-    const at = hashParams.get("access_token");
-    const rt = hashParams.get("refresh_token");
+    // Hash params
+    const hs = new URLSearchParams((hash || "").replace(/^#/, ""));
+    const hType = (hs.get("type") || "").toLowerCase();         // "recovery"
+    const at = hs.get("access_token");
+    const rt = hs.get("refresh_token");
 
-    const hasRecovery = Boolean(
-      code || type === "recovery" || (at && rt)
-    );
+    const hasRecovery =
+      !!code ||
+      (qType === "recovery" && !!qToken) ||
+      (hType === "recovery") ||
+      (at && rt);
 
     if (hasRecovery && pathname !== "/auth/reset") {
-      // Preserve tokens while redirecting so /auth/reset can exchange them.
+      // Preserve tokens so /auth/reset can exchange them
       window.location.replace(`/auth/reset${search}${hash}`);
       return;
     }
@@ -54,7 +60,7 @@ function ResetGate({ children }) {
     setProceed(true);
   }, []);
 
-  // While deciding or redirecting, don’t render the app (prevents Home flicker).
+  // While deciding or redirecting, hold the UI to prevent flicker
   if (!proceed) {
     return (
       <>
