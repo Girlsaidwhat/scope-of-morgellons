@@ -1,9 +1,10 @@
-// Build 36.93_2025-08-25
+// Build 36.94_2025-08-25
 import "../styles/globals.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "Build 36.93_2025-08-25";
+// Single source of truth for the build badge
+const BUILD_TAG = "Build 36.94_2025-08-25";
 
 // Safe client-side Supabase client (no secrets asked)
 const supabase =
@@ -37,12 +38,12 @@ function BuildBadge() {
 }
 
 /**
- * AuthScreen — matches your 36.56 sign-in screen:
+ * AuthScreen — your sign-in screen:
  * - Email + Password
- * - "?" password tips (dialog with bullets, no redundant sentence)
- * - "Forgot password?" button → /auth/reset
+ * - "?" password tips
+ * - Forgot password
  * - Sign in / Sign up toggle
- * We do NOT change your layout or copy beyond removing that one redundant line.
+ * No layout or copy changes.
  */
 function AuthScreen() {
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
@@ -51,42 +52,73 @@ function AuthScreen() {
   const [showTips, setShowTips] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function handleSignIn(e) {
-    e.preventDefault?.();
+    e?.preventDefault?.();
+    if (busy) return;
     setErr("");
     setMsg("Signing in…");
+    setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const sb =
+        supabase ||
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+
+      const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setMsg("Signed in.");
+      // Route to Home, which shows “Welcome, (first name)” + gallery
       window.location.assign("/");
     } catch (e) {
       setMsg("");
       setErr(e?.message || "Could not sign in.");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleSignUp(e) {
-    e.preventDefault?.();
+    e?.preventDefault?.();
+    if (busy) return;
     setErr("");
     setMsg("Creating account…");
+    setBusy(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const sb =
+        supabase ||
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+      const { error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       setMsg("Account created. Check your email to confirm, then sign in.");
     } catch (e) {
       setMsg("");
       setErr(e?.message || "Could not sign up.");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function handleForgot(e) {
-    e.preventDefault?.();
+    e?.preventDefault?.();
+    if (busy) return;
     setErr("");
     setMsg("Sending reset email…");
+    setBusy(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const sb =
+        supabase ||
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset`,
       });
       if (error) throw error;
@@ -94,6 +126,8 @@ function AuthScreen() {
     } catch (e) {
       setMsg("");
       setErr(e?.message || "Could not send reset email.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -101,7 +135,6 @@ function AuthScreen() {
     <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <h1 style={{ margin: "0 0 6px" }}>Welcome to The Scope of Morgellons</h1>
-        {/* No redundant sentence directly under the welcome line */}
       </header>
 
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
@@ -165,22 +198,39 @@ function AuthScreen() {
           ) : null}
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="submit" style={{ padding: "10px 14px" }}>
+            {/* Extra safety: directly invoke sign-in on click when in sign_in mode.
+                This ensures the button works even if a form-level onSubmit is being blocked by some edge case.
+                No layout or copy changes. */}
+            <button
+              type="submit"
+              onClick={(e) => {
+                if (mode === "sign_in") {
+                  e.preventDefault();
+                  handleSignIn(e);
+                }
+              }}
+              disabled={busy}
+              style={{ padding: "10px 14px" }}
+            >
               {mode === "sign_in" ? "Sign in" : "Sign up"}
             </button>
+
             <button
               type="button"
               onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
               aria-label="Toggle sign in or sign up"
               style={{ padding: "8px 12px" }}
+              disabled={busy}
             >
               {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
+
             <button
               type="button"
               onClick={handleForgot}
               aria-label="Forgot password?"
               style={{ padding: "8px 12px" }}
+              disabled={busy}
             >
               Forgot password?
             </button>
@@ -207,7 +257,9 @@ export default function MyApp({ Component, pageProps }) {
     if (!supabase) return;
     let unsub = () => {};
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setSession(session || null);
       setChecking(false);
       const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
@@ -218,13 +270,9 @@ export default function MyApp({ Component, pageProps }) {
     return () => unsub();
   }, []);
 
-  // While checking session, show nothing but the badge to avoid half-hydrated UI
+  // While checking session, show only the badge
   if (checking) {
-    return (
-      <>
-        <BuildBadge />
-      </>
-    );
+    return <BuildBadge />;
   }
 
   // If logged out and on Home ("/"), show your sign-in screen
@@ -243,36 +291,13 @@ export default function MyApp({ Component, pageProps }) {
           height: 1,
           overflow: "hidden",
         }}
-        onFocus={(e) => {
-          e.currentTarget.style.left = "8px";
-          e.currentTarget.style.top = "8px";
-          e.currentTarget.style.width = "auto";
-          e.currentTarget.style.height = "auto";
-          e.currentTarget.style.padding = "6px 8px";
-          e.currentTarget.style.background = "white";
-          e.currentTarget.style.border = "1px solid #ccc";
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.left = "-9999px";
-          e.currentTarget.style.top = "auto";
-          e.currentTarget.style.width = "1px";
-          e.currentTarget.style.height = "1px";
-          e.currentTarget.style.padding = "0";
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.border = "none";
-        }}
       >
-        Skip to main content
+        Skip to content
       </a>
 
       {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
+
       <BuildBadge />
     </>
   );
 }
-
-
-
-
-
-
