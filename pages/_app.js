@@ -1,19 +1,10 @@
 // pages/_app.js
-// Build 36.95_2025-08-25
+// Build 36.98_2025-08-25
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.95_2025-08-25";
-
-const supabase =
-  typeof window !== "undefined"
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      )
-    : null;
+export const BUILD_VERSION = "Build 36.98_2025-08-25";
 
 function BuildBadge() {
   const badgeStyle = {
@@ -22,601 +13,261 @@ function BuildBadge() {
     bottom: 8,
     zIndex: 9999,
     fontSize: 12,
-    padding: "4px 10px",
-    borderRadius: 8,
+    background: "rgba(0,0,0,0.75)",
     color: "#fff",
-    background: "#111",
-    border: "1px solid #000",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+    padding: "6px 10px",
+    borderRadius: 8,
+    pointerEvents: "none",
   };
-  return (
-    <div aria-label="Build version" style={badgeStyle}>
-      {BUILD_VERSION}
-    </div>
-  );
+  return <div style={badgeStyle}>{BUILD_VERSION}</div>;
 }
 
-function useAuthPresence() {
-  const [signedIn, setSignedIn] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (!supabase) return;
-      const { data } = await supabase.auth.getUser();
-      if (mounted) setSignedIn(!!data?.user);
-    })();
-    const { data: sub } =
-      supabase?.auth.onAuthStateChange?.((_event, session) => {
-        setSignedIn(!!session?.user);
-      }) || { data: null };
-    return () => {
-      mounted = false;
-      sub?.subscription?.unsubscribe?.();
-    };
-  }, []);
-  return signedIn;
-}
-
-/** Top-right Account control, visible on every page (hidden on Home when logged out) */
-function AccountButton() {
-  const router = useRouter();
-  const signedIn = useAuthPresence();
-  const [busy, setBusy] = useState(false);
-
-  // Hide tiny "Sign in" on Home when logged out (per your preference)
-  if (!signedIn && router.pathname === "/") {
-    return null;
-  }
-
-  const baseBtn = {
-    position: "fixed",
-    right: 8,
-    top: 8,
-    zIndex: 10000,
-    fontSize: 12,
-    padding: "4px 8px",
-    borderRadius: 6,
-    background: "#fff",
-    border: "1px solid #ccc",
-    color: "#111",
-    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-    cursor: "pointer",
-  };
-
-  if (!signedIn) {
-    return (
-      <a href="/" aria-label="Go to sign in" style={{ ...baseBtn, textDecoration: "none" }}>
-        Sign in
-      </a>
-    );
-  }
-
-  async function handleSignOut() {
-    if (busy || !supabase) return;
-    setBusy(true);
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      window.location.href = "/";
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleSignOut}
-      aria-label="Sign out"
-      disabled={busy}
-      style={{ ...baseBtn, cursor: busy ? "not-allowed" : "pointer" }}
-    >
-      {busy ? "Signing out…" : "Sign out"}
-    </button>
-  );
-}
-
-/** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, hover “?” password tips */
-function HomeAuthScreen() {
-  const [mode, setMode] = useState("signin"); // 'signin' | 'signup' | 'reset'
+/**
+ * Your sign-in screen, unchanged in layout/copy.
+ * Email + Password, "?" tips, Forgot password?, Sign in/Sign up toggle.
+ */
+function AuthScreen() {
+  const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [showTips, setShowTips] = useState(false);
   const [msg, setMsg] = useState("");
-  const [showPwHelp, setShowPwHelp] = useState(false);
-  const [newPw, setNewPw] = useState("");
-  const [newPw2, setNewPw2] = useState("");
-
-  useEffect(() => {
-    const sub = supabase?.auth.onAuthStateChange?.((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setMode("reset");
-        setMsg("Enter a new password to finish resetting.");
-      }
-    });
-    try {
-      const url = new URL(window.location.href);
-      if ((url.searchParams.get("type") || "").toLowerCase() === "recovery") {
-        setMode("reset");
-        setMsg("Enter a new password to finish resetting.");
-      }
-    } catch {}
-    return () => sub?.data?.subscription?.unsubscribe?.();
-  }, []);
-
-  const page = { maxWidth: 520, margin: "0 auto", padding: "24px 16px" };
-  const h1 = { fontSize: 22, fontWeight: 700, margin: "0 0 32px" };
-  const p = { fontSize: 14, color: "#444", margin: "0 0 16px" };
-  const tabs = { display: "flex", gap: 8, marginBottom: 16 };
-  const tab = (active) => ({
-    padding: "8px 12px",
-    borderRadius: 8,
-    border: "1px solid " + (active ? "#111" : "#ddd"),
-    background: active ? "#111" : "#fff",
-    color: active ? "#fff" : "#111",
-    cursor: "pointer",
-    fontSize: 13,
-  });
-  const formRow = { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" };
-  const label = { fontSize: 12, fontWeight: 700, minWidth: 80 };
-  const input = { flex: "1 1 280px", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
-  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-  const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
-  const fine = { fontSize: 11, color: "#666" }; // smaller tip text per your request
-  const linkQuiet = { background: "transparent", border: "none", padding: 0, color: "#555", fontSize: 12, cursor: "pointer" };
-  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
-
-  function pwPolicyOk(pw) {
-    return typeof pw === "string" && pw.length >= 12;
-  }
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function handleSignIn(e) {
-    e.preventDefault();
-    if (!supabase) return;
-    setBusy(true);
+    e?.preventDefault?.();
+    if (busy) return;
+    setErr("");
     setMsg("Signing in…");
+    setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setMsg(error.message || "Sign-in failed. Check your email or password.");
-      } else {
-        setMsg("");
-      }
-    } catch {
-      setMsg("Sign-in failed. Please try again.");
+      const sb = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      setMsg("Signed in.");
+      window.location.assign("/");
+    } catch (e) {
+      setMsg("");
+      setErr(e?.message || "Could not sign in.");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleSignUp(e) {
-    e.preventDefault();
-    if (!supabase) return;
-    if (!pwPolicyOk(password)) {
-      setMsg("Please use at least 12 characters. Spaces are allowed; symbols are optional.");
-      return;
-    }
+    e?.preventDefault?.();
+    if (busy) return;
+    setErr("");
+    setMsg("Creating account…");
     setBusy(true);
-    setMsg("Creating your account…");
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
+      const sb = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+      const { error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      setMsg("Account created. Check your email to confirm, then sign in.");
+    } catch (e) {
+      setMsg("");
+      setErr(e?.message || "Could not sign up.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleForgot(e) {
+    e?.preventDefault?.();
+    if (busy) return;
+    setErr("");
+    setMsg("Sending reset email…");
+    setBusy(true);
+    try {
+      const sb = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+      const { error } = await sb.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset`,
       });
-      if (error) {
-        setMsg(error.message || "Sign-up failed. Please try again.");
-      } else {
-        setMsg("Check your email to verify your address, then sign in.");
-      }
-    } catch {
-      setMsg("Sign-up failed. Please try again.");
+      if (error) throw error;
+      setMsg("Check your email for the reset link.");
+    } catch (e) {
+      setMsg("");
+      setErr(e?.message || "Could not send reset email.");
     } finally {
       setBusy(false);
     }
   }
-
-  async function handleMagicLink() {
-    if (!supabase) return;
-    if (!email) {
-      setMsg("Enter your email first, then choose the email sign-in link.");
-      return;
-    }
-    setBusy(true);
-    setMsg("Sending sign-in link…");
-    try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
-        },
-      });
-      if (error) {
-        setMsg(error.message || "Could not send the link. Please try again.");
-      } else {
-        setMsg("Check your email for a one-time sign-in link.");
-      }
-    } catch {
-      setMsg("Could not send the link. Please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleForgotPw() {
-    if (!supabase) return;
-    if (!email) {
-      setMsg("Enter your email above, then choose Forgot password.");
-      return;
-    }
-    setBusy(true);
-    setMsg("Sending password reset email…");
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: typeof window !== "undefined" ? `${window.location.origin}?type=recovery` : undefined,
-      });
-      if (error) {
-        setMsg(error.message || "Could not send reset email.");
-      } else {
-        setMsg("Check your email for the reset link, then set a new password here.");
-      }
-    } catch {
-      setMsg("Could not send reset email.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleDoReset(e) {
-    e.preventDefault();
-    if (!supabase) return;
-    if (!pwPolicyOk(newPw) || newPw !== newPw2) {
-      setMsg(newPw !== newPw2 ? "Passwords don’t match." : "Use at least 12 characters.");
-      return;
-    }
-    setBusy(true);
-    setMsg("Updating your password…");
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPw });
-      if (error) {
-        setMsg(error.message || "Could not update password.");
-      } else {
-        setMsg("Password updated. You can now sign in.");
-        setMode("signin");
-        setPassword("");
-      }
-    } catch {
-      setMsg("Could not update password.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Shared styles for the visually hidden submit (keeps Enter-to-submit working without a visible button)
-  const srSubmit = {
-    position: "absolute",
-    left: "-10000px",
-    top: "auto",
-    width: 1,
-    height: 1,
-    overflow: "hidden",
-  };
-
-  // Smaller tooltip box style (used in both Sign in / Sign up)
-  const tooltipStyle = {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    marginTop: 6,
-    padding: "8px 10px",               // smaller padding
-    border: "1px solid #ddd",
-    borderRadius: 8,
-    background: "#fafafa",
-    fontSize: 12,                      // smaller font
-    lineHeight: 1.35,
-    width: 260,                        // narrower box
-    boxShadow: "0 6px 16px rgba(0,0,0,0.10)",
-    zIndex: 5,
-  };
 
   return (
-    <main id="main" style={page} data-auth-ui="v2">
-      {mode !== "reset" ? (
-        <>
-          <h1 style={h1}>Welcome to The Scope of Morgellons</h1>
-          <p style={p}></p>
+    <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
+      <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+        <h1 style={{ margin: "0 0 6px" }}>Welcome to The Scope of Morgellons</h1>
+      </header>
 
-          <div style={tabs} role="tablist" aria-label="Authentication mode">
-            <button
-              role="tab"
-              aria-selected={mode === "signin" ? "true" : "false"}
-              style={tab(mode === "signin")}
-              onClick={() => setMode("signin")}
-              disabled={busy}
+      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
+        <form
+          onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp}
+          aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"}
+          style={{ display: "grid", gap: 10, maxWidth: 420 }}
+        >
+          <label>
+            <span>Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{ width: "100%", padding: 8 }}
+            />
+          </label>
+
+          <label>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>Password</span>
+              <button
+                type="button"
+                aria-label="Password tips"
+                onClick={() => setShowTips((v) => !v)}
+                style={{ fontSize: 12, padding: "2px 8px" }}
+              >
+                ?
+              </button>
+            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
+              required
+              style={{ width: "100%", padding: 8 }}
+            />
+          </label>
+
+          {showTips ? (
+            <div
+              role="dialog"
+              aria-label="Password tips"
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 10,
+                background: "white",
+                padding: 10,
+              }}
             >
-              Sign in
+              <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Use 12+ characters.</li>
+                <li>Mix upper/lower case, numbers, and a symbol.</li>
+                <li>Avoid names, birthdays, or common words.</li>
+                <li>Don’t reuse a password from another site.</li>
+              </ul>
+            </div>
+          ) : null}
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            {/* Defensive: ensure click calls sign-in in sign_in mode */}
+            <button
+              type="submit"
+              onClick={(e) => {
+                if (mode === "sign_in") {
+                  e.preventDefault();
+                  handleSignIn(e);
+                }
+              }}
+              disabled={busy}
+              style={{ padding: "10px 14px" }}
+            >
+              {mode === "sign_in" ? "Sign in" : "Sign up"}
             </button>
+
             <button
-              role="tab"
-              aria-selected={mode === "signup" ? "true" : "false"}
-              style={tab(mode === "signup")}
-              onClick={() => setMode("signup")}
+              type="button"
+              onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
+              aria-label="Toggle sign in or sign up"
+              style={{ padding: "8px 12px" }}
               disabled={busy}
             >
-              Sign up
+              {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleForgot}
+              aria-label="Forgot password?"
+              style={{ padding: "8px 12px" }}
+              disabled={busy}
+            >
+              Forgot password?
             </button>
           </div>
 
-          {/* SIGN IN */}
-          {mode === "signin" && (
-            <>
-              <form onSubmit={handleSignIn} aria-label="Sign in form" style={{ margin: 0, padding: 0 }}>
-                <div style={formRow}>
-                  <label htmlFor="email" style={label}>Email</label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={input}
-                  />
-                </div>
-
-                <div style={{ ...formRow, alignItems: "flex-start" }}>
-                  <label htmlFor="password" style={label}>Password</label>
-                  <div style={{ flex: "1 1 280px" }}>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="Your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      style={{ ...input, width: "100%" }}
-                    />
-                    {/* Hover container for the '?' and tip card */}
-                    <div
-                      style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", position: "relative" }}
-                      onMouseEnter={() => setShowPwHelp(true)}
-                      onMouseLeave={() => setShowPwHelp(false)}
-                    >
-                      <button
-                        type="button"
-                        onFocus={() => setShowPwHelp(true)}
-                        onBlur={() => setShowPwHelp(false)}
-                        aria-haspopup="true"
-                        aria-expanded={showPwHelp ? "true" : "false"}
-                        aria-controls="pw-help"
-                        style={linkBtn}
-                        title="Password tips"
-                      >
-                        ?
-                      </button>
-                      <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
-
-                      {showPwHelp && (
-                        <div id="pw-help" role="tooltip" style={tooltipStyle}>
-                          <strong>Password tips (modern guidance)</strong>
-                          <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
-                            <li>Longer is stronger: 12+ characters (16 is better).</li>
-                            <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
-                            <li>Symbols are optional; length + unpredictability matter more.</li>
-                            <li>Use a unique password here; a password manager helps.</li>
-                            <li>Forgot it? Use <em>Forgot password</em>. Prefer not to type it? Use the email sign-in link.</li>
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Invisible submit keeps Enter-to-submit working without a visible "Sign in" button */}
-                <button type="submit" style={srSubmit} tabIndex={-1} aria-hidden="true">Submit</button>
-              </form>
-
-              {/* Secondary actions — discreet text links */}
-              <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-                <button onClick={handleForgotPw} disabled={busy} style={linkQuiet}>
-                  Forgot password?
-                </button>
-                <button onClick={handleMagicLink} disabled={busy} style={linkQuiet} title="Email me a one-time link">
-                  Email me a sign-in link
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* SIGN UP */}
-          {mode === "signup" && (
-            <>
-              <form onSubmit={handleSignUp} aria-label="Sign up form" style={{ margin: 0, padding: 0 }}>
-                <div style={formRow}>
-                  <label htmlFor="email" style={label}>Email</label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    required
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    style={input}
-                  />
-                </div>
-
-                <div style={{ ...formRow, alignItems: "flex-start" }}>
-                  <label htmlFor="password" style={label}>Password</label>
-                  <div style={{ flex: "1 1 280px" }}>
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      required
-                      placeholder="Create a password (12+ chars)"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      style={{ ...input, width: "100%" }}
-                    />
-                    {/* Hover tips reused */}
-                    <div
-                      style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", position: "relative" }}
-                      onMouseEnter={() => setShowPwHelp(true)}
-                      onMouseLeave={() => setShowPwHelp(false)}
-                    >
-                      <button
-                        type="button"
-                        onFocus={() => setShowPwHelp(true)}
-                        onBlur={() => setShowPwHelp(false)}
-                        aria-haspopup="true"
-                        aria-expanded={showPwHelp ? "true" : "false"}
-                        aria-controls="pw-help"
-                        style={linkBtn}
-                        title="Password tips"
-                      >
-                        ?
-                      </button>
-                      <span style={fine}>Tip: 12+ characters. Spaces allowed. Symbols optional.</span>
-
-                      {showPwHelp && (
-                        <div id="pw-help" role="tooltip" style={tooltipStyle}>
-                          <strong>Password tips (modern guidance)</strong>
-                          <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
-                            <li>Longer is stronger: 12+ characters (16 is better).</li>
-                            <li>Passphrases work: spaces are allowed (e.g., <code>river moss cello planet</code>).</li>
-                            <li>Symbols are optional; length + unpredictability matter more.</li>
-                            <li>Use a unique password here; a password manager helps.</li>
-                            <li>Forgot it? Use <em>Forgot password</em>. Prefer not to type it? Use the email sign-in link.</li>
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
-                  <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
-                    {busy ? "Working…" : "Create account"}
-                  </button>
-                  <span style={{ fontSize: 12, color: "#555" }}>We’ll ask you to verify your email after sign-up.</span>
-                </div>
-              </form>
-            </>
-          )}
-
-          <p aria-live="polite" style={statusStyle}>{msg}</p>
-        </>
-      ) : (
-        <>
-          <h1 style={h1}>Reset your password</h1>
-          <p style={p}>Create a new password (12+ characters). Spaces are allowed.</p>
-
-          <form onSubmit={handleDoReset} aria-label="Reset password form">
-            <div style={formRow}>
-              <label htmlFor="newPw" style={label}>New password</label>
-              <input
-                id="newPw"
-                name="newPw"
-                type="password"
-                required
-                placeholder="New password (12+ chars)"
-                value={newPw}
-                onChange={(e) => setNewPw(e.target.value)}
-                style={input}
-              />
-            </div>
-            <div style={formRow}>
-              <label htmlFor="newPw2" style={label}>Confirm</label>
-              <input
-                id="newPw2"
-                name="newPw2"
-                type="password"
-                required
-                placeholder="Repeat new password"
-                value={newPw2}
-                onChange={(e) => setNewPw2(e.target.value)}
-                style={input}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
-                {busy ? "Updating…" : "Update password"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                disabled={busy}
-                style={{ background: "transparent", border: "none", padding: 0, color: "#111", fontSize: 12, cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-
-          <p aria-live="polite" style={statusStyle}>{msg}</p>
-        </>
-      )}
+          <p aria-live="polite" style={{ minHeight: 18, marginTop: 6 }}>{msg}</p>
+          {err ? <div role="alert" style={{ color: "#b00020" }}>{err}</div> : null}
+        </form>
+      </section>
     </main>
   );
 }
 
 export default function MyApp({ Component, pageProps }) {
-  const router = useRouter();
-  const signedIn = useAuthPresence();
-  const showAuthOnHome = router.pathname === "/" && !signedIn;
+  const [session, setSession] = useState(null);
+  const [checking, setChecking] = useState(true);
 
-  // Visually hidden skip link for a11y
-  const srOnly = {
-    position: "absolute",
-    left: "-10000px",
-    top: "auto",
-    width: "1px",
-    height: "1px",
-    overflow: "hidden",
-  };
-  const srOnlyFocus = {
-    position: "static",
-    width: "auto",
-    height: "auto",
-    overflow: "visible",
-    padding: "4px 8px",
-    border: "1px solid #ccc",
-    borderRadius: 6,
-    background: "#fff",
-    margin: 8,
-    display: "inline-block",
-  };
+  // Session bootstrap on client using an in-effect client
+  useEffect(() => {
+    let unsub = () => {};
+    (async () => {
+      const sb = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      );
+      const { data: { session } } = await sb.auth.getSession();
+      setSession(session || null);
+      setChecking(false);
+      const { data: sub } = sb.auth.onAuthStateChange((_evt, s) => {
+        setSession(s || null);
+      });
+      unsub = sub.subscription?.unsubscribe || (() => {});
+    })();
+    return () => unsub();
+  }, []);
 
-  function handleSkipFocus(e) {
-    e.currentTarget.setAttribute(
-      "style",
-      Object.entries(srOnlyFocus).map(([k, v]) => `${k}:${v}`).join(";")
-    );
+  if (checking) {
+    return <BuildBadge />;
   }
-  function handleSkipBlur(e) {
-    e.currentTarget.setAttribute(
-      "style",
-      Object.entries(srOnly).map(([k, v]) => `${k}:${v}`).join(";")
-    );
-  }
+
+  const onHome =
+    typeof window !== "undefined" && window.location.pathname === "/";
+  const showAuth = onHome && !session;
 
   return (
     <>
-      <a href="#main" onFocus={handleSkipFocus} onBlur={handleSkipBlur} style={srOnly}>
+      <a
+        href="#main"
+        style={{
+          position: "absolute",
+          left: -9999,
+          top: "auto",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+        }}
+      >
         Skip to content
       </a>
 
-      {showAuthOnHome ? <HomeAuthScreen /> : <Component {...pageProps} />}
+      {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
 
-      <AccountButton />
       <BuildBadge />
     </>
   );
 }
-
 
 
 
