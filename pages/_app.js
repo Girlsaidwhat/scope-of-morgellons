@@ -1,11 +1,11 @@
-// Build 36.86_2025-08-25
+// Build 36.87_2025-08-25
 import "../styles/globals.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const BUILD_TAG = "Build 36.86_2025-08-25";
+const BUILD_TAG = "Build 36.87_2025-08-25";
 
-// Safe client-side Supabase client (no secrets asked)
+// Browser-only Supabase client (uses your existing env, no secrets asked)
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -21,7 +21,7 @@ function BuildBadge() {
       style={{
         position: "fixed",
         right: 12,
-        bottom: 12,
+        bottom: 64, // lift so it isn't hidden behind your taskbar
         padding: "6px 10px",
         fontSize: 12,
         borderRadius: 6,
@@ -36,14 +36,32 @@ function BuildBadge() {
   );
 }
 
-/**
- * AuthScreen — matches your 36.56 sign-in screen:
- * - Email + Password
- * - "?" password tips (dialog with bullets, no redundant sentence)
- * - "Forgot password?" button → /auth/reset
- * - Sign in / Sign up toggle
- * We do NOT change your layout or copy beyond removing that one redundant line.
- */
+// Only redirects to /auth/reset if recovery tokens are present. No overlay, no pre-paint swap.
+function ResetRedirect() {
+  useEffect(() => {
+    const { pathname, search, hash } = window.location;
+
+    const qs = new URLSearchParams(search);
+    const code = qs.get("code");
+    const qType = (qs.get("type") || "").toLowerCase();
+    const qToken = qs.get("token") || qs.get("recovery_token");
+
+    const hs = new URLSearchParams((hash || "").replace(/^#/, ""));
+    const hType = (hs.get("type") || "").toLowerCase();
+    const at = hs.get("access_token");
+    const rt = hs.get("refresh_token");
+
+    const hasRecovery =
+      !!code || (qType === "recovery" && !!qToken) || hType === "recovery" || (at && rt);
+
+    if (hasRecovery && pathname !== "/auth/reset") {
+      window.location.replace(`/auth/reset${search}${hash}`);
+    }
+  }, []);
+  return null;
+}
+
+// === Your preferred sign-in screen (with "?" tips and "Forgot password?") ===
 function AuthScreen() {
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
   const [email, setEmail] = useState("");
@@ -53,7 +71,7 @@ function AuthScreen() {
   const [err, setErr] = useState("");
 
   async function handleSignIn(e) {
-    e.preventDefault?.();
+    e?.preventDefault?.();
     setErr("");
     setMsg("Signing in…");
     try {
@@ -61,28 +79,28 @@ function AuthScreen() {
       if (error) throw error;
       setMsg("Signed in.");
       window.location.assign("/");
-    } catch (e) {
+    } catch (e2) {
       setMsg("");
-      setErr(e?.message || "Could not sign in.");
+      setErr(e2?.message || "Could not sign in.");
     }
   }
 
   async function handleSignUp(e) {
-    e.preventDefault?.();
+    e?.preventDefault?.();
     setErr("");
     setMsg("Creating account…");
     try {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       setMsg("Account created. Check your email to confirm, then sign in.");
-    } catch (e) {
+    } catch (e2) {
       setMsg("");
-      setErr(e?.message || "Could not sign up.");
+      setErr(e2?.message || "Could not sign up.");
     }
   }
 
   async function handleForgot(e) {
-    e.preventDefault?.();
+    e?.preventDefault?.();
     setErr("");
     setMsg("Sending reset email…");
     try {
@@ -91,9 +109,9 @@ function AuthScreen() {
       });
       if (error) throw error;
       setMsg("Check your email for the reset link.");
-    } catch (e) {
+    } catch (e2) {
       setMsg("");
-      setErr(e?.message || "Could not send reset email.");
+      setErr(e2?.message || "Could not send reset email.");
     }
   }
 
@@ -101,7 +119,6 @@ function AuthScreen() {
     <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <h1 style={{ margin: "0 0 6px" }}>Welcome to The Scope of Morgellons</h1>
-        {/* No redundant sentence directly under the welcome line */}
       </header>
 
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
@@ -199,10 +216,11 @@ export default function MyApp({ Component, pageProps }) {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    // Remove any per-page build lines post-hydration
     document.querySelectorAll("[data-build-line]").forEach((el) => el.remove());
   }, []);
 
-  // Session bootstrap (client-side only; prevents flicker and wiring issues)
+  // Session bootstrap — no pre-paint UI swapping
   useEffect(() => {
     if (!supabase) return;
     let unsub = () => {};
@@ -218,18 +236,13 @@ export default function MyApp({ Component, pageProps }) {
     return () => unsub();
   }, []);
 
-  // While checking session, show nothing but the badge to avoid half-hydrated UI
   if (checking) {
-    return (
-      <>
-        <BuildBadge />
-      </>
-    );
+    // Keep the first paint clean; no overlay text
+    return <BuildBadge />;
   }
 
-  // If logged out and on Home ("/"), show your sign-in screen
   const onHome = typeof window !== "undefined" && window.location.pathname === "/";
-  const showAuth = onHome && !session;
+  const loggedOutOnHome = onHome && !session;
 
   return (
     <>
@@ -265,7 +278,8 @@ export default function MyApp({ Component, pageProps }) {
         Skip to main content
       </a>
 
-      {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
+      <ResetRedirect />
+      {loggedOutOnHome ? <AuthScreen /> : <Component {...pageProps} />}
       <BuildBadge />
     </>
   );
