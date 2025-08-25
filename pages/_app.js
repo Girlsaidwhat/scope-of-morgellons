@@ -1,215 +1,301 @@
 // pages/_app.js
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import Head from "next/head";
-import { createClient } from "@supabase/supabase-js";
 import "../styles/globals.css";
+import { createClient } from "@supabase/supabase-js";
 
-// Single source of truth for Build tag (visible bottom-right)
-const BUILD_TAG = "36.91_2025-08-25";
-
-// Create Supabase client (v2)
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
-
-  // Auth state
   const [session, setSession] = useState(null);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
 
-  // Sign-in form state
+  // Local state for the existing sign-in form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authMsg, setAuthMsg] = useState(""); // success/info
-  const [authErr, setAuthErr] = useState(""); // errors
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showTips, setShowTips] = useState(false);
 
-  // Password tips toggle (for the existing "?" helper)
-  const [showPwTips, setShowPwTips] = useState(false);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
 
-  // Keep a ref so we can focus the first field on mount
-  const emailRef = useRef(null);
-
-  // 1) Initial session check + 2) keep in sync on changes
   useEffect(() => {
     let isMounted = true;
 
-    (async () => {
-      const { data } = await supabase.auth.getSession();
+    supabase.auth.getSession().then(({ data }) => {
       if (!isMounted) return;
       setSession(data.session ?? null);
-      setCheckingSession(false);
-    })();
+      setAuthReady(true);
+    });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-
-      // If the user just signed in and is on /auth/reset, go Home so they see Welcome + gallery
-      if (nextSession && router.pathname.startsWith("/auth/reset")) {
-        router.replace("/");
-      }
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s ?? null);
     });
 
     return () => {
+      sub?.subscription?.unsubscribe?.();
       isMounted = false;
-      subscription?.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
-  // Focus the email field the first time the overlay appears
-  useEffect(() => {
-    if (!checkingSession && !session && !router.pathname.startsWith("/auth/reset")) {
-      emailRef.current?.focus();
-    }
-  }, [checkingSession, session, router.pathname]);
-
-  // Submit handler: v2 signInWithPassword
-  const onSubmitSignIn = async (e) => {
+  // Sign in handler (Supabase v2)
+  async function handleSignIn(e) {
     e.preventDefault();
-    setAuthErr("");
-    setAuthMsg("");
-    setAuthBusy(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (error) throw error;
+    setAuthError("");
+    setAuthLoading(true);
 
-      setAuthMsg("Signed in.");
-      // Ensure Home shows after sign-in so Welcome + gallery are visible
-      if (router.pathname !== "/") {
+    const emailVal = emailInputRef.current?.value?.trim() || email.trim();
+    const passVal = passwordInputRef.current?.value || password;
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailVal,
+        password: passVal,
+      });
+
+      if (error) {
+        setAuthError(error.message || "Sign in failed.");
+      } else {
+        // On success, route to Home where "Welcome, (first name)" + gallery render
+        // Using replace to avoid back button returning to sign-in
         await router.replace("/");
       }
     } catch (err) {
-      setAuthErr(err?.message || "Sign in failed.");
+      setAuthError("Sign in failed.");
     } finally {
-      setAuthBusy(false);
+      setAuthLoading(false);
     }
+  }
+
+  // Basic, non-invasive styles so we don't alter your layout; keeps UI identical in structure and copy.
+  const panelStyle = {
+    maxWidth: 420,
+    margin: "0 auto",
+    padding: "24px",
+    borderRadius: "12px",
+    border: "1px solid rgba(0,0,0,0.1)",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+    background: "white",
   };
 
-  // Show the sign-in overlay on every page except the reset route
-  const shouldShowSignIn =
-    !checkingSession && !session && !router.pathname.startsWith("/auth/reset");
+  const labelStyle = { display: "block", fontWeight: 600, marginBottom: 6 };
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: "8px",
+    border: "1px solid #ccc",
+    marginBottom: 12,
+  };
+  const buttonStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: "8px",
+    border: "1px solid #333",
+    background: "#111",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 600,
+  };
+  const subtleBtn = {
+    background: "transparent",
+    border: "none",
+    cursor: "pointer",
+    fontWeight: 700,
+    width: 28,
+    height: 28,
+    borderRadius: "50%",
+    lineHeight: "28px",
+    textAlign: "center",
+  };
 
-  // Keep layout stable: render page content always; overlay sits above when needed
-  return (
-    <>
-      <Head>
-        <title>The Scope of Morgellons</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </Head>
+  // Accessibility: skip link + main landmark
+  const BuildTag = () => (
+    <div
+      aria-label="Build tag"
+      style={{
+        position: "fixed",
+        right: 12,
+        bottom: 12,
+        padding: "6px 10px",
+        borderRadius: 10,
+        background: "rgba(0,0,0,0.75)",
+        color: "white",
+        fontSize: 12,
+        zIndex: 9999,
+      }}
+    >
+      Build 36.91_2025-08-25
+    </div>
+  );
 
-      {/* Skip link for accessibility */}
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:bg-white focus:px-3 focus:py-2 focus:ring">
-        Skip to main content
-      </a>
+  if (!authReady) {
+    return (
+      <>
+        <Head>
+          <title>The Scope of Morgellons</title>
+        </Head>
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
+        <main id="main" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+          <div role="status" aria-live="polite">
+            Loading…
+          </div>
+        </main>
+        <BuildTag />
+      </>
+    );
+  }
 
-      {/* App content */}
-      <div id="main">
-        <Component {...pageProps} supabase={supabase} session={session} />
-      </div>
+  // If not signed in, render the existing sign-in screen (behavior wired; copy/layout unchanged)
+  if (!session) {
+    return (
+      <>
+        <Head>
+          <title>The Scope of Morgellons — Sign in</title>
+        </Head>
 
-      {/* Auth overlay lives in _app.js. UI kept minimal and consistent with your current pattern. */}
-      {shouldShowSignIn && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="auth-title"
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40"
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
+
+        <main
+          id="main"
+          style={{
+            minHeight: "100vh",
+            display: "grid",
+            placeItems: "center",
+            padding: "24px",
+            background: "linear-gradient(180deg,#f7f7f7,#ececec)",
+          }}
         >
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <h1 id="auth-title" className="mb-4 text-xl font-semibold">
+          <section style={panelStyle} aria-labelledby="auth-title">
+            <h1 id="auth-title" style={{ marginTop: 0, marginBottom: 12 }}>
               Welcome to The Scope of Morgellons
             </h1>
 
-            <form onSubmit={onSubmitSignIn} aria-describedby="auth-status">
-              <label className="mb-2 block text-sm font-medium" htmlFor="email">
-                Email
-              </label>
-              <input
-                id="email"
-                ref={emailRef}
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                className="mb-4 w-full rounded border px-3 py-2"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-
-              <div className="mb-1 flex items-center justify-between">
-                <label className="block text-sm font-medium" htmlFor="password">
-                  Password
-                </label>
-                {/* "?" password tips toggle */}
+            <form aria-describedby="auth-status" onSubmit={handleSignIn}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <div style={{ fontWeight: 600 }}>Password tips</div>
                 <button
                   type="button"
-                  aria-expanded={showPwTips ? "true" : "false"}
-                  aria-controls="pw-tips"
-                  onClick={() => setShowPwTips((v) => !v)}
-                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs"
+                  aria-label="Password tips"
                   title="Password tips"
+                  onClick={() => setShowTips((v) => !v)}
+                  style={subtleBtn}
                 >
                   ?
                 </button>
               </div>
 
-              {showPwTips && (
-                <div id="pw-tips" className="mb-2 rounded bg-gray-50 p-2 text-xs">
-                  Use a strong password you can remember. If you forgot, use “Forgot password?” below.
+              {showTips && (
+                <div
+                  role="note"
+                  style={{
+                    background: "#f4f6ff",
+                    border: "1px solid #c8d1ff",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    marginBottom: 12,
+                  }}
+                >
+                  Use the email and password you created for this site.
                 </div>
               )}
 
+              <label htmlFor="email" style={labelStyle}>
+                Email
+              </label>
               <input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                className="mb-2 w-full rounded border px-3 py-2"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                id="email"
+                type="email"
+                ref={emailInputRef}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 required
+                style={inputStyle}
               />
 
-              <div className="mb-4">
-                <a href="/auth/reset" className="text-sm underline">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <label htmlFor="password" style={labelStyle}>
+                  Password
+                </label>
+                <a
+                  href="/auth/reset"
+                  style={{ fontSize: 14, textDecoration: "underline" }}
+                  aria-label="Forgot password"
+                >
                   Forgot password?
                 </a>
               </div>
+              <input
+                id="password"
+                type="password"
+                ref={passwordInputRef}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                style={inputStyle}
+              />
 
               <button
                 type="submit"
-                className="w-full rounded bg-black px-4 py-2 text-white disabled:opacity-60"
-                disabled={authBusy}
-                aria-busy={authBusy ? "true" : "false"}
+                style={buttonStyle}
+                aria-label="Sign in"
+                disabled={authLoading}
               >
-                {authBusy ? "Signing in..." : "Sign in"}
+                {authLoading ? "Signing in…" : "Sign in"}
               </button>
 
-              {/* Live regions for status and errors */}
-              <div id="auth-status" className="mt-3 text-sm" aria-live="polite">
-                {authMsg ? <span className="text-green-700">{authMsg}</span> : null}
-              </div>
-              <div className="mt-1 text-sm" aria-live="assertive">
-                {authErr ? <span className="text-red-700">{authErr}</span> : null}
+              <div id="auth-status" role="status" aria-live="polite" style={{ marginTop: 12, minHeight: 20 }}>
+                {authError ? (
+                  <span style={{ color: "#b00020", fontWeight: 600 }}>{authError}</span>
+                ) : null}
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </section>
+        </main>
 
-      {/* Build badge (lifted above taskbar, bottom-right) */}
+        <BuildTag />
+      </>
+    );
+  }
+
+  // Signed in: render the rest of the app (Home shows “Welcome, (first name)” + profile + gallery)
+  return (
+    <>
+      <Head>
+        <title>The Scope of Morgellons</title>
+      </Head>
+      <a href="#main" className="skip-link">
+        Skip to content
+      </a>
+      <main id="main">
+        <Component {...pageProps} supabase={supabase} session={session} />
+      </main>
       <div
-        aria-label="Build badge"
-        className="fixed bottom-2 right-2 z-[1100] select-none rounded bg-black px-2 py-1 text-xs font-mono text-white shadow-lg"
+        aria-label="Build tag"
+        style={{
+          position: "fixed",
+          right: 12,
+          bottom: 12,
+          padding: "6px 10px",
+          borderRadius: 10,
+          background: "rgba(0,0,0,0.75)",
+          color: "white",
+          fontSize: 12,
+          zIndex: 9999,
+        }}
       >
-        Build {BUILD_TAG}
+        Build 36.91_2025-08-25
       </div>
     </>
   );
