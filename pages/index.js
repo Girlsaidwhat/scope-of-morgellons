@@ -1,4 +1,4 @@
-// Build 36.70_fix2_2025-08-25
+// Build 36.70_fix3_2025-08-25
 import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
@@ -9,6 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
+// Categories that can show an optional color badge
 const COLORIZED = new Set([
   "Blebs (clear to brown)",
   "Fiber Bundles",
@@ -27,7 +28,7 @@ export default function HomePage() {
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
 
-  // Auth UI
+  // Sign-in / Sign-up UI (logged out on "/")
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authMode, setAuthMode] = useState("sign_in"); // "sign_in" | "sign_up"
@@ -35,7 +36,7 @@ export default function HomePage() {
   const [authErr, setAuthErr] = useState("");
   const [showTips, setShowTips] = useState(false);
 
-  // Profile
+  // Profile (signed in)
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
   const [location, setLocation] = useState("");
@@ -52,7 +53,7 @@ export default function HomePage() {
   // CSV export
   const [csvMsg, setCsvMsg] = useState("");
 
-  // Session bootstrap
+  // Session bootstrap (prevents flicker)
   useEffect(() => {
     let unsub = () => {};
     (async () => {
@@ -75,10 +76,10 @@ export default function HomePage() {
   const headerText = session
     ? firstName
       ? `Welcome, ${firstName}`
-      : `Welcome, ${session?.user?.email || ""}`
+      : `Welcome, ${session.user?.email || ""}`
     : "Home";
 
-  // Load profile
+  // Load profile when signed in
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
@@ -87,7 +88,8 @@ export default function HomePage() {
         .from("user_profile")
         .select("uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in")
         .single();
-      if (!cancelled && !error && data) {
+      if (cancelled) return;
+      if (!error && data) {
         setInitials(data.uploader_initials || "");
         setAge(data.uploader_age ? String(data.uploader_age) : "");
         setLocation(data.uploader_location || "");
@@ -99,7 +101,7 @@ export default function HomePage() {
     };
   }, [session?.user?.id]);
 
-  // Load gallery
+  // Load initial gallery + count (RLS restricts to own rows)
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
@@ -136,7 +138,7 @@ export default function HomePage() {
     setLoadingMore(false);
   }
 
-  // --- Auth handlers ---
+  // --- Auth handlers (Supabase v2) ---
   async function handleSignIn(e) {
     if (e) e.preventDefault();
     setAuthErr("");
@@ -145,6 +147,7 @@ export default function HomePage() {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setAuthMsg("Signed in.");
+      // Reload Home to show Welcome + gallery
       window.location.assign("/");
     } catch (err) {
       setAuthMsg("");
@@ -255,6 +258,19 @@ export default function HomePage() {
     setTimeout(() => setCsvMsg(""), 1200);
   }
 
+  // Fallback: ensure the sign-in button always fires even if React submit isn’t wired
+  useEffect(() => {
+    const btn = document.getElementById("signin-btn");
+    if (!btn) return;
+    const onClick = (ev) => {
+      // Mirror the React handler
+      handleSignIn(ev);
+    };
+    btn.addEventListener("click", onClick);
+    return () => btn.removeEventListener("click", onClick);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, password]);
+
   function SignInBlock() {
     return (
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
@@ -319,6 +335,7 @@ export default function HomePage() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <button
+              id="signin-btn"
               type="submit"
               onClick={authMode === "sign_in" ? handleSignIn : handleSignUp}
               style={{ padding: "10px 14px" }}
@@ -355,6 +372,7 @@ export default function HomePage() {
   function SignedInBlock() {
     return (
       <>
+        {/* Quick links */}
         <nav style={{ display: "flex", gap: 12, margin: "8px 0 16px" }}>
           <Link href="/upload">Go to Uploader</Link>
           <Link href="/browse">Browse by Category</Link>
@@ -374,6 +392,7 @@ export default function HomePage() {
         </nav>
         {csvMsg ? <p aria-live="polite">{csvMsg}</p> : null}
 
+        {/* Profile */}
         <section aria-label="Profile" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
           <h2 style={{ marginTop: 0 }}>Profile</h2>
           <p>Save your profile. Each upload stores a snapshot of these fields.</p>
@@ -420,6 +439,7 @@ export default function HomePage() {
           </form>
         </section>
 
+        {/* Gallery */}
         <section aria-label="Your Gallery" style={{ marginTop: 18 }}>
           <h2 style={{ marginTop: 0 }}>Your Gallery</h2>
           {!loadingInit && items.length === 0 ? <p>No images yet.</p> : null}
