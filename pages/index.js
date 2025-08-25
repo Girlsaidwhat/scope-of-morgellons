@@ -1,4 +1,4 @@
-// Build 36.70_fix3_2025-08-25
+// Build 36.70_fix_2025-08-25
 import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
@@ -101,7 +101,7 @@ export default function HomePage() {
     };
   }, [session?.user?.id]);
 
-  // Load initial gallery + count (RLS restricts to own rows)
+  // Load initial gallery + count (RLS shows only own rows)
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
@@ -140,7 +140,7 @@ export default function HomePage() {
 
   // --- Auth handlers (Supabase v2) ---
   async function handleSignIn(e) {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setAuthErr("");
     setAuthMsg("Signing in…");
     try {
@@ -156,7 +156,7 @@ export default function HomePage() {
   }
 
   async function handleSignUp(e) {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setAuthErr("");
     setAuthMsg("Creating account…");
     try {
@@ -170,7 +170,7 @@ export default function HomePage() {
   }
 
   async function handleForgot(e) {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setAuthErr("");
     setAuthMsg("Sending reset email…");
     try {
@@ -258,19 +258,6 @@ export default function HomePage() {
     setTimeout(() => setCsvMsg(""), 1200);
   }
 
-  // Fallback: ensure the sign-in button always fires even if React submit isn’t wired
-  useEffect(() => {
-    const btn = document.getElementById("signin-btn");
-    if (!btn) return;
-    const onClick = (ev) => {
-      // Mirror the React handler
-      handleSignIn(ev);
-    };
-    btn.addEventListener("click", onClick);
-    return () => btn.removeEventListener("click", onClick);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, password]);
-
   function SignInBlock() {
     return (
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
@@ -334,12 +321,7 @@ export default function HomePage() {
           ) : null}
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button
-              id="signin-btn"
-              type="submit"
-              onClick={authMode === "sign_in" ? handleSignIn : handleSignUp}
-              style={{ padding: "10px 14px" }}
-            >
+            <button type="submit" style={{ padding: "10px 14px" }}>
               {authMode === "sign_in" ? "Sign in" : "Sign up"}
             </button>
             <button
