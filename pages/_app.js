@@ -1,30 +1,40 @@
 // pages/_app.js
-// Build 36.98_2025-08-25
+// Build 36.99_2025-08-25
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.98_2025-08-25";
+export const BUILD_VERSION = "Build 36.99_2025-08-25";
 
 function BuildBadge() {
-  const badgeStyle = {
-    position: "fixed",
-    right: 8,
-    bottom: 8,
-    zIndex: 9999,
-    fontSize: 12,
-    background: "rgba(0,0,0,0.75)",
-    color: "#fff",
-    padding: "6px 10px",
-    borderRadius: 8,
-    pointerEvents: "none",
-  };
-  return <div style={badgeStyle}>{BUILD_VERSION}</div>;
+  return (
+    <div
+      aria-label="build badge"
+      style={{
+        position: "fixed",
+        right: 8,
+        bottom: 8,
+        zIndex: 9999,
+        fontSize: 12,
+        background: "rgba(0,0,0,0.75)",
+        color: "#fff",
+        padding: "6px 10px",
+        borderRadius: 8,
+        pointerEvents: "none",
+      }}
+    >
+      {BUILD_VERSION}
+    </div>
+  );
 }
 
 /**
- * Your sign-in screen, unchanged in layout/copy.
- * Email + Password, "?" tips, Forgot password?, Sign in/Sign up toggle.
+ * Your sign-in screen (layout + copy unchanged):
+ * - Email + Password
+ * - "?" password tips
+ * - Forgot password?
+ * - Sign in / Sign up toggle
  */
 function AuthScreen() {
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
@@ -39,7 +49,7 @@ function AuthScreen() {
     e?.preventDefault?.();
     if (busy) return;
     setErr("");
-    setMsg("Signing in…");
+    setMsg("Signing in...");
     setBusy(true);
     try {
       const sb = createClient(
@@ -62,7 +72,7 @@ function AuthScreen() {
     e?.preventDefault?.();
     if (busy) return;
     setErr("");
-    setMsg("Creating account…");
+    setMsg("Creating account...");
     setBusy(true);
     try {
       const sb = createClient(
@@ -84,7 +94,7 @@ function AuthScreen() {
     e?.preventDefault?.();
     if (busy) return;
     setErr("");
-    setMsg("Sending reset email…");
+    setMsg("Sending reset email...");
     setBusy(true);
     try {
       const sb = createClient(
@@ -216,10 +226,11 @@ function AuthScreen() {
 }
 
 export default function MyApp({ Component, pageProps }) {
+  const router = useRouter();
   const [session, setSession] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [ready, setReady] = useState(false);
 
-  // Session bootstrap on client using an in-effect client
+  // Wait for router + session before deciding what to render
   useEffect(() => {
     let unsub = () => {};
     (async () => {
@@ -229,41 +240,26 @@ export default function MyApp({ Component, pageProps }) {
       );
       const { data: { session } } = await sb.auth.getSession();
       setSession(session || null);
-      setChecking(false);
       const { data: sub } = sb.auth.onAuthStateChange((_evt, s) => {
         setSession(s || null);
       });
       unsub = sub.subscription?.unsubscribe || (() => {});
+      setReady(true);
     })();
     return () => unsub();
   }, []);
 
-  if (checking) {
+  // Until router + session are known, render only the badge to avoid the wrong page flashing
+  if (!router.isReady || !ready) {
     return <BuildBadge />;
   }
 
-  const onHome =
-    typeof window !== "undefined" && window.location.pathname === "/";
+  const onHome = router.pathname === "/";
   const showAuth = onHome && !session;
 
   return (
     <>
-      <a
-        href="#main"
-        style={{
-          position: "absolute",
-          left: -9999,
-          top: "auto",
-          width: 1,
-          height: 1,
-          overflow: "hidden",
-        }}
-      >
-        Skip to content
-      </a>
-
       {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
-
       <BuildBadge />
     </>
   );
