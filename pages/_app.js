@@ -1,13 +1,12 @@
 // pages/_app.js
-// Build 36.102_2025-08-26
+// Build 36.104_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.102_2025-08-26";
+export const BUILD_VERSION = "Build 36.104_2025-08-26";
 
-// Module-level client (works on the browser build)
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -107,19 +106,13 @@ function AuthScreen() {
   const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
 
-  // Only behavior fix: create a client here so the button never no-ops
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
     setMsg("Signing in...");
     try {
-      const sb =
-        supabase ||
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (!supabase) return; // baseline behavior preserved
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setMsg("Signed in.");
       window.location.assign("/");
@@ -222,24 +215,14 @@ function AuthScreen() {
                 <li>Use 12+ characters.</li>
                 <li>Mix upper/lower case, numbers, and a symbol.</li>
                 <li>Avoid names, birthdays, or common words.</li>
-                <li>Don’t reuse a password from another site.</li>
+                <li>Don't reuse a password from another site.</li>
               </ul>
               <div style={fine}>These are general guidelines. Use a unique password for this site.</div>
             </div>
           ) : null}
 
           <div style={row}>
-            {/* Defensive: ensure click triggers sign-in when in sign_in mode; no layout or copy changes */}
-            <button
-              type="submit"
-              style={btn}
-              onClick={(e) => {
-                if (mode === "sign_in") {
-                  e.preventDefault();
-                  handleSignIn(e);
-                }
-              }}
-            >
+            <button type="submit" style={btn}>
               {mode === "sign_in" ? "Sign in" : "Sign up"}
             </button>
             <button
@@ -285,4 +268,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
- 
+
