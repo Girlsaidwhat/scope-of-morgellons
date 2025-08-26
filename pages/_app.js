@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.114_2025-08-26
+// Build 36.115_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.114_2025-08-26";
+export const BUILD_VERSION = "Build 36.115_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -72,7 +72,7 @@ function AuthScreen() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // Layout: center everything but the build badge; slightly longer inputs
+  // Layout: center everything but the build badge; inputs slightly longer
   const pageWrap = {
     maxWidth: 980,
     margin: "20px auto",
@@ -85,7 +85,7 @@ function AuthScreen() {
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
   const input = {
-    width: 300, // slightly longer than before
+    width: 300,
     padding: "10px 12px",
     border: "1px solid #ccc",
     borderRadius: 8,
@@ -154,8 +154,19 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* smaller “Welcome to” aligned left */}
-        <div style={{ fontSize: 12, color: "#555", textAlign: "left", marginLeft: 12 }}>Welcome to</div>
+        {/* Improved “Welcome to”: larger, semi-bold, better contrast, tasteful spacing */}
+        <div
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: "#444",
+            textAlign: "left",
+            marginLeft: 12,
+            letterSpacing: 0.2,
+          }}
+        >
+          Welcome to
+        </div>
         {/* centered title */}
         <h1 style={{ margin: "4px 0 6px", textAlign: "center" }}>The Scope of Morgellons</h1>
       </header>
