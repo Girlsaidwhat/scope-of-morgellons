@@ -1,11 +1,11 @@
-// pages/_app.js
-// Build 36.101_2025-08-26
+﻿// pages/_app.js
+// Build 36.108_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.101_2025-08-26";
+export const BUILD_VERSION = "Build 36.108_2025-08-26";
 
 const supabase =
   typeof window !== "undefined"
@@ -109,7 +109,7 @@ function AccountButton() {
       disabled={busy}
       style={{ ...baseBtn, cursor: busy ? "not-allowed" : "pointer" }}
     >
-      {busy ? "Signing out…" : "Sign out"}
+      {busy ? "Signing outâ€¦" : "Sign out"}
     </button>
   );
 }
@@ -172,7 +172,7 @@ function HomeAuthScreen() {
     e.preventDefault();
     if (!supabase) return;
     setBusy(true);
-    setMsg("Signing in…");
+    setMsg("Signing inâ€¦");
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
@@ -197,7 +197,7 @@ function HomeAuthScreen() {
       return;
     }
     setBusy(true);
-    setMsg("Creating your account…");
+    setMsg("Creating your accountâ€¦");
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -225,7 +225,7 @@ function HomeAuthScreen() {
       return;
     }
     setBusy(true);
-    setMsg("Sending sign-in link…");
+    setMsg("Sending sign-in linkâ€¦");
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email,
@@ -252,7 +252,7 @@ function HomeAuthScreen() {
       return;
     }
     setBusy(true);
-    setMsg("Sending password reset email…");
+    setMsg("Sending password reset emailâ€¦");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: typeof window !== "undefined" ? `${window.location.origin}?type=recovery` : undefined,
@@ -277,7 +277,7 @@ function HomeAuthScreen() {
       return;
     }
     setBusy(true);
-    setMsg("Updating your password…");
+    setMsg("Updating your passwordâ€¦");
     try {
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) {
@@ -420,7 +420,7 @@ function HomeAuthScreen() {
                 <button type="submit" style={srSubmit} tabIndex={-1} aria-hidden="true">Submit</button>
               </form>
 
-              {/* Secondary actions — discreet text links */}
+              {/* Secondary actions â€” discreet text links */}
               <div style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
                 <button onClick={handleForgotPw} disabled={busy} style={linkQuiet}>
                   Forgot password?
@@ -501,7 +501,7 @@ function HomeAuthScreen() {
 
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 4 }}>
                   <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
-                    {busy ? "Working…" : "Create account"}
+                    {busy ? "Workingâ€¦" : "Create account"}
                   </button>
                   <span style={{ fontSize: 12, color: "#555" }}>We'll ask you to verify your email after sign-up.</span>
                 </div>
@@ -545,7 +545,7 @@ function HomeAuthScreen() {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
-                {busy ? "Updating…" : "Update password"}
+                {busy ? "Updatingâ€¦" : "Update password"}
               </button>
               <button
                 type="button"
@@ -618,5 +618,6 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
