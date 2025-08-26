@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.116_2025-08-26
+// Build 36.117_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.116_2025-08-26";
+export const BUILD_VERSION = "Build 36.117_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -154,7 +154,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Larger “Welcome to” on the left */}
+        {/* Larger “Welcome to” on the left, nudged closer to the title */}
         <div
           style={{
             fontSize: 18,
@@ -162,13 +162,14 @@ function AuthScreen() {
             color: "#333",
             textAlign: "left",
             marginLeft: 12,
+            marginBottom: 2,   // tighten gap
             letterSpacing: 0.2,
           }}
         >
           Welcome to
         </div>
-        {/* centered title */}
-        <h1 style={{ margin: "4px 0 6px", textAlign: "center" }}>The Scope of Morgellons</h1>
+        {/* centered title with slightly reduced top margin */}
+        <h1 style={{ margin: "2px 0 6px", textAlign: "center" }}>The Scope of Morgellons</h1>
       </header>
 
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
