@@ -1,12 +1,13 @@
 // pages/_app.js
-// Build 36.90_2025-08-25
+// Build 36.102_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.90_2025-08-25";
+export const BUILD_VERSION = "Build 36.102_2025-08-26";
 
+// Module-level client (works on the browser build)
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -106,13 +107,19 @@ function AuthScreen() {
   const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
 
+  // Only behavior fix: create a client here so the button never no-ops
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
-    setMsg("Signing in…");
+    setMsg("Signing in...");
     try {
-      if (!supabase) return; // original baseline behavior
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const sb =
+        supabase ||
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+      const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setMsg("Signed in.");
       window.location.assign("/");
@@ -125,7 +132,7 @@ function AuthScreen() {
   async function handleSignUp(e) {
     e.preventDefault?.();
     setErr("");
-    setMsg("Creating account…");
+    setMsg("Creating account...");
     try {
       if (!supabase) return;
       const { error } = await supabase.auth.signUp({ email, password });
@@ -140,7 +147,7 @@ function AuthScreen() {
   async function handleForgot(e) {
     e.preventDefault?.();
     setErr("");
-    setMsg("Sending reset email…");
+    setMsg("Sending reset email...");
     try {
       if (!supabase) return;
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -222,7 +229,17 @@ function AuthScreen() {
           ) : null}
 
           <div style={row}>
-            <button type="submit" style={btn}>
+            {/* Defensive: ensure click triggers sign-in when in sign_in mode; no layout or copy changes */}
+            <button
+              type="submit"
+              style={btn}
+              onClick={(e) => {
+                if (mode === "sign_in") {
+                  e.preventDefault();
+                  handleSignIn(e);
+                }
+              }}
+            >
               {mode === "sign_in" ? "Sign in" : "Sign up"}
             </button>
             <button
@@ -238,9 +255,7 @@ function AuthScreen() {
             </button>
           </div>
 
-          <p aria-live="polite" style={statusStyle}>
-            {msg}
-          </p>
+          <p aria-live="polite" style={statusStyle}>{msg}</p>
           {err ? (
             <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
               {err}
@@ -270,3 +285,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+ 
