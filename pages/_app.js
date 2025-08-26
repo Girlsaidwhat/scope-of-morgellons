@@ -1,13 +1,13 @@
 ﻿// pages/_app.js
-// Build 36.112_2025-08-26
+// Build 36.113_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.112_2025-08-26";
+export const BUILD_VERSION = "Build 36.113_2025-08-26";
 
-// Browser-safe client (public env only)
+// Browser-safe Supabase client (public keys only)
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -63,7 +63,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (adopting current page as baseline) */
+/** Canonical sign-in screen (baseline) */
 function AuthScreen() {
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
   const [email, setEmail] = useState("");
@@ -72,15 +72,32 @@ function AuthScreen() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // minimal, readable inline styles
-  const row = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 };
-  const input = { flex: "1 1 280px", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  // Layout: center everything but the build badge; shorter inputs
+  const pageWrap = {
+    maxWidth: 980,
+    margin: "20px auto",
+    padding: "0 12px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+  };
+  const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
+  const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
+  const input = {
+    width: 240, // shorter inputs
+    padding: "10px 12px",
+    border: "1px solid #ccc",
+    borderRadius: 8,
+    fontSize: 14,
+  };
+  const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
   const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
   const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
   const fine = { fontSize: 11, color: "#666" };
-  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
+  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
-  // Sign in with Supabase v2; on-demand client fallback avoids no-op
+  // v2 sign-in with on-demand client fallback
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
@@ -135,18 +152,18 @@ function AuthScreen() {
   }
 
   return (
-    <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
+    <main id="main" style={pageWrap}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <h1 style={{ margin: "0 0 6px" }}>Welcome to The Scope of Morgellons</h1>
       </header>
 
-      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
+      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
         <form
           onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp}
           aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"}
-          style={{ display: "grid", gap: 10, maxWidth: 420 }}
+          style={formStyle}
         >
-          <label style={{ display: "grid", gap: 6 }}>
+          <label style={inputWrap}>
             <span>Email</span>
             <input
               type="email"
@@ -157,10 +174,10 @@ function AuthScreen() {
             />
           </label>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <label style={inputWrap}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 240 }}>
               <span>Password</span>
-              {/* Your non-negotiable “?” tips button */}
+              {/* “?” tips button */}
               <button
                 type="button"
                 aria-label="Password tips"
@@ -184,16 +201,16 @@ function AuthScreen() {
             <div
               role="dialog"
               aria-label="Password tips"
-              style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10 }}
+              style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 280, textAlign: "left" }}
             >
               <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use 12+ characters.</li>
-                <li>Mix upper/lower case, numbers, and a symbol.</li>
-                <li>Avoid names, birthdays, or common words.</li>
-                <li>Don’t reuse a password from another site.</li>
+                <li>Use 16+ characters or a 3–4 word passphrase.</li>
+                <li>Use a unique password for this site; don’t reuse.</li>
+                <li>Prefer a password manager to store and generate passwords.</li>
+                <li>Avoid personal info; mixing cases, numbers, and symbols helps.</li>
               </ul>
-              <div style={fine}>These are general guidelines. Use a unique password for this site.</div>
+              <div style={fine}>Enable two-factor authentication if offered.</div>
             </div>
           ) : null}
 
@@ -209,7 +226,7 @@ function AuthScreen() {
             >
               {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
-            {/* Your non-negotiable “Forgot password?” */}
+            {/* “Forgot password?” */}
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>
               Forgot password?
             </button>
@@ -227,7 +244,6 @@ export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
-  // Avoid half-hydrated UI
   if (checking) {
     return <BuildBadge />;
   }
