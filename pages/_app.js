@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.115_2025-08-26
+// Build 36.116_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.115_2025-08-26";
+export const BUILD_VERSION = "Build 36.116_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -154,12 +154,12 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Improved “Welcome to”: larger, semi-bold, better contrast, tasteful spacing */}
+        {/* Larger “Welcome to” on the left */}
         <div
           style={{
-            fontSize: 15,
+            fontSize: 18,
             fontWeight: 600,
-            color: "#444",
+            color: "#333",
             textAlign: "left",
             marginLeft: 12,
             letterSpacing: 0.2,
