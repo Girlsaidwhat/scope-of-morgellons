@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.117_2025-08-26
+// Build 36.118_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.117_2025-08-26";
+export const BUILD_VERSION = "Build 36.118_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -92,7 +92,7 @@ function AuthScreen() {
     fontSize: 14,
   };
   const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
-  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+  const btn = { padding: "10px 14px", border: "1px solid "#111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
   const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
   const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
@@ -154,7 +154,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Larger “Welcome to” on the left, nudged closer to the title */}
+        {/* Larger “Welcome to” on the left, moved much closer to the title */}
         <div
           style={{
             fontSize: 18,
@@ -162,14 +162,17 @@ function AuthScreen() {
             color: "#333",
             textAlign: "left",
             marginLeft: 12,
-            marginBottom: 2,   // tighten gap
+            marginBottom: 0,     // remove bottom gap
             letterSpacing: 0.2,
+            lineHeight: 1.1,
           }}
         >
           Welcome to
         </div>
-        {/* centered title with slightly reduced top margin */}
-        <h1 style={{ margin: "2px 0 6px", textAlign: "center" }}>The Scope of Morgellons</h1>
+        {/* Pull title up to reduce space between lines */}
+        <h1 style={{ margin: "-6px 0 6px", textAlign: "center", lineHeight: 1.15 }}>
+          The Scope of Morgellons
+        </h1>
       </header>
 
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
@@ -233,7 +236,7 @@ function AuthScreen() {
                 <li>Prefer a password manager to store and generate passwords.</li>
                 <li>Avoid personal info; mixing cases, numbers, and symbols helps.</li>
               </ul>
-              <div style={fine}>Enable two-factor authentication if offered.</div>
+              <div style={{ fontSize: 11, color: "#666" }}>Enable two-factor authentication if offered.</div>
             </div>
           ) : null}
 
