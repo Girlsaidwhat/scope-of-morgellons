@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.119_2025-08-26
+// Build 36.120_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.119_2025-08-26";
+export const BUILD_VERSION = "Build 36.120_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -49,7 +49,9 @@ function useAuthPresence() {
     }
     let unsub = () => {};
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setSignedIn(!!session);
       setChecking(false);
       const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
@@ -91,10 +93,32 @@ function AuthScreen() {
     borderRadius: 8,
     fontSize: 14,
   };
-  const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
-  // FIXED QUOTING HERE (border): was 'border: "1px solid "#111"' which broke the build
-  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-  const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
+  const row = {
+    display: "flex",
+    gap: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexWrap: "wrap",
+    marginTop: 6,
+  };
+  const btn = {
+    padding: "10px 14px",
+    border: "1px solid #111",
+    borderRadius: 8,
+    background: "#111",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: 14,
+  };
+  const linkBtn = {
+    padding: "6px 10px",
+    border: "1px solid #ddd",
+    borderRadius: 6,
+    background: "#fff",
+    color: "#111",
+    fontSize: 12,
+    cursor: "pointer",
+  };
   const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
@@ -155,7 +179,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Larger “Welcome to” on the left, moved much closer to the title */}
+        {/* “Welcome to” on the left, pulled much closer to the title */}
         <div
           style={{
             fontSize: 18,
@@ -163,15 +187,15 @@ function AuthScreen() {
             color: "#333",
             textAlign: "left",
             marginLeft: 12,
-            marginBottom: 0,     // remove bottom gap
+            marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.1,
           }}
         >
           Welcome to
         </div>
-        {/* Pull title up to reduce space between lines */}
-        <h1 style={{ margin: "-6px 0 6px", textAlign: "center", lineHeight: 1.15 }}>
+        {/* Increase negative top margin to halve the remaining gap */}
+        <h1 style={{ margin: "-12px 0 6px", textAlign: "center", lineHeight: 1.15 }}>
           The Scope of Morgellons
         </h1>
       </header>
@@ -194,7 +218,14 @@ function AuthScreen() {
           </label>
 
           <label style={inputWrap}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 300 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: 300,
+              }}
+            >
               <span>Password</span>
               {/* “?” tips button */}
               <button
@@ -260,7 +291,9 @@ function AuthScreen() {
           </div>
 
           <p aria-live="polite" style={statusStyle}>{msg}</p>
-          {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
+          {err ? (
+            <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div>
+          ) : null}
         </form>
       </section>
     </main>
@@ -286,3 +319,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
