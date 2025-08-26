@@ -1,11 +1,11 @@
 // pages/_app.js
-// Build 36.90_2025-08-25
+// Build 36.101_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.90_2025-08-25";
+export const BUILD_VERSION = "Build 36.101_2025-08-26";
 
 const supabase =
   typeof window !== "undefined"
@@ -114,7 +114,7 @@ function AccountButton() {
   );
 }
 
-/** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, hover “?” password tips */
+/** Home auth screen: Email+Password Sign in/Sign up, Forgot password, Magic link, hover "?" password tips */
 function HomeAuthScreen() {
   const [mode, setMode] = useState("signin"); // 'signin' | 'signup' | 'reset'
   const [email, setEmail] = useState("");
@@ -179,6 +179,8 @@ function HomeAuthScreen() {
         setMsg(error.message || "Sign-in failed. Check your email or password.");
       } else {
         setMsg("");
+        // Navigate to home page after successful sign in
+        window.location.href = "/";
       }
     } catch {
       setMsg("Sign-in failed. Please try again.");
@@ -271,7 +273,7 @@ function HomeAuthScreen() {
     e.preventDefault();
     if (!supabase) return;
     if (!pwPolicyOk(newPw) || newPw !== newPw2) {
-      setMsg(newPw !== newPw2 ? "Passwords don’t match." : "Use at least 12 characters.");
+      setMsg(newPw !== newPw2 ? "Passwords don't match." : "Use at least 12 characters.");
       return;
     }
     setBusy(true);
@@ -501,7 +503,7 @@ function HomeAuthScreen() {
                   <button type="submit" disabled={busy} style={btn} aria-busy={busy ? "true" : "false"}>
                     {busy ? "Working…" : "Create account"}
                   </button>
-                  <span style={{ fontSize: 12, color: "#555" }}>We’ll ask you to verify your email after sign-up.</span>
+                  <span style={{ fontSize: 12, color: "#555" }}>We'll ask you to verify your email after sign-up.</span>
                 </div>
               </form>
             </>
@@ -616,35 +618,3 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
