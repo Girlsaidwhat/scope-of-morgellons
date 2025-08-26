@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.118_2025-08-26
+// Build 36.119_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.118_2025-08-26";
+export const BUILD_VERSION = "Build 36.119_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -92,7 +92,8 @@ function AuthScreen() {
     fontSize: 14,
   };
   const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
-  const btn = { padding: "10px 14px", border: "1px solid "#111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+  // FIXED QUOTING HERE (border): was 'border: "1px solid "#111"' which broke the build
+  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
   const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
   const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
