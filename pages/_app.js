@@ -1,12 +1,13 @@
 ﻿// pages/_app.js
-// Build 36.111_2025-08-26
+// Build 36.112_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.111_2025-08-26";
+export const BUILD_VERSION = "Build 36.112_2025-08-26";
 
+// Browser-safe client (public env only)
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -19,8 +20,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    // Lift badge so it clears Windows taskbar
-    bottom: 48,
+    bottom: 48, // keep above Windows taskbar
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -49,9 +49,7 @@ function useAuthPresence() {
     }
     let unsub = () => {};
     (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       setSignedIn(!!session);
       setChecking(false);
       const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
@@ -65,6 +63,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
+/** Canonical sign-in screen (adopting current page as baseline) */
 function AuthScreen() {
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
   const [email, setEmail] = useState("");
@@ -73,48 +72,27 @@ function AuthScreen() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  const row = {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    flexWrap: "wrap",
-    marginTop: 6,
-  };
-  const input = {
-    flex: "1 1 280px",
-    padding: "10px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    fontSize: 14,
-  };
-  const btn = {
-    padding: "10px 14px",
-    border: "1px solid #111",
-    borderRadius: 8,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  };
-  const linkBtn = {
-    padding: "6px 10px",
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    background: "#fff",
-    color: "#111",
-    fontSize: 12,
-    cursor: "pointer",
-  };
+  // minimal, readable inline styles
+  const row = { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 6 };
+  const input = { flex: "1 1 280px", padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+  const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
   const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10 };
 
+  // Sign in with Supabase v2; on-demand client fallback avoids no-op
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
     setMsg("Signing in…");
     try {
-      if (!supabase) return;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const sb =
+        supabase ||
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+      const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setMsg("Signed in.");
       window.location.assign("/");
@@ -129,7 +107,7 @@ function AuthScreen() {
     setErr("");
     setMsg("Creating account…");
     try {
-      if (!supabase) return;
+      if (!supabase) throw new Error("Client not ready");
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       setMsg("Account created. Check your email to confirm, then sign in.");
@@ -144,7 +122,7 @@ function AuthScreen() {
     setErr("");
     setMsg("Sending reset email…");
     try {
-      if (!supabase) return;
+      if (!supabase) throw new Error("Client not ready");
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset`,
       });
@@ -182,6 +160,7 @@ function AuthScreen() {
           <label style={{ display: "grid", gap: 6 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span>Password</span>
+              {/* Your non-negotiable “?” tips button */}
               <button
                 type="button"
                 aria-label="Password tips"
@@ -205,12 +184,7 @@ function AuthScreen() {
             <div
               role="dialog"
               aria-label="Password tips"
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
-                padding: 10,
-              }}
+              style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10 }}
             >
               <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
@@ -235,17 +209,14 @@ function AuthScreen() {
             >
               {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
+            {/* Your non-negotiable “Forgot password?” */}
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>
               Forgot password?
             </button>
           </div>
 
           <p aria-live="polite" style={statusStyle}>{msg}</p>
-          {err ? (
-            <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
-              {err}
-            </div>
-          ) : null}
+          {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
         </form>
       </section>
     </main>
@@ -256,10 +227,12 @@ export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
+  // Avoid half-hydrated UI
   if (checking) {
     return <BuildBadge />;
   }
 
+  // Single source of truth: when logged out on "/", show Auth; otherwise render page
   const onHome = router?.pathname === "/";
   const showAuth = onHome && !signedIn;
 
