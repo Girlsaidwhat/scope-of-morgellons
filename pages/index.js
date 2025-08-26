@@ -1,4 +1,4 @@
-// Build 36.70_fix_2025-08-25
+﻿// Build 36.70_fix_2025-08-25
 import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
@@ -142,7 +142,7 @@ export default function HomePage() {
   async function handleSignIn(e) {
     e.preventDefault();
     setAuthErr("");
-    setAuthMsg("Signing in…");
+    setAuthMsg("Signing inâ€¦");
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -158,7 +158,7 @@ export default function HomePage() {
   async function handleSignUp(e) {
     e.preventDefault();
     setAuthErr("");
-    setAuthMsg("Creating account…");
+    setAuthMsg("Creating accountâ€¦");
     try {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
@@ -172,7 +172,7 @@ export default function HomePage() {
   async function handleForgot(e) {
     e.preventDefault();
     setAuthErr("");
-    setAuthMsg("Sending reset email…");
+    setAuthMsg("Sending reset emailâ€¦");
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset`,
@@ -187,7 +187,7 @@ export default function HomePage() {
 
   async function onSaveProfile(e) {
     e.preventDefault();
-    setProfileMsg("Saving…");
+    setProfileMsg("Savingâ€¦");
     const payload = {
       uploader_initials: initials.trim(),
       uploader_age: age ? Number(age) : null,
@@ -200,7 +200,7 @@ export default function HomePage() {
   }
 
   async function onExportCSV() {
-    setCsvMsg("Building CSV…");
+    setCsvMsg("Building CSVâ€¦");
     const { data, error } = await supabase
       .from("image_metadata")
       .select(
@@ -259,96 +259,7 @@ export default function HomePage() {
   }
 
   function SignInBlock() {
-    return (
-      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Welcome to The Scope of Morgellons</h2>
-        <form
-          onSubmit={authMode === "sign_in" ? handleSignIn : handleSignUp}
-          style={{ display: "grid", gap: 10, maxWidth: 420 }}
-        >
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ width: "100%", padding: 8 }}
-            />
-          </label>
-
-          <label>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span>Password</span>
-              <button
-                type="button"
-                aria-label="Password tips"
-                onClick={() => setShowTips((v) => !v)}
-                style={{ fontSize: 12, padding: "2px 8px" }}
-              >
-                ?
-              </button>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={authMode === "sign_in" ? "current-password" : "new-password"}
-              required
-              style={{ width: "100%", padding: 8 }}
-            />
-          </label>
-
-          {showTips ? (
-            <div
-              role="dialog"
-              aria-label="Password tips"
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
-                padding: 10,
-              }}
-            >
-              <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use 12+ characters.</li>
-                <li>Mix upper/lower case, numbers, and a symbol.</li>
-                <li>Avoid names, birthdays, or common words.</li>
-                <li>Don’t reuse a password from another site.</li>
-              </ul>
-            </div>
-          ) : null}
-
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="submit" style={{ padding: "10px 14px" }}>
-              {authMode === "sign_in" ? "Sign in" : "Sign up"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
-              aria-label="Toggle sign in or sign up"
-              style={{ padding: "8px 12px" }}
-            >
-              {authMode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
-            <button
-              type="button"
-              onClick={handleForgot}
-              aria-label="Forgot password?"
-              style={{ padding: "8px 12px" }}
-            >
-              Forgot password?
-            </button>
-          </div>
-
-          <p aria-live="polite" style={{ minHeight: 18, marginTop: 6 }}>{authMsg}</p>
-          {authErr ? (
-            <div role="alert" style={{ color: "#b00020" }}>{authErr}</div>
-          ) : null}
-        </form>
-      </section>
-    );
+    return ();
   }
 
   function SignedInBlock() {
@@ -477,7 +388,7 @@ export default function HomePage() {
                 aria-label="Load more items"
                 style={{ padding: "8px 12px" }}
               >
-                {loadingMore ? "Loading…" : "Load more"}
+                {loadingMore ? "Loadingâ€¦" : "Load more"}
               </button>
             </div>
           ) : (
@@ -502,7 +413,7 @@ export default function HomePage() {
         <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <h1 style={{ margin: "0 0 6px" }}>{headerText}</h1>
           <span aria-live="polite">
-            Total items: {session ? (totalCount ?? "…") : "…"}
+            Total items: {session ? (totalCount ?? "â€¦") : "â€¦"}
           </span>
         </header>
 
@@ -511,3 +422,4 @@ export default function HomePage() {
     </>
   );
 }
+
