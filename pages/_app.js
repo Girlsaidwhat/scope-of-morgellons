@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.113_2025-08-26
+// Build 36.114_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.113_2025-08-26";
+export const BUILD_VERSION = "Build 36.114_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -72,7 +72,7 @@ function AuthScreen() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // Layout: center everything but the build badge; shorter inputs
+  // Layout: center everything but the build badge; slightly longer inputs
   const pageWrap = {
     maxWidth: 980,
     margin: "20px auto",
@@ -85,7 +85,7 @@ function AuthScreen() {
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
   const input = {
-    width: 240, // shorter inputs
+    width: 300, // slightly longer than before
     padding: "10px 12px",
     border: "1px solid #ccc",
     borderRadius: 8,
@@ -153,8 +153,11 @@ function AuthScreen() {
 
   return (
     <main id="main" style={pageWrap}>
-      <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-        <h1 style={{ margin: "0 0 6px" }}>Welcome to The Scope of Morgellons</h1>
+      <header style={{ width: "100%" }}>
+        {/* smaller “Welcome to” aligned left */}
+        <div style={{ fontSize: 12, color: "#555", textAlign: "left", marginLeft: 12 }}>Welcome to</div>
+        {/* centered title */}
+        <h1 style={{ margin: "4px 0 6px", textAlign: "center" }}>The Scope of Morgellons</h1>
       </header>
 
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
@@ -175,7 +178,7 @@ function AuthScreen() {
           </label>
 
           <label style={inputWrap}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 240 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 300 }}>
               <span>Password</span>
               {/* “?” tips button */}
               <button
@@ -201,7 +204,15 @@ function AuthScreen() {
             <div
               role="dialog"
               aria-label="Password tips"
-              style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 280, textAlign: "left" }}
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 10,
+                background: "white",
+                padding: 10,
+                margin: "0 auto",
+                width: 320,
+                textAlign: "left",
+              }}
             >
               <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
