@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.135_2025-08-26
+// Build 36.136_2025-08-27
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.135_2025-08-26";
+export const BUILD_VERSION = "Build 36.136_2025-08-27";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -183,16 +183,15 @@ function AuthScreen() {
 
   return (
     <main id="main" style={pageWrap}>
-      <header style={{ width: "100%" }}>
-        {/* Spacing tuck: make “Welcome to” sit right above the title */}
+      <header style={{ width: "100%", paddingTop: 28 /* keeps block position stable */ }}>
         <div
           style={{
             fontSize: 18,
             fontWeight: 600,
             color: "#333",
-            textAlign: "left",
-            marginLeft: 12,
-            marginBottom: 0, // tighter
+            textAlign: "center", // changed from left
+            marginLeft: 0,        // changed from 12
+            marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.0,
           }}
@@ -201,7 +200,7 @@ function AuthScreen() {
         </div>
         <h1
           style={{
-            margin: "-30px 0 6px", // slightly stronger tuck than before
+            margin: "-28px 0 6px",
             textAlign: "center",
             lineHeight: 1.12,
           }}
