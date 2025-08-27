@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.134_2025-08-26
+// Build 36.135_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.134_2025-08-26";
+export const BUILD_VERSION = "Build 36.135_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -65,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (baseline) */
+/** Canonical sign-in screen (yours, preserved) */
 function AuthScreen() {
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
   const [email, setEmail] = useState("");
@@ -74,7 +74,7 @@ function AuthScreen() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // Layout: center everything but the build badge; inputs slightly longer
+  // Layout
   const pageWrap = {
     maxWidth: 980,
     margin: "20px auto",
@@ -125,10 +125,9 @@ function AuthScreen() {
     fontSize: 12,
     cursor: "pointer",
   };
-  const fine = { fontSize: 11, color: "#666" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
-  // v2 sign-in with on-demand client fallback
+  // v2 sign-in with on-demand client fallback (behavior stays as you had it)
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
@@ -185,7 +184,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Tighten the gap between “Welcome to” and the title */}
+        {/* Spacing tuck: make “Welcome to” sit right above the title */}
         <div
           style={{
             fontSize: 18,
@@ -193,7 +192,7 @@ function AuthScreen() {
             color: "#333",
             textAlign: "left",
             marginLeft: 12,
-            marginBottom: 2, // tuck closer to the H1
+            marginBottom: 0, // tighter
             letterSpacing: 0.2,
             lineHeight: 1.0,
           }}
@@ -202,7 +201,7 @@ function AuthScreen() {
         </div>
         <h1
           style={{
-            margin: "0 0 6px", // remove top margin for tight join
+            margin: "-30px 0 6px", // slightly stronger tuck than before
             textAlign: "center",
             lineHeight: 1.12,
           }}
