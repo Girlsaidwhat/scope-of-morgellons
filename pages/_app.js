@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.130_2025-08-26
+// Build 36.134_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.128_2025-08-26";
+export const BUILD_VERSION = "Build 36.134_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -49,7 +49,9 @@ function useAuthPresence() {
     }
     let unsub = () => {};
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       setSignedIn(!!session);
       setChecking(false);
       const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
@@ -82,7 +84,13 @@ function AuthScreen() {
     alignItems: "center",
     textAlign: "center",
   };
-  const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
+  const formStyle = {
+    display: "grid",
+    gap: 10,
+    width: "100%",
+    maxWidth: 360,
+    margin: "0 auto",
+  };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
   const input = {
     width: 300,
@@ -176,8 +184,8 @@ function AuthScreen() {
 
   return (
     <main id="main" style={pageWrap}>
-      <header style={{ width: "100%", paddingTop: 28 /* keeps block position stable */ }}>
-        {/* Pull title upward internally by same amount to close the gap */}
+      <header style={{ width: "100%" }}>
+        {/* Tighten the gap between “Welcome to” and the title */}
         <div
           style={{
             fontSize: 18,
@@ -185,7 +193,7 @@ function AuthScreen() {
             color: "#333",
             textAlign: "left",
             marginLeft: 12,
-            marginBottom: 0,
+            marginBottom: 2, // tuck closer to the H1
             letterSpacing: 0.2,
             lineHeight: 1.0,
           }}
@@ -194,7 +202,7 @@ function AuthScreen() {
         </div>
         <h1
           style={{
-            margin: "-28px 0 6px", // counteracts header paddingTop to reduce internal spacing only
+            margin: "0 0 6px", // remove top margin for tight join
             textAlign: "center",
             lineHeight: 1.12,
           }}
@@ -203,7 +211,10 @@ function AuthScreen() {
         </h1>
       </header>
 
-      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
+      <section
+        aria-label="Sign in"
+        style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}
+      >
         <form
           onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp}
           aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"}
@@ -270,7 +281,9 @@ function AuthScreen() {
                 <li>Prefer a password manager to store and generate passwords.</li>
                 <li>Avoid personal info; mixing cases, numbers, and symbols helps.</li>
               </ul>
-              <div style={{ fontSize: 11, color: "#666" }}>Enable two-factor authentication if offered.</div>
+              <div style={{ fontSize: 11, color: "#666" }}>
+                Enable two-factor authentication if offered.
+              </div>
             </div>
           ) : null}
 
@@ -286,13 +299,24 @@ function AuthScreen() {
             >
               {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
-            <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>
+            <button
+              type="button"
+              onClick={handleForgot}
+              aria-label="Forgot password?"
+              style={linkBtn}
+            >
               Forgot password?
             </button>
           </div>
 
-          <p aria-live="polite" style={statusStyle}>{msg}</p>
-          {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
+          <p aria-live="polite" style={statusStyle}>
+            {msg}
+          </p>
+          {err ? (
+            <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
+              {err}
+            </div>
+          ) : null}
         </form>
       </section>
     </main>
@@ -318,5 +342,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
