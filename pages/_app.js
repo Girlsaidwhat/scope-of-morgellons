@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.126_2025-08-26
+// Build 36.127_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.126_2025-08-26";
+export const BUILD_VERSION = "Build 36.127_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -177,7 +177,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Keep title fixed. Move “Welcome to” downward toward title only. */}
+        {/* Keep title fixed. Move “Welcome to” further down toward title only. */}
         <div
           style={{
             fontSize: 18,
@@ -189,7 +189,7 @@ function AuthScreen() {
             letterSpacing: 0.2,
             lineHeight: 1.0,
             position: "relative",
-            top: 18, // <-- shifts “Welcome to” down without moving the title
+            top: 32, // increased from 18 → 32 to halve the remaining gap again
           }}
         >
           Welcome to
