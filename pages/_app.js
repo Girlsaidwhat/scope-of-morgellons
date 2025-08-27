@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.136_2025-08-27
+// Build 36.137_2025-08-27
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.136_2025-08-27";
+export const BUILD_VERSION = "Build 36.137_2025-08-27";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -127,7 +127,7 @@ function AuthScreen() {
   };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
-  // v2 sign-in with on-demand client fallback (behavior stays as you had it)
+  // v2 sign-in with on-demand client fallback
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
@@ -183,14 +183,14 @@ function AuthScreen() {
 
   return (
     <main id="main" style={pageWrap}>
-      <header style={{ width: "100%", paddingTop: 28 /* keeps block position stable */ }}>
+      <header style={{ width: "100%", paddingTop: 28 }}>
         <div
           style={{
             fontSize: 18,
             fontWeight: 600,
             color: "#333",
-            textAlign: "center", // changed from left
-            marginLeft: 0,        // changed from 12
+            textAlign: "center",
+            marginLeft: 0,
             marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.0,
@@ -200,7 +200,7 @@ function AuthScreen() {
         </div>
         <h1
           style={{
-            margin: "-28px 0 6px",
+            margin: "0 0 6px", // removed negative top margin
             textAlign: "center",
             lineHeight: 1.12,
           }}
@@ -275,7 +275,7 @@ function AuthScreen() {
               <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 <li>Use 16+ characters or a 3–4 word passphrase.</li>
-                <li>Use a unique password for this site; don’t reuse.</li>
+                <li>Use a unique password for this site; do not reuse.</li>
                 <li>Prefer a password manager to store and generate passwords.</li>
                 <li>Avoid personal info; mixing cases, numbers, and symbols helps.</li>
               </ul>
