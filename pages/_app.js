@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.123_2025-08-26
+// Build 36.124_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.123_2025-08-26";
+export const BUILD_VERSION = "Build 36.124_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -179,7 +179,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* “Welcome to” on the left, tucked close to the title */}
+        {/* “Welcome to” on the left, pushed very close to the title */}
         <div
           style={{
             fontSize: 18,
@@ -189,13 +189,13 @@ function AuthScreen() {
             marginLeft: 12,
             marginBottom: 0,
             letterSpacing: 0.2,
-            lineHeight: 1.02,
+            lineHeight: 1.0,
           }}
         >
           Welcome to
         </div>
-        {/* Strong negative margin to close the gap tightly */}
-        <h1 style={{ margin: "-30px 0 6px", textAlign: "center", lineHeight: 1.1 }}>
+        {/* Aggressive negative margin to close gap */}
+        <h1 style={{ margin: "-40px 0 6px", textAlign: "center", lineHeight: 1.08 }}>
           The Scope of Morgellons
         </h1>
       </header>
@@ -317,5 +317,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
