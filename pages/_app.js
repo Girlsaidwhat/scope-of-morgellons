@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.127_2025-08-26
+// Build 36.128_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.127_2025-08-26";
+export const BUILD_VERSION = "Build 36.128_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -176,8 +176,8 @@ function AuthScreen() {
 
   return (
     <main id="main" style={pageWrap}>
-      <header style={{ width: "100%" }}>
-        {/* Keep title fixed. Move “Welcome to” further down toward title only. */}
+      <header style={{ width: "100%", paddingTop: 28 /* keeps block position stable */ }}>
+        {/* Pull title upward internally by same amount to close the gap */}
         <div
           style={{
             fontSize: 18,
@@ -188,13 +188,17 @@ function AuthScreen() {
             marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.0,
-            position: "relative",
-            top: 32, // increased from 18 → 32 to halve the remaining gap again
           }}
         >
           Welcome to
         </div>
-        <h1 style={{ margin: "2px 0 6px", textAlign: "center", lineHeight: 1.12 }}>
+        <h1
+          style={{
+            margin: "-28px 0 6px", // counteracts header paddingTop to reduce internal spacing only
+            textAlign: "center",
+            lineHeight: 1.12,
+          }}
+        >
           The Scope of Morgellons
         </h1>
       </header>
