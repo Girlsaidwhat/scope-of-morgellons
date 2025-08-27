@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.137_2025-08-27
+// Build 36.138_2025-08-27
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.137_2025-08-27";
+export const BUILD_VERSION = "Build 36.138_2025-08-27";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -67,6 +67,7 @@ function useAuthPresence() {
 
 /** Canonical sign-in screen (yours, preserved) */
 function AuthScreen() {
+  const router = useRouter(); // NEW: use Next router for post-sign-in navigation
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -142,7 +143,8 @@ function AuthScreen() {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       setMsg("Signed in.");
-      window.location.assign("/");
+      // CHANGE: use Next.js routing so we render the signed-in Home (pages/index.js)
+      router.replace("/");
     } catch (e) {
       setMsg("");
       setErr(e?.message || "Could not sign in.");
@@ -200,7 +202,7 @@ function AuthScreen() {
         </div>
         <h1
           style={{
-            margin: "0 0 6px", // removed negative top margin
+            margin: "0 0 6px",
             textAlign: "center",
             lineHeight: 1.12,
           }}
