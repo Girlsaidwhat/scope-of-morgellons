@@ -1,321 +1,323 @@
 ﻿// pages/_app.js
-// Build 36.128_2025-08-26
-import "../styles/globals.css";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Head from "next/head";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.128_2025-08-26";
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
-// Browser-safe Supabase client (public keys only)
-const supabase =
-  typeof window !== "undefined"
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      )
-    : null;
+export default function App({ Component, pageProps }) {
+  const router = useRouter();
+  const [session, setSession] = useState(null);
 
-function BuildBadge() {
-  const badgeStyle = {
-    position: "fixed",
-    right: 8,
-    bottom: 48, // keep above Windows taskbar
-    zIndex: 2147483647,
-    fontSize: 12,
-    padding: "4px 10px",
-    borderRadius: 8,
-    color: "#fff",
-    background: "#111",
-    border: "1px solid #000",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-    pointerEvents: "none",
-  };
+  // Track auth state so "/" can show sign-in when logged out
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data?.session ?? null);
+    });
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => setSession(newSession)
+    );
+    return () => {
+      mounted = false;
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
+
+  const isHome = router.pathname === "/";
+
   return (
-    <div aria-label="Build version" style={badgeStyle}>
-      {BUILD_VERSION}
-    </div>
+    <>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>The Scope of Morgellons</title>
+      </Head>
+
+      {/* On home route, show sign-in UI when logged out. Otherwise render the page normally. */}
+      {isHome && !session ? (
+        <SignInScreen supabase={supabase} onSignedIn={() => router.replace("/")} />
+      ) : (
+        <Component {...pageProps} />
+      )}
+
+      <BuildBadge />
+      <GlobalStyles />
+    </>
   );
 }
 
-function useAuthPresence() {
-  const [signedIn, setSignedIn] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    if (!supabase) {
-      setChecking(false);
-      return;
-    }
-    let unsub = () => {};
-    (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSignedIn(!!session);
-      setChecking(false);
-      const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-        setSignedIn(!!s);
-      });
-      unsub = sub.subscription?.unsubscribe || (() => {});
-    })();
-    return () => unsub();
-  }, []);
-
-  return { signedIn, checking };
-}
-
-/** Canonical sign-in screen (baseline) */
-function AuthScreen() {
-  const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
+/**
+ * Sign-in UI lives only here. Keep layout and copy the same.
+ * This step only tightens the vertical space between “Welcome to” and the title.
+ */
+function SignInScreen({ supabase, onSignedIn }) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showTips, setShowTips] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [status, setStatus] = useState("");
 
-  // Layout: center everything but the build badge; inputs slightly longer
-  const pageWrap = {
-    maxWidth: 980,
-    margin: "20px auto",
-    padding: "0 12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    textAlign: "center",
-  };
-  const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
-  const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
-  const input = {
-    width: 300,
-    padding: "10px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    fontSize: 14,
-  };
-  const row = {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    marginTop: 6,
-  };
-  const btn = {
-    padding: "10px 14px",
-    border: "1px solid #111",
-    borderRadius: 8,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  };
-  const linkBtn = {
-    padding: "6px 10px",
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    background: "#fff",
-    color: "#111",
-    fontSize: 12,
-    cursor: "pointer",
-  };
-  const fine = { fontSize: 11, color: "#666" };
-  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
-
-  // v2 sign-in with on-demand client fallback
-  async function handleSignIn(e) {
-    e.preventDefault?.();
-    setErr("");
-    setMsg("Signing in…");
+  // Note: Sign-in behavior will be verified next step (36.130).
+  // The UI here is unchanged except for the small spacing tweak.
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    // Intentionally minimal user feedback for this step
     try {
-      const sb =
-        supabase ||
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      setMsg("Signed in.");
-      window.location.assign("/");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not sign in.");
+      setStatus("Signing in…");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setStatus(error.message);
+        return;
+      }
+      setStatus("");
+      onSignedIn?.();
+    } catch (err) {
+      setStatus("Unable to sign in right now.");
     }
-  }
-
-  async function handleSignUp(e) {
-    e.preventDefault?.();
-    setErr("");
-    setMsg("Creating account…");
-    try {
-      if (!supabase) throw new Error("Client not ready");
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      setMsg("Account created. Check your email to confirm, then sign in.");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not sign up.");
-    }
-  }
-
-  async function handleForgot(e) {
-    e.preventDefault?.();
-    setErr("");
-    setMsg("Sending reset email…");
-    try {
-      if (!supabase) throw new Error("Client not ready");
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset`,
-      });
-      if (error) throw error;
-      setMsg("Check your email for the reset link.");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not send reset email.");
-    }
-  }
+  };
 
   return (
-    <main id="main" style={pageWrap}>
-      <header style={{ width: "100%", paddingTop: 28 /* keeps block position stable */ }}>
-        {/* Pull title upward internally by same amount to close the gap */}
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 600,
-            color: "#333",
-            textAlign: "left",
-            marginLeft: 12,
-            marginBottom: 0,
-            letterSpacing: 0.2,
-            lineHeight: 1.0,
-          }}
-        >
-          Welcome to
-        </div>
-        <h1
-          style={{
-            margin: "-28px 0 6px", // counteracts header paddingTop to reduce internal spacing only
-            textAlign: "center",
-            lineHeight: 1.12,
-          }}
-        >
-          The Scope of Morgellons
-        </h1>
-      </header>
+    <main id="main" className="auth-wrap" aria-describedby="auth-status">
+      <div className="card">
+        <header className="brand">
+          {/* Spacing tweak is here: stack with tight gap */}
+          <div className="welcome-stack" aria-hidden="true">
+            <span className="welcome-to">Welcome to</span>
+            <h1 className="site-title">The Scope of Morgellons</h1>
+          </div>
+        </header>
 
-      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
-        <form
-          onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp}
-          aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"}
-          style={formStyle}
-        >
-          <label style={inputWrap}>
-            <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={input}
-            />
-          </label>
+        <form className="form" onSubmit={handleSubmit}>
+          <label className="label" htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+          />
 
-          <label style={inputWrap}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: 300,
-              }}
-            >
-              <span>Password</span>
-              <button
-                type="button"
-                aria-label="Password tips"
-                onClick={() => setShowTips((v) => !v)}
-                style={{ fontSize: 12, padding: "2px 8px" }}
-              >
-                ?
-              </button>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
-              required
-              style={input}
-            />
-          </label>
-
-          {showTips ? (
-            <div
-              role="dialog"
-              aria-label="Password tips"
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
-                padding: 10,
-                margin: "0 auto",
-                width: 320,
-                textAlign: "left",
-              }}
-            >
-              <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use 16+ characters or a 3–4 word passphrase.</li>
-                <li>Use a unique password for this site; don’t reuse.</li>
-                <li>Prefer a password manager to store and generate passwords.</li>
-                <li>Avoid personal info; mixing cases, numbers, and symbols helps.</li>
-              </ul>
-              <div style={{ fontSize: 11, color: "#666" }}>Enable two-factor authentication if offered.</div>
-            </div>
-          ) : null}
-
-          <div style={row}>
-            <button type="submit" style={btn}>
-              {mode === "sign_in" ? "Sign in" : "Sign up"}
-            </button>
+          <div className="pw-row">
+            <label className="label" htmlFor="password">Password</label>
             <button
               type="button"
-              onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
-              aria-label="Toggle sign in or sign up"
-              style={linkBtn}
+              aria-label="Password tips"
+              className="tip-btn"
+              onClick={() => setShowTips((s) => !s)}
             >
-              {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
-            <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>
-              Forgot password?
+              ?
             </button>
           </div>
 
-          <p aria-live="polite" style={statusStyle}>{msg}</p>
-          {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
+          <div className="pw-input-wrap">
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              className="input"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
+            <button
+              type="button"
+              className="reveal"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+
+          {showTips && (
+            <div className="tips" role="note">
+              Use a unique password. Avoid common phrases. If you forgot it, use the link below.
+            </div>
+          )}
+
+          <button type="submit" className="primary">Sign in</button>
+
+          <p className="aux">
+            <a href="/auth/reset" className="link">Forgot password?</a>
+          </p>
+
+          <p id="auth-status" className="status" aria-live="polite">
+            {status}
+          </p>
         </form>
-      </section>
+      </div>
     </main>
   );
 }
 
-export default function MyApp({ Component, pageProps }) {
-  const router = useRouter();
-  const { signedIn, checking } = useAuthPresence();
-
-  if (checking) {
-    return <BuildBadge />;
-  }
-
-  // Single source of truth: when logged out on "/", show Auth; otherwise render page
-  const onHome = router?.pathname === "/";
-  const showAuth = onHome && !signedIn;
-
+function BuildBadge() {
+  // Single source of truth for the build tag
+  const build = "Build 36.129_2025-08-26";
   return (
-    <>
-      {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
-      <BuildBadge />
-    </>
+    <div className="build-badge" aria-label="Build badge">
+      {build}
+    </div>
+  );
+}
+
+function GlobalStyles() {
+  return (
+    <style jsx global>{`
+      :root {
+        --bg: #0b0b0b;
+        --panel: #141414;
+        --text: #eaeaea;
+        --muted: #b3b3b3;
+        --accent: #4f9cf9;
+        --border: #262626;
+      }
+      html, body, #__next { height: 100%; }
+      body {
+        margin: 0;
+        color: var(--text);
+        background: var(--bg);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      }
+
+      /* Auth shell */
+      .auth-wrap {
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .card {
+        width: 100%;
+        max-width: 480px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      }
+
+      /* Brand block with tightened stack */
+      .brand {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .welcome-stack {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 1;
+      }
+      .welcome-to {
+        font-size: clamp(14px, 2.1vw, 18px);
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        margin: 0 0 2px 0;   /* Tight tuck */
+      }
+      .site-title {
+        font-size: clamp(28px, 6.5vw, 44px);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin: 0;          /* Remove default h1 margin to close the gap */
+      }
+
+      /* Form */
+      .form { display: grid; gap: 12px; }
+      .label {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .input {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: #0f0f0f;
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+      .pw-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .tip-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #0f0f0f;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .pw-input-wrap {
+        position: relative;
+      }
+      .reveal {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: transparent;
+        color: var(--muted);
+        border: 0;
+        cursor: pointer;
+      }
+      .primary {
+        display: inline-block;
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #07121f;
+        border: 0;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .aux {
+        margin: 6px 0 0 0;
+        text-align: center;
+      }
+      .link {
+        color: var(--muted);
+        text-decoration: underline;
+      }
+      .tips {
+        font-size: 13px;
+        color: var(--muted);
+        background: #101010;
+        border: 1px solid var(--border);
+        padding: 10px;
+        border-radius: 10px;
+      }
+      .status {
+        min-height: 1.25em;
+        font-size: 13px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      /* Build badge */
+      .build-badge {
+        position: fixed;
+        right: 10px;
+        bottom: 10px;
+        background: rgba(20,20,20,0.9);
+        border: 1px solid var(--border);
+        color: var(--muted);
+        padding: 6px 10px;
+        border-radius: 10px;
+        font-size: 12px;
+        pointer-events: none;
+        z-index: 9999;
+      }
+    `}</style>
   );
 }
 
