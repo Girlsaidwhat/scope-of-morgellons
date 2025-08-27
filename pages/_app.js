@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.120_2025-08-26
+// Build 36.122_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.120_2025-08-26";
+export const BUILD_VERSION = "Build 36.122_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -179,7 +179,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* “Welcome to” on the left, pulled much closer to the title */}
+        {/* “Welcome to” on the left, very close to the title */}
         <div
           style={{
             fontSize: 18,
@@ -189,13 +189,12 @@ function AuthScreen() {
             marginLeft: 12,
             marginBottom: 0,
             letterSpacing: 0.2,
-            lineHeight: 1.1,
+            lineHeight: 1.05,
           }}
         >
           Welcome to
         </div>
-        {/* Increase negative top margin to halve the remaining gap */}
-        <h1 style={{ margin: "-12px 0 6px", textAlign: "center", lineHeight: 1.15 }}>
+        <h1 style={{ margin: "-22px 0 6px", textAlign: "center", lineHeight: 1.12 }}>
           The Scope of Morgellons
         </h1>
       </header>
@@ -227,7 +226,6 @@ function AuthScreen() {
               }}
             >
               <span>Password</span>
-              {/* “?” tips button */}
               <button
                 type="button"
                 aria-label="Password tips"
@@ -284,7 +282,6 @@ function AuthScreen() {
             >
               {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
-            {/* “Forgot password?” */}
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>
               Forgot password?
             </button>
@@ -308,7 +305,6 @@ export default function MyApp({ Component, pageProps }) {
     return <BuildBadge />;
   }
 
-  // Single source of truth: when logged out on "/", show Auth; otherwise render page
   const onHome = router?.pathname === "/";
   const showAuth = onHome && !signedIn;
 
@@ -319,4 +315,5 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
