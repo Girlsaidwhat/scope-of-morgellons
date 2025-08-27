@@ -264,7 +264,7 @@ export default function HomePage() {
           <h2 style={{ marginTop: 0 }}>Your Gallery</h2>
           {!loadingInit && items.length === 0 ? <p>No images yet.</p> : null}
 
-          <ul
+        <ul
             aria-label="image list"
             style={{
               listStyle: "none",
@@ -340,6 +340,35 @@ export default function HomePage() {
     setTimeout(() => setProfileMsg(""), 1200);
   }
 
+  // Render
+  if (checking) {
+    // Avoid showing the wrong layout while session is loading
+    return (
+      <>
+        <Head>
+          <title>The Scope of Morgellons</title>
+        </Head>
+        <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
+          <p aria-live="polite">Loading…</p>
+        </main>
+      </>
+    );
+  }
+
+  if (!session) {
+    // Safety: _app.js should gate this, but if reached, avoid rendering signed-in UI
+    return (
+      <>
+        <Head>
+          <title>The Scope of Morgellons</title>
+        </Head>
+        <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
+          <p>Not signed in.</p>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -354,14 +383,14 @@ export default function HomePage() {
         <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <h1 style={{ margin: "0 0 6px" }}>{headerText}</h1>
           <span aria-live="polite">
-            Total items: {session ? (totalCount ?? "…") : "…"}
+            Total items: {totalCount ?? "…"}
           </span>
         </header>
 
-        {/* Always render the signed-in block on this page.
-            The sign-in screen lives ONLY in pages/_app.js when logged out. */}
+        {/* Only render the signed-in Home once session is ready */}
         <SignedInBlock />
       </main>
     </>
   );
 }
+
