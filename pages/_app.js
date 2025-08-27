@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.125_2025-08-26
+// Build 36.126_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.125_2025-08-26";
+export const BUILD_VERSION = "Build 36.126_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -177,7 +177,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* Keep title position; pull “Welcome to” much closer to it */}
+        {/* Keep title fixed. Move “Welcome to” downward toward title only. */}
         <div
           style={{
             fontSize: 18,
@@ -185,14 +185,15 @@ function AuthScreen() {
             color: "#333",
             textAlign: "left",
             marginLeft: 12,
-            marginBottom: -18, // <-- pull closer without moving the title up the page
+            marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.0,
+            position: "relative",
+            top: 18, // <-- shifts “Welcome to” down without moving the title
           }}
         >
           Welcome to
         </div>
-        {/* Title stays put */}
         <h1 style={{ margin: "2px 0 6px", textAlign: "center", lineHeight: 1.12 }}>
           The Scope of Morgellons
         </h1>
@@ -313,4 +314,5 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
