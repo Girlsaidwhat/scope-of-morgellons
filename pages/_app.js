@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.122_2025-08-26
+// Build 36.123_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.122_2025-08-26";
+export const BUILD_VERSION = "Build 36.123_2025-08-26";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -179,7 +179,7 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%" }}>
-        {/* “Welcome to” on the left, very close to the title */}
+        {/* “Welcome to” on the left, tucked close to the title */}
         <div
           style={{
             fontSize: 18,
@@ -189,12 +189,13 @@ function AuthScreen() {
             marginLeft: 12,
             marginBottom: 0,
             letterSpacing: 0.2,
-            lineHeight: 1.05,
+            lineHeight: 1.02,
           }}
         >
           Welcome to
         </div>
-        <h1 style={{ margin: "-22px 0 6px", textAlign: "center", lineHeight: 1.12 }}>
+        {/* Strong negative margin to close the gap tightly */}
+        <h1 style={{ margin: "-30px 0 6px", textAlign: "center", lineHeight: 1.1 }}>
           The Scope of Morgellons
         </h1>
       </header>
@@ -305,6 +306,7 @@ export default function MyApp({ Component, pageProps }) {
     return <BuildBadge />;
   }
 
+  // Single source of truth: when logged out on "/", show Auth; otherwise render page
   const onHome = router?.pathname === "/";
   const showAuth = onHome && !signedIn;
 
