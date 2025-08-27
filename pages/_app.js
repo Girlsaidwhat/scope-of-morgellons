@@ -1,5 +1,5 @@
 ﻿// pages/_app.js
-// Build 36.128_2025-08-26
+// Build 36.130_2025-08-26
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
