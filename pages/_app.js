@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.139_2025-08-27
+// Build 36.140_2025-08-27
 import "../styles/globals.css";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.139_2025-08-27";
+export const BUILD_VERSION = "Build 36.140_2025-08-27";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -220,7 +220,7 @@ function AuthScreen() {
           style={formStyle}
         >
           <label style={inputWrap}>
-            <span>Email</</span>
+            <span>Email</span>
             <input
               type="email"
               value={email}
