@@ -1,4 +1,4 @@
-﻿// Build 36.70_fix_2025-08-25
+// Build 36.70_fix_2025-08-25
 import { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
 import Link from "next/link";
@@ -28,6 +28,14 @@ export default function HomePage() {
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
 
+  // Sign-in / Sign-up UI (logged out on "/")
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState("sign_in"); // "sign_in" | "sign_up"
+  const [authMsg, setAuthMsg] = useState("");
+  const [authErr, setAuthErr] = useState("");
+  const [showTips, setShowTips] = useState(false);
+
   // Profile (signed in)
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
@@ -45,7 +53,7 @@ export default function HomePage() {
   // CSV export
   const [csvMsg, setCsvMsg] = useState("");
 
-  // Session bootstrap (client)
+  // Session bootstrap (prevents flicker)
   useEffect(() => {
     let unsub = () => {};
     (async () => {
@@ -68,7 +76,7 @@ export default function HomePage() {
   const headerText = session
     ? firstName
       ? `Welcome, ${firstName}`
-      : `Welcome, ${session?.user?.email || ""}`
+      : `Welcome, ${session.user?.email || ""}`
     : "Home";
 
   // Load profile when signed in
@@ -130,6 +138,67 @@ export default function HomePage() {
     setLoadingMore(false);
   }
 
+  // --- Auth handlers (Supabase v2) ---
+  async function handleSignIn(e) {
+    e.preventDefault();
+    setAuthErr("");
+    setAuthMsg("Signing in…");
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      setAuthMsg("Signed in.");
+      // Reload Home to show Welcome + gallery
+      window.location.assign("/");
+    } catch (err) {
+      setAuthMsg("");
+      setAuthErr(err?.message || "Could not sign in.");
+    }
+  }
+
+  async function handleSignUp(e) {
+    e.preventDefault();
+    setAuthErr("");
+    setAuthMsg("Creating account…");
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      setAuthMsg("Account created. Check your inbox to confirm, then sign in.");
+    } catch (err) {
+      setAuthMsg("");
+      setAuthErr(err?.message || "Could not sign up.");
+    }
+  }
+
+  async function handleForgot(e) {
+    e.preventDefault();
+    setAuthErr("");
+    setAuthMsg("Sending reset email…");
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset`,
+      });
+      if (error) throw error;
+      setAuthMsg("Check your email for the reset link.");
+    } catch (err) {
+      setAuthMsg("");
+      setAuthErr(err?.message || "Could not send reset email.");
+    }
+  }
+
+  async function onSaveProfile(e) {
+    e.preventDefault();
+    setProfileMsg("Saving…");
+    const payload = {
+      uploader_initials: initials.trim(),
+      uploader_age: age ? Number(age) : null,
+      uploader_location: location.trim(),
+      uploader_contact_opt_in: optIn,
+    };
+    const { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
+    setProfileMsg(error ? "Could not save profile." : "Profile saved.");
+    setTimeout(() => setProfileMsg(""), 1200);
+  }
+
   async function onExportCSV() {
     setCsvMsg("Building CSV…");
     const { data, error } = await supabase
@@ -189,22 +258,235 @@ export default function HomePage() {
     setTimeout(() => setCsvMsg(""), 1200);
   }
 
-  async function onSaveProfile(e) {
-    e.preventDefault();
-    setProfileMsg("Saving…");
-    const payload = {
-      uploader_initials: initials.trim(),
-      uploader_age: age ? Number(age) : null,
-      uploader_location: location.trim(),
-      uploader_contact_opt_in: optIn,
-    };
-    const { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
-    setProfileMsg(error ? "Could not save profile." : "Profile saved.");
-    setTimeout(() => setProfileMsg(""), 1200);
+  function SignInBlock() {
+    return (
+      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
+        <h2 style={{ marginTop: 0 }}>Welcome to The Scope of Morgellons</h2>
+        <form
+          onSubmit={authMode === "sign_in" ? handleSignIn : handleSignUp}
+          style={{ display: "grid", gap: 10, maxWidth: 420 }}
+        >
+          <label>
+            <span>Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              style={{ width: "100%", padding: 8 }}
+            />
+          </label>
+
+          <label>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span>Password</span>
+              <button
+                type="button"
+                aria-label="Password tips"
+                onClick={() => setShowTips((v) => !v)}
+                style={{ fontSize: 12, padding: "2px 8px" }}
+              >
+                ?
+              </button>
+            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={authMode === "sign_in" ? "current-password" : "new-password"}
+              required
+              style={{ width: "100%", padding: 8 }}
+            />
+          </label>
+
+          {showTips ? (
+            <div
+              role="dialog"
+              aria-label="Password tips"
+              style={{
+                border: "1px solid #ddd",
+                borderRadius: 10,
+                background: "white",
+                padding: 10,
+              }}
+            >
+              <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Use 12+ characters.</li>
+                <li>Mix upper/lower case, numbers, and a symbol.</li>
+                <li>Avoid names, birthdays, or common words.</li>
+                <li>Don’t reuse a password from another site.</li>
+              </ul>
+            </div>
+          ) : null}
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <button type="submit" style={{ padding: "10px 14px" }}>
+              {authMode === "sign_in" ? "Sign in" : "Sign up"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
+              aria-label="Toggle sign in or sign up"
+              style={{ padding: "8px 12px" }}
+            >
+              {authMode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
+            </button>
+            <button
+              type="button"
+              onClick={handleForgot}
+              aria-label="Forgot password?"
+              style={{ padding: "8px 12px" }}
+            >
+              Forgot password?
+            </button>
+          </div>
+
+          <p aria-live="polite" style={{ minHeight: 18, marginTop: 6 }}>{authMsg}</p>
+          {authErr ? (
+            <div role="alert" style={{ color: "#b00020" }}>{authErr}</div>
+          ) : null}
+        </form>
+      </section>
+    );
   }
 
-  // Only render when session is ready and present
-  if (checking || !session) return null;
+  function SignedInBlock() {
+    return (
+      <>
+        {/* Quick links */}
+        <nav style={{ display: "flex", gap: 12, margin: "8px 0 16px" }}>
+          <Link href="/upload">Go to Uploader</Link>
+          <Link href="/browse">Browse by Category</Link>
+          <button onClick={onExportCSV} aria-label="Export CSV" style={{ padding: "6px 10px" }}>
+            Export CSV
+          </button>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.assign("/");
+            }}
+            aria-label="Sign out"
+            style={{ padding: "6px 10px", marginLeft: "auto" }}
+          >
+            Sign out
+          </button>
+        </nav>
+        {csvMsg ? <p aria-live="polite">{csvMsg}</p> : null}
+
+        {/* Profile */}
+        <section aria-label="Profile" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
+          <h2 style={{ marginTop: 0 }}>Profile</h2>
+          <p>Save your profile. Each upload stores a snapshot of these fields.</p>
+          <form onSubmit={onSaveProfile} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
+            <label>
+              <span>Initials</span>
+              <input
+                type="text"
+                value={initials}
+                onChange={(e) => setInitials(e.target.value)}
+                style={{ width: "100%", padding: 8 }}
+              />
+            </label>
+            <label>
+              <span>Age</span>
+              <input
+                type="number"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                style={{ width: "100%", padding: 8 }}
+              />
+            </label>
+            <label>
+              <span>Location</span>
+              <input
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                style={{ width: "100%", padding: 8 }}
+              />
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={optIn}
+                onChange={(e) => setOptIn(e.target.checked)}
+              />
+              <span>Open to being contacted by researchers or other members</span>
+            </label>
+            <button type="submit" style={{ padding: "8px 12px", width: "fit-content" }}>
+              Save Profile
+            </button>
+            {profileMsg ? <p aria-live="polite">{profileMsg}</p> : null}
+          </form>
+        </section>
+
+        {/* Gallery */}
+        <section aria-label="Your Gallery" style={{ marginTop: 18 }}>
+          <h2 style={{ marginTop: 0 }}>Your Gallery</h2>
+          {!loadingInit && items.length === 0 ? <p>No images yet.</p> : null}
+
+          <ul
+            aria-label="image list"
+            style={{
+              listStyle: "none",
+              padding: 0,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: 12,
+            }}
+          >
+            {items.map((it) => (
+              <li key={it.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      padding: "2px 6px",
+                      border: "1px solid #ccc",
+                      borderRadius: 6,
+                    }}
+                    aria-label="category badge"
+                  >
+                    {formatCategory(it.category)}
+                  </span>
+                  {COLORIZED.has(it.category || "") && it.bleb_color ? (
+                    <span
+                      style={{
+                        fontSize: 12,
+                        padding: "2px 6px",
+                        border: "1px solid #ccc",
+                        borderRadius: 6,
+                      }}
+                      aria-label="color badge"
+                    >
+                      {it.bleb_color}
+                    </span>
+                  ) : null}
+                </div>
+                <Link href={`/image/${it.id}`}>Open</Link>
+              </li>
+            ))}
+          </ul>
+
+          {items.length < (totalCount ?? 0) ? (
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={onLoadMore}
+                disabled={loadingMore}
+                aria-label="Load more items"
+                style={{ padding: "8px 12px" }}
+              >
+                {loadingMore ? "Loading…" : "Load more"}
+              </button>
+            </div>
+          ) : (
+            <p style={{ opacity: 0.8, marginTop: 12 }}>No more items.</p>
+          )}
+        </section>
+      </>
+    );
+  }
 
   return (
     <>
@@ -220,146 +502,12 @@ export default function HomePage() {
         <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <h1 style={{ margin: "0 0 6px" }}>{headerText}</h1>
           <span aria-live="polite">
-            Total items: {totalCount ?? "…"}
+            Total items: {session ? (totalCount ?? "…") : "…"}
           </span>
         </header>
 
-        {/* Signed-in Home (your original layout) */}
-        <>
-          {/* Quick links */}
-          <nav style={{ display: "flex", gap: 12, margin: "8px 0 16px" }}>
-            <Link href="/upload">Go to Uploader</Link>
-            <Link href="/browse">Browse by Category</Link>
-            <button onClick={onExportCSV} aria-label="Export CSV" style={{ padding: "6px 10px" }}>
-              Export CSV
-            </button>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                window.location.assign("/");
-              }}
-              aria-label="Sign out"
-              style={{ padding: "6px 10px", marginLeft: "auto" }}
-            >
-              Sign out
-            </button>
-          </nav>
-          {csvMsg ? <p aria-live="polite">{csvMsg}</p> : null}
-
-          {/* Profile */}
-          <section aria-label="Profile" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
-            <h2 style={{ marginTop: 0 }}>Profile</h2>
-            <p>Save your profile. Each upload stores a snapshot of these fields.</p>
-            <form onSubmit={onSaveProfile} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
-              <label>
-                <span>Initials</span>
-                <input
-                  type="text"
-                  value={initials}
-                  onChange={(e) => setInitials(e.target.value)}
-                  style={{ width: "100%", padding: 8 }}
-                />
-              </label>
-              <label>
-                <span>Age</span>
-                <input
-                  type="number"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  style={{ width: "100%", padding: 8 }}
-                />
-              </label>
-              <label>
-                <span>Location</span>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  style={{ width: "100%", padding: 8 }}
-                />
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={optIn}
-                  onChange={(e) => setOptIn(e.target.checked)}
-                />
-                <span>Open to being contacted by researchers or other members</span>
-              </label>
-              <button type="submit" style={{ padding: "8px 12px", width: "fit-content" }}>
-                Save Profile
-              </button>
-              {profileMsg ? <p aria-live="polite">{profileMsg}</p> : null}
-            </form>
-          </section>
-
-          {/* Gallery */}
-          <section aria-label="Your Gallery" style={{ marginTop: 18 }}>
-            <h2 style={{ marginTop: 0 }}>Your Gallery</h2>
-            {!loadingInit && items.length === 0 ? <p>No images yet.</p> : null}
-
-            <ul
-              aria-label="image list"
-              style={{
-                listStyle: "none",
-                padding: 0,
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                gap: 12,
-              }}
-            >
-              {items.map((it) => (
-                <li key={it.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}>
-                  <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        padding: "2px 6px",
-                        border: "1px solid #ccc",
-                        borderRadius: 6,
-                      }}
-                      aria-label="category badge"
-                    >
-                      {formatCategory(it.category)}
-                    </span>
-                    {COLORIZED.has(it.category || "") && it.bleb_color ? (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          padding: "2px 6px",
-                          border: "1px solid #ccc",
-                          borderRadius: 6,
-                        }}
-                        aria-label="color badge"
-                      >
-                        {it.bleb_color}
-                      </span>
-                    ) : null}
-                  </div>
-                  <Link href={`/image/${it.id}`}>Open</Link>
-                </li>
-              ))}
-            </ul>
-
-            {items.length < (totalCount ?? 0) ? (
-              <div style={{ marginTop: 12 }}>
-                <button
-                  onClick={onLoadMore}
-                  disabled={loadingMore}
-                  aria-label="Load more items"
-                  style={{ padding: "8px 12px" }}
-                >
-                  {loadingMore ? "Loading…" : "Load more"}
-                </button>
-              </div>
-            ) : (
-              <p style={{ opacity: 0.8, marginTop: 12 }}>No more items.</p>
-            )}
-          </section>
-        </>
+        {!session ? <SignInBlock /> : <SignedInBlock />}
       </main>
     </>
   );
 }
-
-
