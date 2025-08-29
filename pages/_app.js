@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.142_2025-08-29
+// Build 36.143_2025-08-29
 import "../styles/globals.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.142_2025-08-29";
+export const BUILD_VERSION = "Build 36.143_2025-08-29";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -271,17 +271,24 @@ function AuthScreen() {
                 margin: "0 auto",
                 width: 320,
                 textAlign: "left",
+                fontSize: 12, // slightly smaller tips text
+                lineHeight: 1.4,
               }}
             >
-              <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
+              <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>
+                Password tips
+              </strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use a long passphrase (3–5 random words, 16–24+ characters).</li>
+                <li>
+                  Use a long passphrase (3–5 random words, 16–24+ characters).{" "}
+                  <em>Spaces are OK</em> and encouraged between words.
+                </li>
                 <li>Make it unique for every site; never reuse passwords.</li>
                 <li>Use a password manager to generate and store passwords.</li>
                 <li>Avoid predictable substitutions or patterns (e.g., P@ssw0rd123!).</li>
                 <li>Change it only if you suspect compromise, not on a schedule.</li>
               </ul>
-              <div style={{ fontSize: 11, color: "#666" }}>
+              <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
                 Enable two-factor authentication (authenticator app) whenever available.
               </div>
             </div>
