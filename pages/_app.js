@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.141_2025-08-29
+// Build 36.142_2025-08-29
 import "../styles/globals.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.141_2025-08-29";
+export const BUILD_VERSION = "Build 36.142_2025-08-29";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -20,7 +20,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 48,
+    bottom: 48, // keep above Windows taskbar
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -128,6 +128,7 @@ function AuthScreen() {
   };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
+  // v2 sign-in with on-demand client fallback
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
@@ -190,6 +191,7 @@ function AuthScreen() {
             fontWeight: 600,
             color: "#333",
             textAlign: "center",
+            marginLeft: 0,
             marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.0,
@@ -273,13 +275,14 @@ function AuthScreen() {
             >
               <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use 16+ characters or a 3–4 word passphrase.</li>
-                <li>Use a unique password for this site; do not reuse.</li>
-                <li>Prefer a password manager to store and generate passwords.</li>
-                <li>Avoid personal info; mixing cases, numbers, and symbols helps.</li>
+                <li>Use a long passphrase (3–5 random words, 16–24+ characters).</li>
+                <li>Make it unique for every site; never reuse passwords.</li>
+                <li>Use a password manager to generate and store passwords.</li>
+                <li>Avoid predictable substitutions or patterns (e.g., P@ssw0rd123!).</li>
+                <li>Change it only if you suspect compromise, not on a schedule.</li>
               </ul>
               <div style={{ fontSize: 11, color: "#666" }}>
-                Enable two-factor authentication if offered.
+                Enable two-factor authentication (authenticator app) whenever available.
               </div>
             </div>
           ) : null}
@@ -392,6 +395,7 @@ function ResetPasswordScreen({ onDone }) {
       const { error } = await sb.auth.updateUser({ password: p1 });
       if (error) throw error;
       setMsg("Password updated.");
+      // After success, sign out, then route to Welcome
       await sb.auth.signOut();
       onDone?.();
       router.replace("/");
