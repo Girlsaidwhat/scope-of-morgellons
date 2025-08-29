@@ -1,9 +1,11 @@
 ﻿// pages/index.js
 // Restored Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
 // Uses Supabase v2. No guest sign-in UI here (that stays in _app.js).
+// Sprint B SignOut marker: v1
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -38,6 +40,8 @@ function Badge({ children }) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
+
   // Auth/user
   const [user, setUser] = useState(null);
 
@@ -290,6 +294,15 @@ export default function HomePage() {
     } catch {}
   }
 
+  async function handleSignOut() {
+    // Sign out and route to "/"
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      router.push("/");
+    }
+  }
+
   // If session not ready or not signed in, render nothing here.
   // _app.js controls the sign-in screen on "/".
   if (!user) return null;
@@ -329,21 +342,40 @@ export default function HomePage() {
         <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
           Go to Uploads
         </Link>
-        <button
-          onClick={exportCSV}
-          aria-label="Export all image metadata to CSV"
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "1px solid #1e293b",
-            background: "#1f2937",
-            color: "white",
-            cursor: "pointer",
-            fontWeight: 600,
-          }}
-        >
-          Export CSV
-        </button>
+
+        {/* Right-side grouped actions */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={exportCSV}
+            aria-label="Export all image metadata to CSV"
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #1e293b",
+              background: "#1f2937",
+              color: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #cbd5e1",
+              background: "#f8fafc",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+            title="Sign out"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Profile form */}
@@ -499,8 +531,7 @@ export default function HomePage() {
             // Build a public URL from storage_path if present
             let publicUrl = "";
             if (row.storage_path) {
-              const { data: pub } = supabase
-                .storage
+              const { data: pub } = supabase.storage
                 .from("images")
                 .getPublicUrl(row.storage_path);
               publicUrl = pub?.publicUrl || "";
