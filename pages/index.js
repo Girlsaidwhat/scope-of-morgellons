@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.154";
+const INDEX_BUILD = "idx-36.155";
 
 function prettyDate(s) {
   try {
@@ -45,7 +45,6 @@ function normalizePath(p) {
   if (!p) return "";
   let s = String(p).trim();
   if (s.startsWith("/")) s = s.slice(1);
-  // If someone accidentally stored "images/..." keep it as-is; we’ll pass to from("images")
   return s;
 }
 
@@ -310,8 +309,7 @@ export default function HomePage() {
     setGalleryStatus("");
     setLoading(false);
 
-    // 2) Resolve URLs in the background (non-blocking)
-    //    We assume bucket "images". If your bucket differs, the alt path + public/download fallbacks still try to recover.
+    // 2) Resolve URLs in the background
     resolveUrlsInBackground(setItems, startIndex, batch, "images", user.id);
   }
 
@@ -432,7 +430,7 @@ export default function HomePage() {
     };
   }, [user?.id]);
 
-  // ---------- Profile: save (schema-tolerant, ignore unknown-column errors) ----------
+  // ---------- Profile: save (save to both standard and uploader_* name fields) ----------
   async function saveProfile(e) {
     e.preventDefault();
     if (!user?.id) return;
@@ -455,8 +453,13 @@ export default function HomePage() {
       const updates = [
         ["uploader_initials", initials || null],
         ["initials", initials || null],
+
+        // Save to both name field styles:
         ["first_name", firstNameField || null],
+        ["uploader_first_name", firstNameField || null],
         ["last_name", lastNameField || null],
+        ["uploader_last_name", lastNameField || null],
+
         ["uploader_age", ageVal],
         ["age", ageVal],
         ["uploader_location", location || null],
@@ -1001,6 +1004,5 @@ export default function HomePage() {
     </main>
   );
 }
-
 
 
