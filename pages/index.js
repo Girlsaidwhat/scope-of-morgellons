@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.153";
+const INDEX_BUILD = "idx-36.154";
 
 function prettyDate(s) {
   try {
@@ -40,73 +40,151 @@ function Badge({ children }) {
   );
 }
 
-// --- Path helpers ------------------------------------------------------------
+// ---------------- URL helpers (non-blocking thumbnails) ----------------
 function normalizePath(p) {
   if (!p) return "";
   let s = String(p).trim();
-  // Strip bucket prefix if accidentally stored (e.g., "images/user/filename")
-  if (s.startsWith("images/")) s = s.slice("images/".length);
-  // Strip any leading slash
   if (s.startsWith("/")) s = s.slice(1);
+  // If someone accidentally stored "images/..." keep it as-is; we’ll pass to from("images")
   return s;
 }
 
-async function tryDownload(path) {
+async function batchSignedUrls(bucket, paths) {
   try {
-    const { data: file, error } = await supabase.storage.from("images").download(path);
-    if (!error && file) return URL.createObjectURL(file); // blob: URL
-  } catch {}
-  return "";
+    if (paths.length === 0) return [];
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 60 * 60);
+    if (error || !Array.isArray(data)) return [];
+    return data.map((x) => x?.signedUrl || "");
+  } catch {
+    return [];
+  }
 }
 
-async function trySigned(path) {
+async function singleSignedUrl(bucket, path) {
   try {
-    const { data, error } = await supabase.storage.from("images").createSignedUrl(path, 60 * 60);
-    if (!error && data?.signedUrl) return data.signedUrl;
-  } catch {}
-  return "";
-}
-
-function tryPublic(path) {
-  try {
-    const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
-    return pub?.publicUrl || "";
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+    if (error) return "";
+    return data?.signedUrl || "";
   } catch {
     return "";
   }
 }
 
-async function bestUrlForCandidates(candidates) {
-  // Normalize and de-dup
-  const paths = [...new Set(candidates.map(normalizePath).filter(Boolean))];
-  for (const p of paths) {
-    // 1) Download (blob) is most reliable for private buckets
-    const d = await tryDownload(p);
-    if (d) return d;
-    // 2) Signed URL
-    const s = await trySigned(p);
-    if (s) return s;
-    // 3) Public URL
-    const u = tryPublic(p);
-    if (u) return u;
+function publicUrl(bucket, path) {
+  try {
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+    return data?.publicUrl || "";
+  } catch {
+    return "";
   }
+}
+
+// Last-resort download with small concurrency; updates items as each finishes.
+async function downloadToBlobUrl(bucket, path) {
+  try {
+    const { data, error } = await supabase.storage.from(bucket).download(path);
+    if (!error && data) {
+      return URL.createObjectURL(data);
+    }
+  } catch {}
   return "";
 }
 
-// Build a display URL for each row by trying: storage_path, then user_id/filename,
-// then currentUserId/filename (as a last-resort reconstruction).
-async function enrichWithDisplayUrls(rows, currentUserId) {
-  const enriched = [];
-  for (const r of rows) {
-    const cands = [];
-    if (r.storage_path) cands.push(r.storage_path);
-    if (r.user_id && r.filename) cands.push(`${r.user_id}/${r.filename}`);
-    if (currentUserId && r.filename) cands.push(`${currentUserId}/${r.filename}`);
-    const url = await bestUrlForCandidates(cands);
-    enriched.push({ ...r, display_url: url });
-  }
-  return enriched;
+// Update display_url for item at absolute index
+function setItemUrl(setItems, absIndex, url) {
+  if (!url) return;
+  setItems((prev) => {
+    if (!prev[absIndex]) return prev;
+    const next = [...prev];
+    next[absIndex] = { ...next[absIndex], display_url: url };
+    return next;
+  });
 }
+
+async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGuess, userId) {
+  const bucket = bucketGuess || "images";
+
+  // Paths to try for each row
+  const primaryPaths = batchRows.map((r) => normalizePath(r.storage_path || ""));
+  const altPaths = batchRows.map((r) =>
+    r.filename ? `${r.user_id || userId || ""}/${r.filename}`.replace(/^\/+/, "") : ""
+  );
+
+  // 1) Try batch signed URLs for primary paths
+  const signedPrimary = await batchSignedUrls(bucket, primaryPaths);
+
+  // Apply successes
+  signedPrimary.forEach((u, i) => {
+    if (u) setItemUrl(setItems, startIndex + i, u);
+  });
+
+  // 2) For any still blank, try alt path signed URLs individually, then public URL
+  for (let i = 0; i < batchRows.length; i++) {
+    const abs = startIndex + i;
+    const had = signedPrimary[i];
+    if (had) continue;
+
+    const alt = normalizePath(altPaths[i]);
+    if (alt) {
+      const su = await singleSignedUrl(bucket, alt);
+      if (su) {
+        setItemUrl(setItems, abs, su);
+        continue;
+      }
+      const pu = publicUrl(bucket, alt);
+      if (pu) {
+        setItemUrl(setItems, abs, pu);
+        continue;
+      }
+    }
+
+    // Try public URL on primary as well (cheap)
+    const primary = normalizePath(primaryPaths[i]);
+    if (primary) {
+      const pu2 = publicUrl(bucket, primary);
+      if (pu2) {
+        setItemUrl(setItems, abs, pu2);
+      }
+    }
+  }
+
+  // 3) For any items still without a URL, attempt light download with concurrency=3
+  const unresolved = [];
+  for (let i = 0; i < batchRows.length; i++) {
+    const abs = startIndex + i;
+    unresolved.push({ abs, primary: normalizePath(primaryPaths[i]), alt: normalizePath(altPaths[i]) });
+  }
+
+  let ptr = 0;
+  const workers = new Array(3).fill(0).map(async () => {
+    while (ptr < unresolved.length) {
+      const cur = unresolved[ptr++];
+      // Skip if already filled
+      let already = false;
+      setItems((prev) => {
+        const has = !!prev[cur.abs]?.display_url;
+        already = has;
+        return prev;
+      });
+      if (already) continue;
+
+      const p1 = cur.primary ? await downloadToBlobUrl(bucket, cur.primary) : "";
+      if (p1) {
+        setItemUrl(setItems, cur.abs, p1);
+        continue;
+      }
+      const p2 = cur.alt ? await downloadToBlobUrl(bucket, cur.alt) : "";
+      if (p2) {
+        setItemUrl(setItems, cur.abs, p2);
+        continue;
+      }
+      // If all failed, leave empty; card still works (opens detail page)
+    }
+  });
+  await Promise.all(workers);
+}
+
+// ------------------------------------------------------------------------
 
 export default function HomePage() {
   const router = useRouter();
@@ -120,7 +198,7 @@ export default function HomePage() {
   const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
   const [location, setLocation] = useState("");
-  const [contactPref, setContactPref] = useState("researchers_and_members"); // "researchers_and_members" | "researchers_only" | "members_only"
+  const [contactPref, setContactPref] = useState("researchers_and_members");
   const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
@@ -164,7 +242,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // Derive first name for greeting (from auth metadata or email local-part)
+  // Derive first name for greeting
   const firstName = useMemo(() => {
     const m = user?.user_metadata?.first_name?.trim();
     if (m) return m;
@@ -223,13 +301,18 @@ export default function HomePage() {
       return;
     }
 
-    const batch = data || [];
-    const enriched = await enrichWithDisplayUrls(batch, user.id);
+    const batch = (data || []).map((r) => ({ ...r, display_url: "" }));
+    const startIndex = items.length;
 
-    setItems((prev) => [...prev, ...enriched]);
+    // 1) Show the grid immediately with placeholders
+    setItems((prev) => [...prev, ...batch]);
     setOffset((prev) => prev + batch.length);
     setGalleryStatus("");
     setLoading(false);
+
+    // 2) Resolve URLs in the background (non-blocking)
+    //    We assume bucket "images". If your bucket differs, the alt path + public/download fallbacks still try to recover.
+    resolveUrlsInBackground(setItems, startIndex, batch, "images", user.id);
   }
 
   // Initial gallery load
@@ -734,20 +817,6 @@ export default function HomePage() {
         </div>
       </form>
 
-      {/* Gallery status (initial) */}
-      {galleryStatus && items.length === 0 ? (
-        <div
-          style={{
-            padding: 12,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            marginBottom: 12,
-          }}
-        >
-          {galleryStatus}
-        </div>
-      ) : null}
-
       {/* Small CSV button right above the gallery, with hover explanation */}
       <div style={{ margin: "4px 0 10px" }}>
         <button
@@ -769,6 +838,20 @@ export default function HomePage() {
           Export CSV
         </button>
       </div>
+
+      {/* Gallery status (initial) */}
+      {galleryStatus && items.length === 0 ? (
+        <div
+          style={{
+            padding: 12,
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          {galleryStatus}
+        </div>
+      ) : null}
 
       {/* Gallery grid */}
       {items.length > 0 ? (
@@ -812,7 +895,22 @@ export default function HomePage() {
                       display: "block",
                     }}
                   />
-                ) : null}
+                ) : (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 160,
+                      background: "#f1f5f9",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#64748b",
+                      fontSize: 12,
+                    }}
+                  >
+                    Preview loading…
+                  </div>
+                )}
                 <div style={{ padding: 10 }}>
                   <div
                     style={{
@@ -823,7 +921,9 @@ export default function HomePage() {
                     }}
                   >
                     {row.category ? <Badge>{row.category}</Badge> : null}
-                    {cardColorBadge(row)}
+                    {row.category === "Blebs (clear to brown)" && row.bleb_color ? (
+                      <Badge>Color: {row.bleb_color}</Badge>
+                    ) : null}
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.8 }}>
                     {prettyDate(row.created_at)}
@@ -901,5 +1001,6 @@ export default function HomePage() {
     </main>
   );
 }
+
 
 
