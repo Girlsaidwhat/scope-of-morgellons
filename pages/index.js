@@ -13,8 +13,8 @@ const supabase = createClient(
 );
 
 const PAGE_SIZE = 24;
-// Cache-bust marker to ensure a fresh JS chunk deploys
-const INDEX_BUILD = "idx-36.149";
+// Cache-bust marker for a fresh JS chunk
+const INDEX_BUILD = "idx-36.150";
 
 function prettyDate(s) {
   try {
@@ -38,6 +38,66 @@ function Badge({ children }) {
       {children}
     </span>
   );
+}
+
+// Batch-get signed URLs; fallback to direct download (auth) and lastly public URL.
+async function enrichWithDisplayUrls(rows) {
+  const valid = rows.filter((r) => !!r.storage_path);
+  const paths = valid.map((r) => r.storage_path);
+
+  // Try batch signed URLs (1 hour)
+  let signed = [];
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from("images")
+      .createSignedUrls(paths, 60 * 60);
+    if (!error && Array.isArray(data)) signed = data;
+  } catch {
+    // ignore; we'll fall back per-item
+  }
+
+  const byPath = new Map();
+  if (signed.length === paths.length) {
+    paths.forEach((p, i) => {
+      const u = signed[i]?.signedUrl || "";
+      if (u) byPath.set(p, u);
+    });
+  }
+
+  // Fill each row with a display_url (signed, or download blob, or public)
+  const enriched = await Promise.all(
+    rows.map(async (r) => {
+      let url = "";
+      if (r.storage_path) {
+        url = byPath.get(r.storage_path) || "";
+        if (!url) {
+          // Fallback: authenticated download -> blob URL
+          try {
+            const { data: file, error: dErr } = await supabase
+              .storage
+              .from("images")
+              .download(r.storage_path);
+            if (!dErr && file) {
+              url = URL.createObjectURL(file);
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (!url) {
+          // Last resort: public URL (works only if bucket/object is public)
+          const { data: pub } = supabase.storage
+            .from("images")
+            .getPublicUrl(r.storage_path);
+          url = pub?.publicUrl || "";
+        }
+      }
+      return { ...r, display_url: url };
+    })
+  );
+
+  return enriched;
 }
 
 export default function HomePage() {
@@ -64,6 +124,20 @@ export default function HomePage() {
 
   // Per-card "copied!" feedback
   const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
+
+  // Cleanup blob: URLs on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        items.forEach((row) => {
+          if (row?.display_url && String(row.display_url).startsWith("blob:")) {
+            URL.revokeObjectURL(row.display_url);
+          }
+        });
+      } catch {}
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load user (session)
   useEffect(() => {
@@ -142,7 +216,9 @@ export default function HomePage() {
     }
 
     const batch = data || [];
-    setItems((prev) => [...prev, ...batch]);
+    const enriched = await enrichWithDisplayUrls(batch);
+
+    setItems((prev) => [...prev, ...enriched]);
     setOffset((prev) => prev + batch.length);
     setGalleryStatus("");
     setLoading(false);
@@ -215,7 +291,6 @@ export default function HomePage() {
     if (!user?.id) return;
     let canceled = false;
     (async () => {
-      // Use "*" to avoid unknown-column errors on select
       const { data, error } = await supabase
         .from("user_profile")
         .select("*")
@@ -224,19 +299,16 @@ export default function HomePage() {
 
       if (canceled) return;
 
-      // If no row yet, that's fine; leave defaults
       if (error && error.code === "PGRST116") {
-        setProfileStatus(""); // no row; no error shown
+        setProfileStatus("");
         return;
       }
-      // Any other error: show once
       if (error) {
         setProfileStatus(`Profile load error: ${error.message}`);
         return;
       }
       const d = data || {};
 
-      // Map common column names gracefully
       setInitials(d.uploader_initials ?? d.initials ?? "");
       setFirstNameField(d.first_name ?? d.uploader_first_name ?? "");
       setLastNameField(d.last_name ?? d.uploader_last_name ?? "");
@@ -247,7 +319,6 @@ export default function HomePage() {
 
       setLocation(d.uploader_location ?? d.location ?? "");
 
-      // Contact preference: prefer string enum; else derive from boolean
       if (typeof d.contact_preference === "string") {
         const v = d.contact_preference;
         if (
@@ -260,7 +331,6 @@ export default function HomePage() {
       } else {
         const opt =
           d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
-        // If only boolean exists, treat "false" as members-only; "true" as researchers & members
         if (opt === false) setContactPref("members_only");
         if (opt === true) setContactPref("researchers_and_members");
       }
@@ -278,23 +348,19 @@ export default function HomePage() {
     setProfileStatus("Saving...");
 
     try {
-      // 1) Ensure a row exists for this user_id
       await supabase
         .from("user_profile")
         .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
-      // 2) Prepare candidate columns across possible schemas
       const ageVal =
         age === "" || age === null || typeof age === "undefined"
           ? null
           : Number(age);
 
-      // Map contactPref to legacy boolean if needed
       const researchersAllowed =
         contactPref === "researchers_and_members" ||
         contactPref === "researchers_only";
 
-      // Update each column individually; ignore "column not found" style errors
       const updates = [
         ["uploader_initials", initials || null],
         ["initials", initials || null],
@@ -708,14 +774,7 @@ export default function HomePage() {
           }}
         >
           {items.map((row) => {
-            // Build a public URL from storage_path if present
-            let publicUrl = "";
-            if (row.storage_path) {
-              const { data: pub } = supabase.storage
-                .from("images")
-                .getPublicUrl(row.storage_path);
-              publicUrl = pub?.publicUrl || "";
-            }
+            const url = row.display_url || "";
             const copied = !!copiedMap[row.id];
             return (
               <a
@@ -734,9 +793,9 @@ export default function HomePage() {
                 aria-label={`Open details for ${row.filename || row.id}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {publicUrl ? (
+                {url ? (
                   <img
-                    src={publicUrl}
+                    src={url}
                     alt={row.filename || row.storage_path || "image"}
                     style={{
                       width: "100%",
@@ -763,10 +822,10 @@ export default function HomePage() {
                   </div>
 
                   {/* Card actions */}
-                  {publicUrl ? (
+                  {url ? (
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                       <button
-                        onClick={(e) => handleCopy(e, publicUrl, row.id)}
+                        onClick={(e) => handleCopy(e, url, row.id)}
                         aria-label={`Copy public link for ${row.filename || row.id}`}
                         style={{
                           padding: "6px 10px",
@@ -782,7 +841,7 @@ export default function HomePage() {
                         {copied ? "Link copied!" : "Copy image link"}
                       </button>
                       <button
-                        onClick={(e) => handleOpen(e, publicUrl)}
+                        onClick={(e) => handleOpen(e, url)}
                         aria-label={`Open ${row.filename || row.id} in a new tab`}
                         style={{
                           padding: "6px 10px",
