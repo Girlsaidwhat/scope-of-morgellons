@@ -2,7 +2,7 @@
 // Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
 // Uses Supabase v2. No guest sign-in UI here (that stays in _app.js).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -214,6 +214,9 @@ export default function HomePage() {
   // Per-card "copied!" feedback
   const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
 
+  // One-shot retry guard for image onError (prevents loops)
+  const retrySetRef = useRef(new Set());
+
   // Cleanup blob: URLs on unmount
   useEffect(() => {
     return () => {
@@ -262,6 +265,7 @@ export default function HomePage() {
     setCount(null);
     setGalleryStatus("");
     setCopiedMap({});
+    retrySetRef.current = new Set(); // reset retry guard on user change
   }, [user?.id]);
 
   // Fetch total count
@@ -563,6 +567,38 @@ export default function HomePage() {
       await supabase.auth.signOut();
     } finally {
       router.push("/");
+    }
+  }
+
+  // One-shot image error handler: re-signs a fresh URL, then updates that card
+  async function handleImgError(rowId, absIndex, storagePath, filename, rowUserId) {
+    try {
+      if (!rowId && rowId !== 0) return;
+      const tried = retrySetRef.current;
+      if (tried.has(rowId)) return; // guard: only try once
+      tried.add(rowId);
+
+      const bucket = "images";
+      const primary = normalizePath(storagePath || "");
+      const alt = filename ? normalizePath(`${rowUserId || user?.id || ""}/${filename}`) : "";
+
+      let newUrl = "";
+
+      // Try re-signing primary then alt
+      if (!newUrl && primary) newUrl = await singleSignedUrl(bucket, primary);
+      if (!newUrl && alt)     newUrl = await singleSignedUrl(bucket, alt);
+
+      // Fall back to public URLs
+      if (!newUrl && alt)     newUrl = publicUrl(bucket, alt);
+      if (!newUrl && primary) newUrl = publicUrl(bucket, primary);
+
+      // Last resort: blob downloads
+      if (!newUrl && primary) newUrl = await downloadToBlobUrl(bucket, primary);
+      if (!newUrl && alt)     newUrl = await downloadToBlobUrl(bucket, alt);
+
+      if (newUrl) setItemUrl(setItems, absIndex, newUrl);
+    } catch {
+      // swallow; placeholder remains
     }
   }
 
@@ -894,7 +930,7 @@ export default function HomePage() {
             gap: 12,
           }}
         >
-          {items.map((row) => {
+          {items.map((row, i) => {
             const url = row.display_url || "";
             const copied = !!copiedMap[row.id];
             return (
@@ -924,6 +960,15 @@ export default function HomePage() {
                       objectFit: "cover",
                       display: "block",
                     }}
+                    onError={() =>
+                      handleImgError(
+                        row.id,
+                        i,
+                        row.storage_path,
+                        row.filename,
+                        row.user_id
+                      )
+                    }
                   />
                 ) : (
                   <div
@@ -1031,6 +1076,3 @@ export default function HomePage() {
     </main>
   );
 }
-
-
-
