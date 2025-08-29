@@ -1,5 +1,5 @@
 ﻿// pages/index.js
-// Restored Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
+// Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
 // Uses Supabase v2. No guest sign-in UI here (that stays in _app.js).
 
 import { useEffect, useMemo, useState } from "react";
@@ -13,6 +13,8 @@ const supabase = createClient(
 );
 
 const PAGE_SIZE = 24;
+// Cache-bust marker to ensure a fresh JS chunk deploys
+const INDEX_BUILD = "idx-36.147";
 
 function prettyDate(s) {
   try {
@@ -44,7 +46,7 @@ export default function HomePage() {
   // Auth/user
   const [user, setUser] = useState(null);
 
-  // Profile form (schema fields kept as-is for now)
+  // Profile form (schema as-is for now)
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
   const [location, setLocation] = useState("");
@@ -137,7 +139,7 @@ export default function HomePage() {
       return;
     }
 
-    const batch = data || [];
+    const batch = (data || []);
     setItems((prev) => [...prev, ...batch]);
     setOffset((prev) => prev + batch.length);
     setGalleryStatus("");
@@ -307,6 +309,7 @@ export default function HomePage() {
   return (
     <main
       id="main"
+      data-index-build={INDEX_BUILD}
       tabIndex={-1}
       style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
     >
@@ -472,14 +475,15 @@ export default function HomePage() {
             type="submit"
             aria-label="Save profile"
             style={{
-              padding: "8px 12px", // smaller button
+              padding: "8px 12px",            // smaller button (Pair A)
               borderRadius: 8,
               border: "1px solid #0f766e",
               background: "#14b8a6",
               color: "white",
               fontWeight: 600,
               cursor: "pointer",
-              fontSize: 12, // slightly smaller text
+              fontSize: 12,                   // smaller text
+              whiteSpace: "nowrap",           // keep on one line
             }}
           >
             Save Profile
