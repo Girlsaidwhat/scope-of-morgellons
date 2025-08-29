@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.155";
+const INDEX_BUILD = "idx-36.156";
 
 function prettyDate(s) {
   try {
@@ -181,6 +181,10 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
     }
   });
   await Promise.all(workers);
+}
+
+function nonEmpty(v) {
+  return typeof v === "string" && v.trim().length > 0;
 }
 
 // ------------------------------------------------------------------------
@@ -389,6 +393,13 @@ export default function HomePage() {
       if (canceled) return;
 
       if (error && error.code === "PGRST116") {
+        // No row yet; fall back to auth metadata for names
+        if (nonEmpty(user?.user_metadata?.first_name)) {
+          setFirstNameField(user.user_metadata.first_name);
+        }
+        if (nonEmpty(user?.user_metadata?.last_name)) {
+          setLastNameField(user.user_metadata.last_name);
+        }
         setProfileStatus("");
         return;
       }
@@ -399,8 +410,12 @@ export default function HomePage() {
       const d = data || {};
 
       setInitials(d.uploader_initials ?? d.initials ?? "");
-      setFirstNameField(d.first_name ?? d.uploader_first_name ?? "");
-      setLastNameField(d.last_name ?? d.uploader_last_name ?? "");
+
+      // Names: prefer DB values, otherwise fall back to auth metadata
+      const dbFirst = d.first_name ?? d.uploader_first_name ?? "";
+      const dbLast = d.last_name ?? d.uploader_last_name ?? "";
+      setFirstNameField(nonEmpty(dbFirst) ? dbFirst : (user?.user_metadata?.first_name || ""));
+      setLastNameField(nonEmpty(dbLast) ? dbLast : (user?.user_metadata?.last_name || ""));
 
       const ageSrc =
         d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
@@ -428,19 +443,33 @@ export default function HomePage() {
     return () => {
       canceled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // ---------- Profile: save (save to both standard and uploader_* name fields) ----------
+  // ---------- Profile: save (save to auth.user_metadata + DB columns as fallback) ----------
   async function saveProfile(e) {
     e.preventDefault();
     if (!user?.id) return;
     setProfileStatus("Saving...");
 
     try {
+      // 0) Ensure row exists
       await supabase
         .from("user_profile")
         .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
+      // 1) Update auth metadata (reliable persistence across sessions)
+      const metaPayload = {
+        first_name: nonEmpty(firstNameField) ? firstNameField : null,
+        last_name: nonEmpty(lastNameField) ? lastNameField : null,
+      };
+      const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
+      if (metaErr) {
+        // Non-fatal: continue to DB updates
+        console.warn("auth.updateUser error:", metaErr?.message);
+      }
+
+      // 2) DB updates (best-effort, tolerant to missing columns)
       const ageVal =
         age === "" || age === null || typeof age === "undefined"
           ? null
@@ -454,11 +483,11 @@ export default function HomePage() {
         ["uploader_initials", initials || null],
         ["initials", initials || null],
 
-        // Save to both name field styles:
-        ["first_name", firstNameField || null],
-        ["uploader_first_name", firstNameField || null],
-        ["last_name", lastNameField || null],
-        ["uploader_last_name", lastNameField || null],
+        // Names to both styles (if columns exist)
+        ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
+        ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
+        ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
+        ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
 
         ["uploader_age", ageVal],
         ["age", ageVal],
@@ -470,8 +499,6 @@ export default function HomePage() {
       ];
 
       for (const [col, val] of updates) {
-        if (typeof val === "undefined") continue;
-
         const { error } = await supabase
           .from("user_profile")
           .update({ [col]: val })
@@ -1004,5 +1031,6 @@ export default function HomePage() {
     </main>
   );
 }
+
 
 
