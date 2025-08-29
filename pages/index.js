@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker to ensure a fresh JS chunk deploys
-const INDEX_BUILD = "idx-36.148";
+const INDEX_BUILD = "idx-36.149";
 
 function prettyDate(s) {
   try {
@@ -240,9 +240,11 @@ export default function HomePage() {
       setInitials(d.uploader_initials ?? d.initials ?? "");
       setFirstNameField(d.first_name ?? d.uploader_first_name ?? "");
       setLastNameField(d.last_name ?? d.uploader_last_name ?? "");
-      setAge(
-        d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? "" // try a few common variants
-      );
+
+      const ageSrc =
+        d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
+      setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
+
       setLocation(d.uploader_location ?? d.location ?? "");
 
       // Contact preference: prefer string enum; else derive from boolean
@@ -269,7 +271,7 @@ export default function HomePage() {
     };
   }, [user?.id]);
 
-  // ---------- Profile: save (schema-tolerant, no unknown-column errors) ----------
+  // ---------- Profile: save (schema-tolerant, ignore unknown-column errors) ----------
   async function saveProfile(e) {
     e.preventDefault();
     if (!user?.id) return;
@@ -292,7 +294,7 @@ export default function HomePage() {
         contactPref === "researchers_and_members" ||
         contactPref === "researchers_only";
 
-      // Update each column individually; ignore "column does not exist" errors
+      // Update each column individually; ignore "column not found" style errors
       const updates = [
         ["uploader_initials", initials || null],
         ["initials", initials || null],
@@ -308,7 +310,6 @@ export default function HomePage() {
       ];
 
       for (const [col, val] of updates) {
-        // Skip undefined to avoid accidental PATCH of undefined
         if (typeof val === "undefined") continue;
 
         const { error } = await supabase
@@ -317,11 +318,15 @@ export default function HomePage() {
           .eq("user_id", user.id);
 
         if (error) {
-          // Ignore unknown-column errors; surface anything else
-          const msg = (error.message || "").toLowerCase();
-          if (msg.includes("column") && msg.includes("does not exist")) {
-            continue;
-          }
+          const raw = error.message || "";
+          const msg = raw.toLowerCase();
+          const ignorable =
+            msg.includes("does not exist") ||
+            msg.includes("could not find") ||
+            msg.includes("schema cache") ||
+            (msg.includes("unknown") && msg.includes("column")) ||
+            (msg.includes("column") && msg.includes("not found"));
+          if (ignorable) continue;
           throw error;
         }
       }
@@ -486,7 +491,7 @@ export default function HomePage() {
             value={initials}
             onChange={(e) => setInitials(e.target.value)}
             style={{
-              width: 90, // small box as requested
+              width: 90,
               padding: 8,
               border: "1px solid #ccc",
               borderRadius: 6,
@@ -579,9 +584,9 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Contact preference (3 options) */}
+        {/* Contact opt-in (3 options) */}
         <fieldset
-          aria-label="Contact preference"
+          aria-label="Contact opt-in"
           style={{
             border: "1px solid #e5e5e5",
             borderRadius: 8,
@@ -589,7 +594,7 @@ export default function HomePage() {
           }}
         >
           <legend style={{ fontSize: 12, padding: "0 6px" }}>
-            Contact preference
+            Contact opt-in
           </legend>
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
@@ -631,7 +636,7 @@ export default function HomePage() {
             type="submit"
             aria-label="Save profile"
             style={{
-              padding: "8px 12px", // small
+              padding: "8px 12px",
               borderRadius: 8,
               border: "1px solid #0f766e",
               background: "#14b8a6",
