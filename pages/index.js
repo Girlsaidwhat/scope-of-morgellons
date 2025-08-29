@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.152";
+const INDEX_BUILD = "idx-36.153";
 
 function prettyDate(s) {
   try {
@@ -40,34 +40,69 @@ function Badge({ children }) {
   );
 }
 
-// Prefer authenticated download (blob URL) for reliability, then signed, then public
-async function displayUrlFor(path) {
-  if (!path) return "";
-  // 1) Authenticated download -> blob URL (works with private buckets and user policies)
+// --- Path helpers ------------------------------------------------------------
+function normalizePath(p) {
+  if (!p) return "";
+  let s = String(p).trim();
+  // Strip bucket prefix if accidentally stored (e.g., "images/user/filename")
+  if (s.startsWith("images/")) s = s.slice("images/".length);
+  // Strip any leading slash
+  if (s.startsWith("/")) s = s.slice(1);
+  return s;
+}
+
+async function tryDownload(path) {
   try {
     const { data: file, error } = await supabase.storage.from("images").download(path);
-    if (!error && file) {
-      return URL.createObjectURL(file);
-    }
-  } catch {}
-  // 2) Signed URL
-  try {
-    const { data, error } = await supabase.storage.from("images").createSignedUrl(path, 60 * 60);
-    if (!error && data?.signedUrl) return data.signedUrl;
-  } catch {}
-  // 3) Public URL (only if bucket/object is public)
-  try {
-    const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
-    return pub?.publicUrl || "";
+    if (!error && file) return URL.createObjectURL(file); // blob: URL
   } catch {}
   return "";
 }
 
-// Enrich rows with display_url
-async function enrichWithDisplayUrls(rows) {
+async function trySigned(path) {
+  try {
+    const { data, error } = await supabase.storage.from("images").createSignedUrl(path, 60 * 60);
+    if (!error && data?.signedUrl) return data.signedUrl;
+  } catch {}
+  return "";
+}
+
+function tryPublic(path) {
+  try {
+    const { data: pub } = supabase.storage.from("images").getPublicUrl(path);
+    return pub?.publicUrl || "";
+  } catch {
+    return "";
+  }
+}
+
+async function bestUrlForCandidates(candidates) {
+  // Normalize and de-dup
+  const paths = [...new Set(candidates.map(normalizePath).filter(Boolean))];
+  for (const p of paths) {
+    // 1) Download (blob) is most reliable for private buckets
+    const d = await tryDownload(p);
+    if (d) return d;
+    // 2) Signed URL
+    const s = await trySigned(p);
+    if (s) return s;
+    // 3) Public URL
+    const u = tryPublic(p);
+    if (u) return u;
+  }
+  return "";
+}
+
+// Build a display URL for each row by trying: storage_path, then user_id/filename,
+// then currentUserId/filename (as a last-resort reconstruction).
+async function enrichWithDisplayUrls(rows, currentUserId) {
   const enriched = [];
   for (const r of rows) {
-    const url = await displayUrlFor(r.storage_path);
+    const cands = [];
+    if (r.storage_path) cands.push(r.storage_path);
+    if (r.user_id && r.filename) cands.push(`${r.user_id}/${r.filename}`);
+    if (currentUserId && r.filename) cands.push(`${currentUserId}/${r.filename}`);
+    const url = await bestUrlForCandidates(cands);
     enriched.push({ ...r, display_url: url });
   }
   return enriched;
@@ -98,7 +133,7 @@ export default function HomePage() {
   // Per-card "copied!" feedback
   const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
 
-  // Cleanup blob: URLs on unmount or when items change
+  // Cleanup blob: URLs on unmount
   useEffect(() => {
     return () => {
       try {
@@ -177,7 +212,7 @@ export default function HomePage() {
 
     const { data, error } = await supabase
       .from("image_metadata")
-      .select("id, storage_path, filename, category, bleb_color, created_at")
+      .select("id, user_id, storage_path, filename, category, bleb_color, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
@@ -189,7 +224,7 @@ export default function HomePage() {
     }
 
     const batch = data || [];
-    const enriched = await enrichWithDisplayUrls(batch);
+    const enriched = await enrichWithDisplayUrls(batch, user.id);
 
     setItems((prev) => [...prev, ...enriched]);
     setOffset((prev) => prev + batch.length);
@@ -866,4 +901,5 @@ export default function HomePage() {
     </main>
   );
 }
+
 
