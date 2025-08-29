@@ -329,7 +329,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Actions row */}
+      {/* Actions row (left: Uploads, right: Sign out) */}
       <div
         style={{
           display: "flex",
@@ -337,7 +337,7 @@ export default function HomePage() {
           alignItems: "center",
           marginBottom: 12,
           gap: 8,
-          flexWrap: "wrap", // allow wrapping to prevent overlap on narrow screens
+          flexWrap: "wrap",
         }}
       >
         <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
@@ -349,27 +349,11 @@ export default function HomePage() {
           style={{
             display: "flex",
             gap: 8,
-            flexWrap: "wrap", // let Export CSV and Sign out stack if needed
+            flexWrap: "wrap",
             justifyContent: "flex-end",
             maxWidth: "100%",
           }}
         >
-          <button
-            onClick={exportCSV}
-            aria-label="Export all image metadata to CSV"
-            style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #1e293b",
-              background: "#1f2937",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}
-          >
-            Export CSV
-          </button>
           <button
             onClick={handleSignOut}
             aria-label="Sign out"
@@ -526,6 +510,28 @@ export default function HomePage() {
           {galleryStatus}
         </div>
       ) : null}
+
+      {/* Small CSV button right above the gallery */}
+      <div style={{ margin: "4px 0 10px" }}>
+        <button
+          onClick={exportCSV}
+          aria-label="Export all image metadata to CSV"
+          style={{
+            padding: "6px 10px", // smaller than before
+            borderRadius: 8,
+            border: "1px solid #1e293b",
+            background: "#1f2937",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600,
+            fontSize: 12, // slightly smaller text
+            whiteSpace: "nowrap",
+          }}
+          title="Export CSV"
+        >
+          Export CSV
+        </button>
+      </div>
 
       {/* Gallery grid */}
       {items.length > 0 ? (
