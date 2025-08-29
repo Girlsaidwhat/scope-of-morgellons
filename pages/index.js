@@ -44,7 +44,7 @@ export default function HomePage() {
   // Auth/user
   const [user, setUser] = useState(null);
 
-  // Profile form (mapped to current schema uploader_* to match RLS policies)
+  // Profile form (schema fields kept as-is for now)
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
   const [location, setLocation] = useState("");
@@ -78,7 +78,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // Derive first name (prefer user_metadata.first_name; fallback from email)
+  // Derive first name
   const firstName = useMemo(() => {
     const m = user?.user_metadata?.first_name?.trim();
     if (m) return m;
@@ -88,7 +88,7 @@ export default function HomePage() {
     return piece ? piece[0].toUpperCase() + piece.slice(1) : "";
   }, [user]);
 
-  // Reset gallery when user changes (or after sign-in)
+  // Reset gallery when user changes
   useEffect(() => {
     setItems([]);
     setOffset(0);
@@ -97,7 +97,7 @@ export default function HomePage() {
     setCopiedMap({});
   }, [user?.id]);
 
-  // Fetch total count (header)
+  // Fetch total count
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -108,7 +108,7 @@ export default function HomePage() {
         .eq("user_id", user.id);
       if (canceled) return;
       if (error) {
-        setCount(null); // unknown; do not block UI
+        setCount(null);
         return;
       }
       setCount(typeof total === "number" ? total : null);
@@ -157,7 +157,7 @@ export default function HomePage() {
     if (loading) return false;
     if (items.length === 0) return false;
     if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0; // unknown count: offer more if the last page was full
+    return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
   // CSV export (all rows for signed-in user)
@@ -238,7 +238,7 @@ export default function HomePage() {
     };
   }, [user?.id]);
 
-  // Save profile (current schema fields)
+  // Save profile
   async function saveProfile(e) {
     e.preventDefault();
     if (!user?.id) return;
@@ -294,7 +294,6 @@ export default function HomePage() {
   }
 
   async function handleSignOut() {
-    // Sign out and route to "/"
     try {
       await supabase.auth.signOut();
     } finally {
@@ -303,7 +302,6 @@ export default function HomePage() {
   }
 
   // If session not ready or not signed in, render nothing here.
-  // _app.js controls the sign-in screen on "/".
   if (!user) return null;
 
   return (
@@ -344,7 +342,6 @@ export default function HomePage() {
           Go to Uploads
         </Link>
 
-        {/* Right-side grouped actions */}
         <div
           style={{
             display: "flex",
@@ -475,13 +472,14 @@ export default function HomePage() {
             type="submit"
             aria-label="Save profile"
             style={{
-              padding: "10px 14px",
+              padding: "8px 12px", // smaller button
               borderRadius: 8,
               border: "1px solid #0f766e",
               background: "#14b8a6",
               color: "white",
               fontWeight: 600,
               cursor: "pointer",
+              fontSize: 12, // slightly smaller text
             }}
           >
             Save Profile
@@ -511,23 +509,23 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* Small CSV button right above the gallery */}
+      {/* Small CSV button right above the gallery, with hover explanation */}
       <div style={{ margin: "4px 0 10px" }}>
         <button
           onClick={exportCSV}
           aria-label="Export all image metadata to CSV"
+          title="Download a CSV of your gallery’s details (filenames, categories, notes, and more)."
           style={{
-            padding: "6px 10px", // smaller than before
+            padding: "6px 10px",
             borderRadius: 8,
             border: "1px solid #1e293b",
             background: "#1f2937",
             color: "white",
             cursor: "pointer",
             fontWeight: 600,
-            fontSize: 12, // slightly smaller text
+            fontSize: 12,
             whiteSpace: "nowrap",
           }}
-          title="Export CSV"
         >
           Export CSV
         </button>
