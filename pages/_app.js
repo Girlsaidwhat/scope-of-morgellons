@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.140_2025-08-27
+// Build 36.141_2025-08-29
 import "../styles/globals.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.140_2025-08-27";
+export const BUILD_VERSION = "Build 36.141_2025-08-29";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -20,7 +20,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 48, // keep above Windows taskbar
+    bottom: 48,
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -65,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (yours, preserved) */
+/** Canonical sign-in screen */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
@@ -128,7 +128,6 @@ function AuthScreen() {
   };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
-  // v2 sign-in with on-demand client fallback
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
@@ -191,7 +190,6 @@ function AuthScreen() {
             fontWeight: 600,
             color: "#333",
             textAlign: "center",
-            marginLeft: 0,
             marginBottom: 0,
             letterSpacing: 0.2,
             lineHeight: 1.0,
@@ -322,12 +320,173 @@ function AuthScreen() {
   );
 }
 
+/** Create-new-password screen shown after clicking the reset link */
+function ResetPasswordScreen({ onDone }) {
+  const router = useRouter();
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const passRef = useRef(null);
+
+  useEffect(() => {
+    passRef.current?.focus();
+  }, []);
+
+  const pageWrap = {
+    maxWidth: 980,
+    margin: "24px auto",
+    padding: "0 12px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  };
+  const formStyle = {
+    display: "grid",
+    gap: 10,
+    width: "100%",
+    maxWidth: 360,
+    margin: "0 auto",
+  };
+  const input = {
+    width: 300,
+    padding: "10px 12px",
+    border: "1px solid #ccc",
+    borderRadius: 8,
+    fontSize: 14,
+  };
+  const btn = {
+    padding: "10px 14px",
+    border: "1px solid #111",
+    borderRadius: 8,
+    background: "#111",
+    color: "#fff",
+    cursor: "pointer",
+    fontSize: 14,
+  };
+  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
+
+  async function handleSubmit(e) {
+    e.preventDefault?.();
+    setErr("");
+    if (!p1 || !p2) {
+      setErr("Enter your new password in both fields.");
+      return;
+    }
+    if (p1 !== p2) {
+      setErr("Passwords do not match.");
+      return;
+    }
+    if (p1.length < 8) {
+      setErr("Password must be at least 8 characters.");
+      return;
+    }
+    setMsg("Updating password…");
+    try {
+      const sb =
+        supabase ||
+        createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+        );
+      const { error } = await sb.auth.updateUser({ password: p1 });
+      if (error) throw error;
+      setMsg("Password updated.");
+      await sb.auth.signOut();
+      onDone?.();
+      router.replace("/");
+    } catch (e) {
+      setMsg("");
+      setErr(e?.message || "Could not update password.");
+    }
+  }
+
+  return (
+    <main id="main" aria-label="Create new password" style={pageWrap}>
+      <h1 style={{ margin: "0 0 12px" }}>Create new password</h1>
+      <form onSubmit={handleSubmit} style={formStyle} aria-labelledby="reset-heading">
+        <label>
+          <span style={{ display: "block", marginBottom: 6 }}>New password</span>
+          <input
+            ref={passRef}
+            type="password"
+            value={p1}
+            onChange={(e) => setP1(e.target.value)}
+            autoComplete="new-password"
+            required
+            style={input}
+          />
+        </label>
+        <label>
+          <span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span>
+          <input
+            type="password"
+            value={p2}
+            onChange={(e) => setP2(e.target.value)}
+            autoComplete="new-password"
+            required
+            style={input}
+          />
+        </label>
+        <button type="submit" style={btn} aria-label="Update password">
+          Update password
+        </button>
+        <p aria-live="polite" style={statusStyle}>
+          {msg}
+        </p>
+        {err ? (
+          <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
+            {err}
+          </div>
+        ) : null}
+      </form>
+    </main>
+  );
+}
+
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
+  // Reset-mode detection: route, hash, and Supabase event
+  const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
+  const [resetMode, setResetMode] = useState(isResetPath);
+
+  useEffect(() => {
+    if (isResetPath) setResetMode(true);
+  }, [isResetPath]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setResetMode(true);
+      }
+    });
+    return () => sub?.subscription?.unsubscribe?.();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash || "";
+    const q = window.location.search || "";
+    if (hash.includes("type=recovery") || q.includes("type=recovery")) {
+      setResetMode(true);
+    }
+  }, []);
+
   if (checking) {
     return <BuildBadge />;
+  }
+
+  // If in reset mode, always show Create-new-password screen
+  if (resetMode) {
+    return (
+      <>
+        <ResetPasswordScreen onDone={() => setResetMode(false)} />
+        <BuildBadge />
+      </>
+    );
   }
 
   // Single source of truth: when logged out on "/", show Auth; otherwise render page
