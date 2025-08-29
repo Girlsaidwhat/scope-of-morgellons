@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker to ensure a fresh JS chunk deploys
-const INDEX_BUILD = "idx-36.147";
+const INDEX_BUILD = "idx-36.148";
 
 function prettyDate(s) {
   try {
@@ -46,11 +46,13 @@ export default function HomePage() {
   // Auth/user
   const [user, setUser] = useState(null);
 
-  // Profile form (schema as-is for now)
+  // Profile form (schema-tolerant)
   const [initials, setInitials] = useState("");
+  const [firstNameField, setFirstNameField] = useState("");
+  const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
   const [location, setLocation] = useState("");
-  const [contactOptIn, setContactOptIn] = useState(false);
+  const [contactPref, setContactPref] = useState("researchers_and_members"); // "researchers_and_members" | "researchers_only" | "members_only"
   const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
@@ -80,7 +82,7 @@ export default function HomePage() {
     };
   }, []);
 
-  // Derive first name
+  // Derive first name for greeting (from auth metadata or email local-part)
   const firstName = useMemo(() => {
     const m = user?.user_metadata?.first_name?.trim();
     if (m) return m;
@@ -139,7 +141,7 @@ export default function HomePage() {
       return;
     }
 
-    const batch = (data || []);
+    const batch = data || [];
     setItems((prev) => [...prev, ...batch]);
     setOffset((prev) => prev + batch.length);
     setGalleryStatus("");
@@ -208,58 +210,127 @@ export default function HomePage() {
     URL.revokeObjectURL(url);
   }
 
-  // Profile load (current schema fields)
+  // ---------- Profile: load (schema-tolerant) ----------
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
     (async () => {
+      // Use "*" to avoid unknown-column errors on select
       const { data, error } = await supabase
         .from("user_profile")
-        .select(
-          "uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
-        )
+        .select("*")
+        .eq("user_id", user.id)
         .single();
+
       if (canceled) return;
-      if (error && error.code !== "PGRST116") {
+
+      // If no row yet, that's fine; leave defaults
+      if (error && error.code === "PGRST116") {
+        setProfileStatus(""); // no row; no error shown
+        return;
+      }
+      // Any other error: show once
+      if (error) {
         setProfileStatus(`Profile load error: ${error.message}`);
         return;
       }
-      if (data) {
-        setInitials(data.uploader_initials || "");
-        setAge(
-          data.uploader_age === null || data.uploader_age === undefined
-            ? ""
-            : String(data.uploader_age)
-        );
-        setLocation(data.uploader_location || "");
-        setContactOptIn(!!data.uploader_contact_opt_in);
+      const d = data || {};
+
+      // Map common column names gracefully
+      setInitials(d.uploader_initials ?? d.initials ?? "");
+      setFirstNameField(d.first_name ?? d.uploader_first_name ?? "");
+      setLastNameField(d.last_name ?? d.uploader_last_name ?? "");
+      setAge(
+        d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? "" // try a few common variants
+      );
+      setLocation(d.uploader_location ?? d.location ?? "");
+
+      // Contact preference: prefer string enum; else derive from boolean
+      if (typeof d.contact_preference === "string") {
+        const v = d.contact_preference;
+        if (
+          v === "researchers_and_members" ||
+          v === "researchers_only" ||
+          v === "members_only"
+        ) {
+          setContactPref(v);
+        }
+      } else {
+        const opt =
+          d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
+        // If only boolean exists, treat "false" as members-only; "true" as researchers & members
+        if (opt === false) setContactPref("members_only");
+        if (opt === true) setContactPref("researchers_and_members");
       }
+      setProfileStatus("");
     })();
     return () => {
       canceled = true;
     };
   }, [user?.id]);
 
-  // Save profile
+  // ---------- Profile: save (schema-tolerant, no unknown-column errors) ----------
   async function saveProfile(e) {
     e.preventDefault();
     if (!user?.id) return;
     setProfileStatus("Saving...");
-    const payload = {
-      uploader_initials: initials || null,
-      uploader_age: age === "" ? null : Number(age),
-      uploader_location: location || null,
-      uploader_contact_opt_in: contactOptIn,
-    };
-    const { error } = await supabase
-      .from("user_profile")
-      .upsert(payload, { onConflict: "user_id" });
-    if (error) {
-      setProfileStatus(`Save error: ${error.message}`);
-      return;
+
+    try {
+      // 1) Ensure a row exists for this user_id
+      await supabase
+        .from("user_profile")
+        .upsert({ user_id: user.id }, { onConflict: "user_id" });
+
+      // 2) Prepare candidate columns across possible schemas
+      const ageVal =
+        age === "" || age === null || typeof age === "undefined"
+          ? null
+          : Number(age);
+
+      // Map contactPref to legacy boolean if needed
+      const researchersAllowed =
+        contactPref === "researchers_and_members" ||
+        contactPref === "researchers_only";
+
+      // Update each column individually; ignore "column does not exist" errors
+      const updates = [
+        ["uploader_initials", initials || null],
+        ["initials", initials || null],
+        ["first_name", firstNameField || null],
+        ["last_name", lastNameField || null],
+        ["uploader_age", ageVal],
+        ["age", ageVal],
+        ["uploader_location", location || null],
+        ["location", location || null],
+        ["contact_preference", contactPref],
+        ["uploader_contact_opt_in", researchersAllowed],
+        ["contact_opt_in", researchersAllowed],
+      ];
+
+      for (const [col, val] of updates) {
+        // Skip undefined to avoid accidental PATCH of undefined
+        if (typeof val === "undefined") continue;
+
+        const { error } = await supabase
+          .from("user_profile")
+          .update({ [col]: val })
+          .eq("user_id", user.id);
+
+        if (error) {
+          // Ignore unknown-column errors; surface anything else
+          const msg = (error.message || "").toLowerCase();
+          if (msg.includes("column") && msg.includes("does not exist")) {
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      setProfileStatus("Profile saved.");
+      setTimeout(() => setProfileStatus(""), 1500);
+    } catch (err) {
+      setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
     }
-    setProfileStatus("Profile saved.");
-    setTimeout(() => setProfileStatus(""), 1500);
   }
 
   // Card helpers
@@ -401,6 +472,8 @@ export default function HomePage() {
         >
           Profile
         </h2>
+
+        {/* Initials (small box) */}
         <div>
           <label
             htmlFor="initials"
@@ -413,6 +486,27 @@ export default function HomePage() {
             value={initials}
             onChange={(e) => setInitials(e.target.value)}
             style={{
+              width: 90, // small box as requested
+              padding: 8,
+              border: "1px solid #ccc",
+              borderRadius: 6,
+            }}
+          />
+        </div>
+
+        {/* First name */}
+        <div>
+          <label
+            htmlFor="first_name"
+            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+          >
+            First name
+          </label>
+          <input
+            id="first_name"
+            value={firstNameField}
+            onChange={(e) => setFirstNameField(e.target.value)}
+            style={{
               width: "100%",
               padding: 8,
               border: "1px solid #ccc",
@@ -420,6 +514,29 @@ export default function HomePage() {
             }}
           />
         </div>
+
+        {/* Last name */}
+        <div>
+          <label
+            htmlFor="last_name"
+            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+          >
+            Last name
+          </label>
+          <input
+            id="last_name"
+            value={lastNameField}
+            onChange={(e) => setLastNameField(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 8,
+              border: "1px solid #ccc",
+              borderRadius: 6,
+            }}
+          />
+        </div>
+
+        {/* Age */}
         <div>
           <label
             htmlFor="age"
@@ -440,6 +557,8 @@ export default function HomePage() {
             }}
           />
         </div>
+
+        {/* Location */}
         <div>
           <label
             htmlFor="location"
@@ -459,31 +578,68 @@ export default function HomePage() {
             }}
           />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            id="optin"
-            type="checkbox"
-            checked={contactOptIn}
-            onChange={(e) => setContactOptIn(e.target.checked)}
-          />
-          <label htmlFor="optin" style={{ fontSize: 12 }}>
-            Contact opt-in
-          </label>
-        </div>
+
+        {/* Contact preference (3 options) */}
+        <fieldset
+          aria-label="Contact preference"
+          style={{
+            border: "1px solid #e5e5e5",
+            borderRadius: 8,
+            padding: 10,
+          }}
+        >
+          <legend style={{ fontSize: 12, padding: "0 6px" }}>
+            Contact preference
+          </legend>
+          <div style={{ display: "grid", gap: 6 }}>
+            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
+              <input
+                type="radio"
+                name="contact_preference"
+                value="researchers_and_members"
+                checked={contactPref === "researchers_and_members"}
+                onChange={(e) => setContactPref(e.target.value)}
+              />
+              <span>Researchers & members</span>
+            </label>
+            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
+              <input
+                type="radio"
+                name="contact_preference"
+                value="researchers_only"
+                checked={contactPref === "researchers_only"}
+                onChange={(e) => setContactPref(e.target.value)}
+              />
+              <span>Researchers only</span>
+            </label>
+            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
+              <input
+                type="radio"
+                name="contact_preference"
+                value="members_only"
+                checked={contactPref === "members_only"}
+                onChange={(e) => setContactPref(e.target.value)}
+              />
+              <span>Members only</span>
+            </label>
+          </div>
+        </fieldset>
+
+        {/* Save */}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="submit"
             aria-label="Save profile"
             style={{
-              padding: "8px 12px",            // smaller button (Pair A)
+              padding: "8px 12px", // small
               borderRadius: 8,
               border: "1px solid #0f766e",
               background: "#14b8a6",
               color: "white",
               fontWeight: 600,
               cursor: "pointer",
-              fontSize: 12,                   // smaller text
-              whiteSpace: "nowrap",           // keep on one line
+              fontSize: 12,
+              whiteSpace: "nowrap",
             }}
           >
             Save Profile
