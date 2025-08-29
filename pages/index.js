@@ -1,6 +1,8 @@
-// Build 36.70_fix_2025-08-25
+﻿// pages/index.js
+// Restored Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
+// Uses Supabase v2. No guest sign-in UI here (that stays in _app.js).
+
 import { useEffect, useMemo, useState } from "react";
-import Head from "next/head";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
@@ -9,505 +11,615 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Categories that can show an optional color badge
-const COLORIZED = new Set([
-  "Blebs (clear to brown)",
-  "Fiber Bundles",
-  "Fibers",
-]);
+const PAGE_SIZE = 24;
 
-function formatCategory(label) {
-  if (!label) return "";
-  return label
-    .split(" ")
-    .map((w) => (w[0] ? w[0].toUpperCase() + w.slice(1) : w))
-    .join(" ");
+function prettyDate(s) {
+  try {
+    const d = new Date(s);
+    return d.toLocaleString();
+  } catch {
+    return s || "";
+  }
+}
+
+function Badge({ children }) {
+  return (
+    <span
+      style={{
+        fontSize: 12,
+        padding: "2px 8px",
+        border: "1px solid #ddd",
+        borderRadius: 999,
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 export default function HomePage() {
-  const [session, setSession] = useState(null);
-  const [checking, setChecking] = useState(true);
+  // Auth/user
+  const [user, setUser] = useState(null);
 
-  // Sign-in / Sign-up UI (logged out on "/")
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [authMode, setAuthMode] = useState("sign_in"); // "sign_in" | "sign_up"
-  const [authMsg, setAuthMsg] = useState("");
-  const [authErr, setAuthErr] = useState("");
-  const [showTips, setShowTips] = useState(false);
-
-  // Profile (signed in)
+  // Profile form (mapped to current schema uploader_* to match RLS policies)
   const [initials, setInitials] = useState("");
   const [age, setAge] = useState("");
   const [location, setLocation] = useState("");
-  const [optIn, setOptIn] = useState(false);
-  const [profileMsg, setProfileMsg] = useState("");
+  const [contactOptIn, setContactOptIn] = useState(false);
+  const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
-  const [totalCount, setTotalCount] = useState(null);
+  const [count, setCount] = useState(null);
   const [items, setItems] = useState([]);
-  const [loadingInit, setLoadingInit] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const pageSize = 12;
+  const [offset, setOffset] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [galleryStatus, setGalleryStatus] = useState("");
 
-  // CSV export
-  const [csvMsg, setCsvMsg] = useState("");
+  // Per-card "copied!" feedback
+  const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
 
-  // Session bootstrap (prevents flicker)
+  // Load user (session)
   useEffect(() => {
-    let unsub = () => {};
+    let mounted = true;
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session || null);
-      setChecking(false);
-      const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-        setSession(s || null);
-      });
-      unsub = sub.subscription?.unsubscribe || (() => {});
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      setUser(data?.session?.user ?? null);
     })();
-    return () => unsub();
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
+      setUser(sess?.user ?? null);
+    });
+    return () => {
+      sub.subscription?.unsubscribe?.();
+      mounted = false;
+    };
   }, []);
 
-  // Header text
-  const firstName = useMemo(
-    () => session?.user?.user_metadata?.first_name || "",
-    [session]
-  );
-  const headerText = session
-    ? firstName
-      ? `Welcome, ${firstName}`
-      : `Welcome, ${session.user?.email || ""}`
-    : "Home";
+  // Derive first name (prefer user_metadata.first_name; fallback from email)
+  const firstName = useMemo(() => {
+    const m = user?.user_metadata?.first_name?.trim();
+    if (m) return m;
+    const email = user?.email || "";
+    const local = email.split("@")[0] || "";
+    const piece = (local.split(/[._-]/)[0] || local).trim();
+    return piece ? piece[0].toUpperCase() + piece.slice(1) : "";
+  }, [user]);
 
-  // Load profile when signed in
+  // Reset gallery when user changes (or after sign-in)
   useEffect(() => {
-    if (!session?.user) return;
-    let cancelled = false;
+    setItems([]);
+    setOffset(0);
+    setCount(null);
+    setGalleryStatus("");
+    setCopiedMap({});
+  }, [user?.id]);
+
+  // Fetch total count (header)
+  useEffect(() => {
+    if (!user?.id) return;
+    let canceled = false;
     (async () => {
-      const { data, error } = await supabase
-        .from("user_profile")
-        .select("uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in")
-        .single();
-      if (cancelled) return;
-      if (!error && data) {
-        setInitials(data.uploader_initials || "");
-        setAge(data.uploader_age ? String(data.uploader_age) : "");
-        setLocation(data.uploader_location || "");
-        setOptIn(Boolean(data.uploader_contact_opt_in));
+      const { count: total, error } = await supabase
+        .from("image_metadata")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if (canceled) return;
+      if (error) {
+        setCount(null); // unknown; do not block UI
+        return;
       }
+      setCount(typeof total === "number" ? total : null);
     })();
     return () => {
-      cancelled = true;
+      canceled = true;
     };
-  }, [session?.user?.id]);
+  }, [user?.id]);
 
-  // Load initial gallery + count (RLS shows only own rows)
-  useEffect(() => {
-    if (!session?.user) return;
-    let cancelled = false;
-    (async () => {
-      setLoadingInit(true);
-      const { count } = await supabase
-        .from("image_metadata")
-        .select("id", { count: "exact", head: true });
-      if (!cancelled) setTotalCount(count ?? 0);
+  // Load a page of gallery items (append)
+  async function loadMore() {
+    if (!user?.id) return;
+    setLoading(true);
+    if (items.length === 0) setGalleryStatus("Loading...");
 
-      const { data } = await supabase
-        .from("image_metadata")
-        .select("id, storage_path, category, bleb_color, notes, created_at")
-        .order("created_at", { ascending: false })
-        .range(0, pageSize - 1);
-      if (!cancelled) setItems(data || []);
-      setLoadingInit(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [session?.user?.id]);
-
-  async function onLoadMore() {
-    setLoadingMore(true);
-    const from = items.length;
-    const to = from + pageSize - 1;
     const { data, error } = await supabase
       .from("image_metadata")
-      .select("id, storage_path, category, bleb_color, notes, created_at")
+      .select("id, storage_path, filename, category, bleb_color, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .range(from, to);
-    if (!error && data?.length) setItems((prev) => prev.concat(data));
-    setLoadingMore(false);
-  }
+      .range(offset, offset + PAGE_SIZE - 1);
 
-  // --- Auth handlers (Supabase v2) ---
-  async function handleSignIn(e) {
-    e.preventDefault();
-    setAuthErr("");
-    setAuthMsg("Signing in…");
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      setAuthMsg("Signed in.");
-      // Reload Home to show Welcome + gallery
-      window.location.assign("/");
-    } catch (err) {
-      setAuthMsg("");
-      setAuthErr(err?.message || "Could not sign in.");
+    if (error) {
+      setGalleryStatus(`Load error: ${error.message}`);
+      setLoading(false);
+      return;
     }
+
+    const batch = data || [];
+    setItems((prev) => [...prev, ...batch]);
+    setOffset((prev) => prev + batch.length);
+    setGalleryStatus("");
+    setLoading(false);
   }
 
-  async function handleSignUp(e) {
-    e.preventDefault();
-    setAuthErr("");
-    setAuthMsg("Creating account…");
-    try {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      setAuthMsg("Account created. Check your inbox to confirm, then sign in.");
-    } catch (err) {
-      setAuthMsg("");
-      setAuthErr(err?.message || "Could not sign up.");
+  // Initial gallery load
+  useEffect(() => {
+    if (user?.id && offset === 0 && items.length === 0) {
+      loadMore();
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  async function handleForgot(e) {
-    e.preventDefault();
-    setAuthErr("");
-    setAuthMsg("Sending reset email…");
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset`,
-      });
-      if (error) throw error;
-      setAuthMsg("Check your email for the reset link.");
-    } catch (err) {
-      setAuthMsg("");
-      setAuthErr(err?.message || "Could not send reset email.");
-    }
-  }
+  // Determine if more pages likely exist
+  const hasMore = useMemo(() => {
+    if (loading) return false;
+    if (items.length === 0) return false;
+    if (typeof count === "number") return items.length < count;
+    return items.length % PAGE_SIZE === 0; // unknown count: offer more if the last page was full
+  }, [items.length, count, loading]);
 
-  async function onSaveProfile(e) {
-    e.preventDefault();
-    setProfileMsg("Saving…");
-    const payload = {
-      uploader_initials: initials.trim(),
-      uploader_age: age ? Number(age) : null,
-      uploader_location: location.trim(),
-      uploader_contact_opt_in: optIn,
-    };
-    const { error } = await supabase.from("user_profile").upsert(payload, { onConflict: "user_id" });
-    setProfileMsg(error ? "Could not save profile." : "Profile saved.");
-    setTimeout(() => setProfileMsg(""), 1200);
-  }
-
-  async function onExportCSV() {
-    setCsvMsg("Building CSV…");
+  // CSV export (all rows for signed-in user)
+  async function exportCSV() {
+    if (!user?.id) return;
     const { data, error } = await supabase
       .from("image_metadata")
       .select(
-        "id, filename, category, bleb_color, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in, notes, created_at"
+        "id, filename, category, bleb_color, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in, notes, created_at, storage_path"
       )
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
+
     if (error) {
-      setCsvMsg("Could not export CSV.");
+      alert(`CSV error: ${error.message}`);
       return;
     }
-    const rows = [
-      [
-        "id",
-        "filename",
-        "category",
-        "bleb_color",
-        "uploader_initials",
-        "uploader_age",
-        "uploader_location",
-        "uploader_contact_opt_in",
-        "notes",
-        "created_at",
-      ],
-      ...(data || []).map((r) => [
-        r.id,
-        r.filename ?? "",
-        r.category ?? "",
-        r.bleb_color ?? "",
-        r.uploader_initials ?? "",
-        r.uploader_age ?? "",
-        r.uploader_location ?? "",
-        r.uploader_contact_opt_in ? "true" : "false",
-        (r.notes ?? "").replace(/\r?\n/g, " "),
-        r.created_at ?? "",
-      ]),
-    ];
-    const csv = rows
-      .map((arr) =>
-        arr
-          .map((v) => {
-            const s = String(v ?? "");
-            return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+
+    const rows = data || [];
+    if (rows.length === 0) {
+      alert("No rows to export.");
+      return;
+    }
+
+    const headers = Object.keys(rows[0]);
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) =>
+        headers
+          .map((h) => {
+            const v = r[h];
+            if (v === null || v === undefined) return "";
+            const s = String(v).replace(/"/g, '""');
+            return /[",\n]/.test(s) ? `"${s}"` : s;
           })
           .join(",")
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = "image_metadata.csv";
     a.click();
     URL.revokeObjectURL(url);
-    setCsvMsg("CSV downloaded.");
-    setTimeout(() => setCsvMsg(""), 1200);
   }
 
-  function SignInBlock() {
-    return (
-      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
-        <h2 style={{ marginTop: 0 }}>Welcome to The Scope of Morgellons</h2>
-        <form
-          onSubmit={authMode === "sign_in" ? handleSignIn : handleSignUp}
-          style={{ display: "grid", gap: 10, maxWidth: 420 }}
-        >
-          <label>
-            <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ width: "100%", padding: 8 }}
-            />
-          </label>
+  // Profile load (current schema fields)
+  useEffect(() => {
+    if (!user?.id) return;
+    let canceled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_profile")
+        .select(
+          "uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
+        )
+        .single();
+      if (canceled) return;
+      if (error && error.code !== "PGRST116") {
+        setProfileStatus(`Profile load error: ${error.message}`);
+        return;
+      }
+      if (data) {
+        setInitials(data.uploader_initials || "");
+        setAge(
+          data.uploader_age === null || data.uploader_age === undefined
+            ? ""
+            : String(data.uploader_age)
+        );
+        setLocation(data.uploader_location || "");
+        setContactOptIn(!!data.uploader_contact_opt_in);
+      }
+    })();
+    return () => {
+      canceled = true;
+    };
+  }, [user?.id]);
 
-          <label>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span>Password</span>
-              <button
-                type="button"
-                aria-label="Password tips"
-                onClick={() => setShowTips((v) => !v)}
-                style={{ fontSize: 12, padding: "2px 8px" }}
-              >
-                ?
-              </button>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={authMode === "sign_in" ? "current-password" : "new-password"}
-              required
-              style={{ width: "100%", padding: 8 }}
-            />
-          </label>
-
-          {showTips ? (
-            <div
-              role="dialog"
-              aria-label="Password tips"
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
-                padding: 10,
-              }}
-            >
-              <strong style={{ display: "block", marginBottom: 6 }}>Password tips</strong>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use 12+ characters.</li>
-                <li>Mix upper/lower case, numbers, and a symbol.</li>
-                <li>Avoid names, birthdays, or common words.</li>
-                <li>Don’t reuse a password from another site.</li>
-              </ul>
-            </div>
-          ) : null}
-
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <button type="submit" style={{ padding: "10px 14px" }}>
-              {authMode === "sign_in" ? "Sign in" : "Sign up"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
-              aria-label="Toggle sign in or sign up"
-              style={{ padding: "8px 12px" }}
-            >
-              {authMode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
-            <button
-              type="button"
-              onClick={handleForgot}
-              aria-label="Forgot password?"
-              style={{ padding: "8px 12px" }}
-            >
-              Forgot password?
-            </button>
-          </div>
-
-          <p aria-live="polite" style={{ minHeight: 18, marginTop: 6 }}>{authMsg}</p>
-          {authErr ? (
-            <div role="alert" style={{ color: "#b00020" }}>{authErr}</div>
-          ) : null}
-        </form>
-      </section>
-    );
+  // Save profile (current schema fields)
+  async function saveProfile(e) {
+    e.preventDefault();
+    if (!user?.id) return;
+    setProfileStatus("Saving...");
+    const payload = {
+      uploader_initials: initials || null,
+      uploader_age: age === "" ? null : Number(age),
+      uploader_location: location || null,
+      uploader_contact_opt_in: contactOptIn,
+    };
+    const { error } = await supabase
+      .from("user_profile")
+      .upsert(payload, { onConflict: "user_id" });
+    if (error) {
+      setProfileStatus(`Save error: ${error.message}`);
+      return;
+    }
+    setProfileStatus("Profile saved.");
+    setTimeout(() => setProfileStatus(""), 1500);
   }
 
-  function SignedInBlock() {
-    return (
-      <>
-        {/* Quick links */}
-        <nav style={{ display: "flex", gap: 12, margin: "8px 0 16px" }}>
-          <Link href="/upload">Go to Uploader</Link>
-          <Link href="/browse">Browse by Category</Link>
-          <button onClick={onExportCSV} aria-label="Export CSV" style={{ padding: "6px 10px" }}>
-            Export CSV
-          </button>
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              window.location.assign("/");
-            }}
-            aria-label="Sign out"
-            style={{ padding: "6px 10px", marginLeft: "auto" }}
-          >
-            Sign out
-          </button>
-        </nav>
-        {csvMsg ? <p aria-live="polite">{csvMsg}</p> : null}
-
-        {/* Profile */}
-        <section aria-label="Profile" style={{ borderTop: "1px solid #eee", paddingTop: 12 }}>
-          <h2 style={{ marginTop: 0 }}>Profile</h2>
-          <p>Save your profile. Each upload stores a snapshot of these fields.</p>
-          <form onSubmit={onSaveProfile} style={{ display: "grid", gap: 10, maxWidth: 520 }}>
-            <label>
-              <span>Initials</span>
-              <input
-                type="text"
-                value={initials}
-                onChange={(e) => setInitials(e.target.value)}
-                style={{ width: "100%", padding: 8 }}
-              />
-            </label>
-            <label>
-              <span>Age</span>
-              <input
-                type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                style={{ width: "100%", padding: 8 }}
-              />
-            </label>
-            <label>
-              <span>Location</span>
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                style={{ width: "100%", padding: 8 }}
-              />
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input
-                type="checkbox"
-                checked={optIn}
-                onChange={(e) => setOptIn(e.target.checked)}
-              />
-              <span>Open to being contacted by researchers or other members</span>
-            </label>
-            <button type="submit" style={{ padding: "8px 12px", width: "fit-content" }}>
-              Save Profile
-            </button>
-            {profileMsg ? <p aria-live="polite">{profileMsg}</p> : null}
-          </form>
-        </section>
-
-        {/* Gallery */}
-        <section aria-label="Your Gallery" style={{ marginTop: 18 }}>
-          <h2 style={{ marginTop: 0 }}>Your Gallery</h2>
-          {!loadingInit && items.length === 0 ? <p>No images yet.</p> : null}
-
-          <ul
-            aria-label="image list"
-            style={{
-              listStyle: "none",
-              padding: 0,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {items.map((it) => (
-              <li key={it.id} style={{ border: "1px solid #eee", borderRadius: 8, padding: 8 }}>
-                <div style={{ display: "flex", gap: 8, marginBottom: 6, alignItems: "center" }}>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      padding: "2px 6px",
-                      border: "1px solid #ccc",
-                      borderRadius: 6,
-                    }}
-                    aria-label="category badge"
-                  >
-                    {formatCategory(it.category)}
-                  </span>
-                  {COLORIZED.has(it.category || "") && it.bleb_color ? (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        padding: "2px 6px",
-                        border: "1px solid #ccc",
-                        borderRadius: 6,
-                      }}
-                      aria-label="color badge"
-                    >
-                      {it.bleb_color}
-                    </span>
-                  ) : null}
-                </div>
-                <Link href={`/image/${it.id}`}>Open</Link>
-              </li>
-            ))}
-          </ul>
-
-          {items.length < (totalCount ?? 0) ? (
-            <div style={{ marginTop: 12 }}>
-              <button
-                onClick={onLoadMore}
-                disabled={loadingMore}
-                aria-label="Load more items"
-                style={{ padding: "8px 12px" }}
-              >
-                {loadingMore ? "Loading…" : "Load more"}
-              </button>
-            </div>
-          ) : (
-            <p style={{ opacity: 0.8, marginTop: 12 }}>No more items.</p>
-          )}
-        </section>
-      </>
-    );
+  // Card helpers
+  function cardColorBadge(row) {
+    if (row.category === "Blebs (clear to brown)" && row.bleb_color)
+      return <Badge>Color: {row.bleb_color}</Badge>;
+    return null;
   }
+
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => {
+        setCopiedMap((m) => {
+          const n = { ...m };
+          delete n[id];
+          return n;
+        });
+      }, 1000);
+    } catch {
+      alert("Copy failed.");
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
+  // If session not ready or not signed in, render nothing here.
+  // _app.js controls the sign-in screen on "/".
+  if (!user) return null;
 
   return (
-    <>
-      <Head>
-        <title>The Scope of Morgellons</title>
-      </Head>
+    <main
+      id="main"
+      tabIndex={-1}
+      style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 16,
+        }}
+      >
+        <h1 style={{ fontSize: 24, margin: 0 }}>
+          {firstName ? `Welcome, ${firstName}` : "Welcome"}
+        </h1>
+        <div style={{ fontSize: 14, opacity: 0.8 }}>
+          Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
+        </div>
+      </header>
 
-      <div data-build-line style={{ fontSize: 12, opacity: 0.7, padding: "4px 8px" }}>
-        The Scope of Morgellons
+      {/* Actions row */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
+          Go to Uploads
+        </Link>
+        <button
+          onClick={exportCSV}
+          aria-label="Export all image metadata to CSV"
+          style={{
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: "1px solid #1e293b",
+            background: "#1f2937",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          Export CSV
+        </button>
       </div>
 
-      <main id="main" style={{ maxWidth: 980, margin: "20px auto", padding: "0 12px" }}>
-        <header style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-          <h1 style={{ margin: "0 0 6px" }}>{headerText}</h1>
-          <span aria-live="polite">
-            Total items: {session ? (totalCount ?? "…") : "…"}
+      {/* Profile form */}
+      <form
+        onSubmit={saveProfile}
+        aria-labelledby="profile-form-heading"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          padding: 12,
+          border: "1px solid #e5e5e5",
+          borderRadius: 10,
+          background: "#fff",
+          marginBottom: 16,
+        }}
+      >
+        <h2
+          id="profile-form-heading"
+          style={{
+            position: "absolute",
+            left: -9999,
+            top: "auto",
+            width: 1,
+            height: 1,
+            overflow: "hidden",
+          }}
+        >
+          Profile
+        </h2>
+        <div>
+          <label
+            htmlFor="initials"
+            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+          >
+            Initials
+          </label>
+          <input
+            id="initials"
+            value={initials}
+            onChange={(e) => setInitials(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 8,
+              border: "1px solid #ccc",
+              borderRadius: 6,
+            }}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="age"
+            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+          >
+            Age
+          </label>
+          <input
+            id="age"
+            type="number"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 8,
+              border: "1px solid #ccc",
+              borderRadius: 6,
+            }}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="location"
+            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
+          >
+            Location
+          </label>
+          <input
+            id="location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            style={{
+              width: "100%",
+              padding: 8,
+              border: "1px solid #ccc",
+              borderRadius: 6,
+            }}
+          />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            id="optin"
+            type="checkbox"
+            checked={contactOptIn}
+            onChange={(e) => setContactOptIn(e.target.checked)}
+          />
+          <label htmlFor="optin" style={{ fontSize: 12 }}>
+            Contact opt-in
+          </label>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="submit"
+            aria-label="Save profile"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #0f766e",
+              background: "#14b8a6",
+              color: "white",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Save Profile
+          </button>
+          <span
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: 12, opacity: 0.8 }}
+          >
+            {profileStatus}
           </span>
-        </header>
+        </div>
+      </form>
 
-        {!session ? <SignInBlock /> : <SignedInBlock />}
-      </main>
-    </>
+      {/* Gallery status (initial) */}
+      {galleryStatus && items.length === 0 ? (
+        <div
+          style={{
+            padding: 12,
+            border: "1px solid #ddd",
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          {galleryStatus}
+        </div>
+      ) : null}
+
+      {/* Gallery grid */}
+      {items.length > 0 ? (
+        <div
+          role="list"
+          aria-label="Your images"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: 12,
+          }}
+        >
+          {items.map((row) => {
+            // Build a public URL from storage_path if present
+            let publicUrl = "";
+            if (row.storage_path) {
+              const { data: pub } = supabase
+                .storage
+                .from("images")
+                .getPublicUrl(row.storage_path);
+              publicUrl = pub?.publicUrl || "";
+            }
+            const copied = !!copiedMap[row.id];
+            return (
+              <a
+                role="listitem"
+                key={row.id}
+                href={`/image/${row.id}`}
+                style={{
+                  display: "block",
+                  textDecoration: "none",
+                  color: "inherit",
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  background: "#fff",
+                }}
+                aria-label={`Open details for ${row.filename || row.id}`}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {publicUrl ? (
+                  <img
+                    src={publicUrl}
+                    alt={row.filename || row.storage_path || "image"}
+                    style={{
+                      width: "100%",
+                      height: 160,
+                      objectFit: "cover",
+                      display: "block",
+                    }}
+                  />
+                ) : null}
+                <div style={{ padding: 10 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      flexWrap: "wrap",
+                      marginBottom: 6,
+                    }}
+                  >
+                    {row.category ? <Badge>{row.category}</Badge> : null}
+                    {cardColorBadge(row)}
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.8 }}>
+                    {prettyDate(row.created_at)}
+                  </div>
+
+                  {/* Card actions */}
+                  {publicUrl ? (
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button
+                        onClick={(e) => handleCopy(e, publicUrl, row.id)}
+                        aria-label={`Copy public link for ${row.filename || row.id}`}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #cbd5e1",
+                          background: "#f8fafc",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                        title="Copy image link"
+                      >
+                        {copied ? "Link copied!" : "Copy image link"}
+                      </button>
+                      <button
+                        onClick={(e) => handleOpen(e, publicUrl)}
+                        aria-label={`Open ${row.filename || row.id} in a new tab`}
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #cbd5e1",
+                          background: "#f8fafc",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                        title="Open image in new tab"
+                      >
+                        Open image
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </a>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {/* Load more / end-of-list / empty */}
+      <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
+        {items.length === 0 && !galleryStatus ? (
+          <div style={{ fontSize: 12, opacity: 0.7 }}>No items yet.</div>
+        ) : hasMore ? (
+          <button
+            onClick={loadMore}
+            disabled={loading}
+            aria-label="Load more images"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #0f766e",
+              background: loading ? "#8dd3cd" : "#14b8a6",
+              color: "white",
+              cursor: loading ? "not-allowed" : "pointer",
+              fontWeight: 600,
+            }}
+          >
+            {loading ? "Loading..." : "Load more"}
+          </button>
+        ) : items.length > 0 ? (
+          <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
+        ) : null}
+      </div>
+    </main>
   );
 }
