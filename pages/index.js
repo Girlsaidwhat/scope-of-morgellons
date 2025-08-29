@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.150";
+const INDEX_BUILD = "idx-36.151";
 
 function prettyDate(s) {
   try {
@@ -40,63 +40,54 @@ function Badge({ children }) {
   );
 }
 
-// Batch-get signed URLs; fallback to direct download (auth) and lastly public URL.
-async function enrichWithDisplayUrls(rows) {
-  const valid = rows.filter((r) => !!r.storage_path);
-  const paths = valid.map((r) => r.storage_path);
-
-  // Try batch signed URLs (1 hour)
-  let signed = [];
+// Per-item signed URL (reliable across supabase-js versions)
+async function signedUrlFor(path) {
   try {
     const { data, error } = await supabase
       .storage
       .from("images")
-      .createSignedUrls(paths, 60 * 60);
-    if (!error && Array.isArray(data)) signed = data;
+      .createSignedUrl(path, 60 * 60); // 1 hour
+    if (error) return "";
+    return data?.signedUrl || "";
   } catch {
-    // ignore; we'll fall back per-item
+    return "";
   }
+}
 
-  const byPath = new Map();
-  if (signed.length === paths.length) {
-    paths.forEach((p, i) => {
-      const u = signed[i]?.signedUrl || "";
-      if (u) byPath.set(p, u);
-    });
-  }
+// Create display URLs for each row: signed URL first, then download->blob, lastly public URL.
+async function enrichWithDisplayUrls(rows) {
+  const enriched = [];
+  for (const r of rows) {
+    let url = "";
+    if (r.storage_path) {
+      // 1) Preferred: signed URL
+      url = await signedUrlFor(r.storage_path);
 
-  // Fill each row with a display_url (signed, or download blob, or public)
-  const enriched = await Promise.all(
-    rows.map(async (r) => {
-      let url = "";
-      if (r.storage_path) {
-        url = byPath.get(r.storage_path) || "";
-        if (!url) {
-          // Fallback: authenticated download -> blob URL
-          try {
-            const { data: file, error: dErr } = await supabase
-              .storage
-              .from("images")
-              .download(r.storage_path);
-            if (!dErr && file) {
-              url = URL.createObjectURL(file);
-            }
-          } catch {
-            // ignore
-          }
-        }
-        if (!url) {
-          // Last resort: public URL (works only if bucket/object is public)
-          const { data: pub } = supabase.storage
+      // 2) Fallback: authenticated download -> blob URL
+      if (!url) {
+        try {
+          const { data: file, error: dErr } = await supabase
+            .storage
             .from("images")
-            .getPublicUrl(r.storage_path);
-          url = pub?.publicUrl || "";
+            .download(r.storage_path);
+          if (!dErr && file) {
+            url = URL.createObjectURL(file);
+          }
+        } catch {
+          // ignore
         }
       }
-      return { ...r, display_url: url };
-    })
-  );
 
+      // 3) Last resort: public URL (works only if bucket/object is public)
+      if (!url) {
+        const { data: pub } = supabase.storage
+          .from("images")
+          .getPublicUrl(r.storage_path);
+        url = pub?.publicUrl || "";
+      }
+    }
+    enriched.push({ ...r, display_url: url });
+  }
   return enriched;
 }
 
