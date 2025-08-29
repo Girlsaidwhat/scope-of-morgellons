@@ -1,7 +1,6 @@
 ﻿// pages/index.js
 // Restored Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
 // Uses Supabase v2. No guest sign-in UI here (that stays in _app.js).
-// Sprint B SignOut marker: v1
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -337,6 +336,8 @@ export default function HomePage() {
           justifyContent: "space-between",
           alignItems: "center",
           marginBottom: 12,
+          gap: 8,
+          flexWrap: "wrap", // allow wrapping to prevent overlap on narrow screens
         }}
       >
         <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
@@ -344,7 +345,15 @@ export default function HomePage() {
         </Link>
 
         {/* Right-side grouped actions */}
-        <div style={{ display: "flex", gap: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap", // let Export CSV and Sign out stack if needed
+            justifyContent: "flex-end",
+            maxWidth: "100%",
+          }}
+        >
           <button
             onClick={exportCSV}
             aria-label="Export all image metadata to CSV"
@@ -356,6 +365,7 @@ export default function HomePage() {
               color: "white",
               cursor: "pointer",
               fontWeight: 600,
+              whiteSpace: "nowrap",
             }}
           >
             Export CSV
@@ -370,6 +380,7 @@ export default function HomePage() {
               background: "#f8fafc",
               cursor: "pointer",
               fontWeight: 600,
+              whiteSpace: "nowrap",
             }}
             title="Sign out"
           >
@@ -654,3 +665,4 @@ export default function HomePage() {
     </main>
   );
 }
+
