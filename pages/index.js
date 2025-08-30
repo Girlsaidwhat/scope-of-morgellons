@@ -257,22 +257,26 @@ export default function HomePage() {
   const csvStartRef = useRef(0);
   const MIN_BUSY_MS = 1000; // ensure visible "Preparing…" + inhibit rapid re-clicks
 
-  // --- Tiny toast when coming back with ?deleted=1 (router-only, no window) ---
+  // --- Tiny toast (shared for Deleted/Saved). No layout shift. ---
   const [toast, setToast] = useState("");
+
+  // Show toast for ~2s
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2000);
+  }
+
+  // When coming back with ?deleted=1, show toast and remove the param using router.replace.
   useEffect(() => {
     if (!router.isReady) return;
     const hasDeleted = !!router.query?.deleted;
     if (!hasDeleted) return;
 
-    setToast("Deleted");
+    showToast("Deleted");
 
-    // Remove just the 'deleted' param using router.replace (no reload)
     const newQuery = { ...router.query };
     delete newQuery.deleted;
     router.replace({ pathname: router.pathname, query: newQuery }, undefined, { shallow: true });
-
-    const t = setTimeout(() => setToast(""), 2000);
-    return () => clearTimeout(t);
     // Only run when 'deleted' is present/changes
   }, [router.isReady, router.query?.deleted, router.pathname]);
 
@@ -312,7 +316,7 @@ export default function HomePage() {
     const m = user?.user_metadata?.first_name?.trim();
     if (m) return m;
     const email = user?.email || "";
-       const local = email.split("@")[0] || "";
+    const local = email.split("@")[0] || "";
     const piece = (local.split(/[._-]/)[0] || local).trim();
     return piece ? piece[0].toUpperCase() + piece.slice(1) : "";
   }, [user]);
@@ -540,7 +544,7 @@ export default function HomePage() {
       tabIndex={-1}
       style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
     >
-      {/* Tiny toast for deletes (top-center). No layout shift. */}
+      {/* Tiny toast (top-center). Shared for Deleted/Saved. */}
       {toast ? (
         <div
           role="status"
@@ -699,6 +703,7 @@ export default function HomePage() {
             });
 
             setProfileStatus("Profile saved.");
+            showToast("Saved"); // NEW: tiny toast on success
             setTimeout(() => setProfileStatus(""), 1500);
           } catch (err) {
             setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
