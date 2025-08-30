@@ -1,6 +1,6 @@
 ﻿// pages/index.js
-// Home: Welcome, first name + Profile + Gallery + CSV + Copy/Open + Load more
-// Uses Supabase v2. No guest sign-in UI here (that stays in _app.js).
+// Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
+// Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.156";
+const INDEX_BUILD = "idx-36.160";
 
 function prettyDate(s) {
   try {
@@ -188,7 +188,6 @@ function nonEmpty(v) {
 }
 
 // Tolerant bulk update: push profile fields to all of the user's images.
-// Tries one multi-column update; if the table lacks some columns, falls back to per-column updates and ignores "column does not exist" errors.
 async function updateImageMetadataForUserProfile(userId, fields) {
   if (!userId) return;
   try {
@@ -207,20 +206,118 @@ async function updateImageMetadataForUserProfile(userId, fields) {
           .eq("user_id", userId);
         if (error) {
           const raw = error.message || "";
-          theMsg: {
-            const msg = raw.toLowerCase();
-            const ignorable =
-              msg.includes("does not exist") ||
-              msg.includes("could not find") ||
-              msg.includes("schema cache") ||
-              (msg.includes("unknown") && msg.includes("column")) ||
-              (msg.includes("column") && msg.includes("not found"));
-            if (!ignorable) throw error;
-          }
+          const msg = raw.toLowerCase();
+          const ignorable =
+            msg.includes("does not exist") ||
+            msg.includes("could not find") ||
+            msg.includes("schema cache") ||
+            (msg.includes("unknown") && msg.includes("column")) ||
+            (msg.includes("column") && msg.includes("not found"));
+          if (!ignorable) throw error;
         }
       } catch {}
     }
   }
+}
+
+// ---------------- Landing (public, anonymized) ----------------
+function Landing() {
+  const router = useRouter();
+  // Placeholder “categories” and a simple highlight rotation (anonymized, no user images).
+  const categories = [
+    { key: "blebs", label: "Blebs (clear to brown)" },
+    { key: "fibers", label: "Fibers" },
+    { key: "bundles", label: "Fiber Bundles" },
+    { key: "crystals", label: "Crystals / Particles" },
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % categories.length), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+      {/* Top nav (simple) */}
+      <nav aria-label="Main" style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginBottom: 12 }}>
+        <a href="#about" style={{ textDecoration: "none" }} title="Learn about the project">About</a>
+        <a href="#news" style={{ textDecoration: "none" }} title="Latest updates">News</a>
+        <a href="#resources" style={{ textDecoration: "none" }} title="Helpful links">Resources</a>
+        <button
+          onClick={() => router.push("/?auth=1")}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #1e293b",
+            background: "#111827",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}
+          aria-label="Sign in or create an account"
+          title="Sign in / Sign up"
+        >
+          Sign in
+        </button>
+      </nav>
+
+      {/* Hero */}
+      <header style={{ textAlign: "center", margin: "20px 0 18px" }}>
+        <h1 style={{ margin: 0, fontSize: 28 }}>The Scope of Morgellons</h1>
+        <p style={{ margin: "8px 0 0", opacity: 0.9 }}>
+          An anonymized visual catalog to help researchers and the curious understand patterns and categories.
+        </p>
+      </header>
+
+      {/* Anonymized category tiles (no photos; soft gradients) */}
+      <section aria-label="Categories" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
+        {categories.map((c, i) => {
+          const active = i === idx;
+          return (
+            <div
+              key={c.key}
+              role="img"
+              aria-label={`Category ${c.label}`}
+              style={{
+                height: 140,
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                background: active
+                  ? "radial-gradient(60% 60% at 50% 40%, #e5f3ff 0%, #eef2ff 70%, #f8fafc 100%)"
+                  : "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+              }}
+              title={c.label}
+            >
+              {c.label}
+            </div>
+          );
+        })}
+      </section>
+
+      {/* Placeholder sections (anchors only) */}
+      <section id="about" style={{ marginTop: 20, borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
+        <h2 style={{ fontSize: 18, margin: 0 }}>About</h2>
+        <p style={{ marginTop: 8, opacity: 0.9 }}>
+          This project invites contributions and analysis while protecting member privacy. Images shown here are anonymized placeholders.
+        </p>
+      </section>
+
+      <section id="news" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 18, margin: 0 }}>News</h2>
+        <p style={{ marginTop: 8, opacity: 0.9 }}>Updates coming soon.</p>
+      </section>
+
+      <section id="resources" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 18, margin: 0 }}>Resources</h2>
+        <p style={{ marginTop: 8, opacity: 0.9 }}>Curated links and reading will appear here.</p>
+      </section>
+    </main>
+  );
 }
 
 // ------------------------------------------------------------------------
@@ -253,47 +350,29 @@ export default function HomePage() {
   // One-shot retry guard for image onError (prevents loops)
   const retrySetRef = useRef(new Set());
 
-  // CSV busy state + guards (for UX polish)
+  // CSV busy state + guards
   const [csvBusy, setCsvBusy] = useState(false);
-  const csvGateRef = useRef(false); // blocks ultra-fast double clicks before React re-renders
+  const csvGateRef = useRef(false);
   const csvStartRef = useRef(0);
-  const MIN_BUSY_MS = 1000; // ensure visible "Preparing…" + inhibit rapid re-clicks
+  const MIN_BUSY_MS = 1000;
 
-  // --- Tiny toast (shared for Deleted/Saved). No layout shift. ---
+  // Toast (Deleted/Saved)
   const [toast, setToast] = useState("");
-
-  // Show toast for ~2s
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
   }
 
-  // When coming back with ?deleted=1, show toast and remove the param using router.replace.
+  // Deleted toast via query param
   useEffect(() => {
     if (!router.isReady) return;
     const hasDeleted = !!router.query?.deleted;
     if (!hasDeleted) return;
-
     showToast("Deleted");
-
     const newQuery = { ...router.query };
     delete newQuery.deleted;
     router.replace({ pathname: router.pathname, query: newQuery }, undefined, { shallow: true });
   }, [router.isReady, router.query?.deleted, router.pathname]);
-
-  // Cleanup blob: URLs on unmount
-  useEffect(() => {
-    return () => {
-      try {
-        items.forEach((row) => {
-          if (row?.display_url && String(row.display_url).startsWith("blob:")) {
-            URL.revokeObjectURL(row.display_url);
-          }
-        });
-      } catch {}
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Load user (session)
   useEffect(() => {
@@ -306,10 +385,7 @@ export default function HomePage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
       setUser(sess?.user ?? null);
     });
-    return () => {
-      sub.subscription?.unsubscribe?.();
-      mounted = false;
-    };
+    return () => sub.subscription?.unsubscribe?.();
   }, []);
 
   // Derive first name for greeting
@@ -329,10 +405,10 @@ export default function HomePage() {
     setCount(null);
     setGalleryStatus("");
     setCopiedMap({});
-    retrySetRef.current = new Set(); // reset retry guard on user change
+    retrySetRef.current = new Set();
   }, [user?.id]);
 
-  // ---------- Profile: load (schema-tolerant) ----------
+  // ---------- Profile: load ----------
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -346,7 +422,6 @@ export default function HomePage() {
       if (canceled) return;
 
       if (error && error.code === "PGRST116") {
-        // No row yet; fall back to auth metadata for names
         if (nonEmpty(user?.user_metadata?.first_name)) {
           setFirstNameField(user.user_metadata.first_name);
         }
@@ -364,7 +439,6 @@ export default function HomePage() {
 
       setInitials(d.uploader_initials ?? d.initials ?? "");
 
-      // Names: prefer DB values, otherwise fall back to auth metadata
       const dbFirst = d.first_name ?? d.uploader_first_name ?? "";
       const dbLast = d.last_name ?? d.uploader_last_name ?? "";
       setFirstNameField(nonEmpty(dbFirst) ? dbFirst : (user?.user_metadata?.first_name || ""));
@@ -377,11 +451,7 @@ export default function HomePage() {
 
       if (typeof d.contact_preference === "string") {
         const v = d.contact_preference;
-        if (
-          v === "researchers_and_members" ||
-          v === "researchers_only" ||
-          v === "members_only"
-        ) {
+        if (v === "researchers_and_members" || v === "researchers_only" || v === "members_only") {
           setContactPref(v);
         }
       } else {
@@ -392,7 +462,6 @@ export default function HomePage() {
       setProfileStatus("");
     })();
     return () => { canceled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Fetch total count
@@ -411,9 +480,7 @@ export default function HomePage() {
       }
       setCount(typeof total === "number" ? total : null);
     })();
-    return () => {
-      canceled = true;
-    };
+    return () => { canceled = true; };
   }, [user?.id]);
 
   // Load a page of gallery items (append)
@@ -453,8 +520,7 @@ export default function HomePage() {
     if (user?.id && offset === 0 && items.length === 0) {
       loadMore();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Determine if more pages likely exist
   const hasMore = useMemo(() => {
@@ -464,10 +530,10 @@ export default function HomePage() {
     return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
-  // CSV export (all rows for signed-in user) with visible busy window + double-click guard
+  // CSV export (all rows for signed-in user)
   async function exportCSV() {
     if (!user?.id) return;
-    if (csvGateRef.current || csvBusy) return; // hard guard against ultra-fast double click
+    if (csvGateRef.current || csvBusy) return;
     csvGateRef.current = true;
     setCsvBusy(true);
     csvStartRef.current = performance.now();
@@ -515,7 +581,6 @@ export default function HomePage() {
       a.click();
       URL.revokeObjectURL(url);
     } finally {
-      // Ensure the busy state is visible for at least MIN_BUSY_MS
       const elapsed = performance.now() - csvStartRef.current;
       const remaining = Math.max(0, MIN_BUSY_MS - elapsed);
       setTimeout(() => {
@@ -566,12 +631,12 @@ export default function HomePage() {
     }
   }
 
-  // One-shot image error handler: re-signs a fresh URL, then updates that card
+  // One-shot image error handler
   async function handleImgError(rowId, absIndex, storagePath, filename, rowUserId) {
     try {
       if (!rowId && rowId !== 0) return;
       const tried = retrySetRef.current;
-      if (tried.has(rowId)) return; // guard: only try once
+      if (tried.has(rowId)) return;
       tried.add(rowId);
 
       const bucket = "images";
@@ -580,27 +645,23 @@ export default function HomePage() {
 
       let newUrl = "";
 
-      // Try re-signing primary then alt
       if (!newUrl && primary) newUrl = await singleSignedUrl(bucket, primary);
       if (!newUrl && alt)     newUrl = await singleSignedUrl(bucket, alt);
-
-      // Fall back to public URLs
       if (!newUrl && alt)     newUrl = publicUrl(bucket, alt);
       if (!newUrl && primary) newUrl = publicUrl(bucket, primary);
-
-      // Last resort: blob downloads
       if (!newUrl && primary) newUrl = await downloadToBlobUrl(bucket, primary);
       if (!newUrl && alt)     newUrl = await downloadToBlobUrl(bucket, alt);
 
       if (newUrl) setItemUrl(setItems, absIndex, newUrl);
-    } catch {
-      // swallow; placeholder remains
-    }
+    } catch {}
   }
 
-  // If session not ready or not signed in, render nothing here.
-  if (!user) return null;
+  // ---------- Logged-out renders Landing ----------
+  if (!user) {
+    return <Landing />;
+  }
 
+  // ---------- Logged-in Home ----------
   return (
     <main
       id="main"
@@ -650,7 +711,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Actions row (left: Uploads, right: Sign out) */}
+      {/* Actions row */}
       <div
         style={{
           display: "flex",
@@ -665,15 +726,7 @@ export default function HomePage() {
           Go to Uploads
         </Link>
 
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            justifyContent: "flex-end",
-            maxWidth: "100%",
-          }}
-        >
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }}>
           <button
             onClick={handleSignOut}
             aria-label="Sign out"
@@ -701,12 +754,10 @@ export default function HomePage() {
           setProfileStatus("Saving...");
 
           try {
-            // 0) Ensure row exists
             await supabase
               .from("user_profile")
               .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
-            // 1) Update auth metadata
             const metaPayload = {
               first_name: nonEmpty(firstNameField) ? firstNameField : null,
               last_name: nonEmpty(lastNameField) ? lastNameField : null,
@@ -714,7 +765,6 @@ export default function HomePage() {
             const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
             if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
 
-            // 2) DB updates (tolerant)
             const ageVal =
               age === "" || age === null || typeof age === "undefined"
                 ? null
@@ -758,7 +808,6 @@ export default function HomePage() {
               }
             }
 
-            // 3) Push key profile fields to this user's images (for consistency)
             await updateImageMetadataForUserProfile(user.id, {
               uploader_initials: initials || null,
               uploader_age: ageVal,
@@ -767,7 +816,7 @@ export default function HomePage() {
             });
 
             setProfileStatus("Profile saved.");
-            showToast("Saved"); // tiny toast on success
+            showToast("Saved");
             setTimeout(() => setProfileStatus(""), 1500);
           } catch (err) {
             setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
@@ -799,75 +848,48 @@ export default function HomePage() {
           Profile
         </h2>
 
-        {/* Initials (small box) */}
+        {/* Initials */}
         <div>
-          <label
-            htmlFor="initials"
-            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
-          >
+          <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             Initials
           </label>
           <input
             id="initials"
             value={initials}
             onChange={(e) => setInitials(e.target.value)}
-            style={{
-              width: 90,
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-            }}
+            style={{ width: 90, padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
         {/* First name */}
         <div>
-          <label
-            htmlFor="first_name"
-            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
-          >
+          <label htmlFor="first_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             First name
           </label>
           <input
             id="first_name"
             value={firstNameField}
             onChange={(e) => setFirstNameField(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-            }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
         {/* Last name */}
         <div>
-          <label
-            htmlFor="last_name"
-            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
-          >
+          <label htmlFor="last_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             Last name
           </label>
           <input
             id="last_name"
             value={lastNameField}
             onChange={(e) => setLastNameField(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-            }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
         {/* Age */}
         <div>
-          <label
-            htmlFor="age"
-            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
-          >
+          <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             Age
           </label>
           <input
@@ -875,48 +897,29 @@ export default function HomePage() {
             type="number"
             value={age}
             onChange={(e) => setAge(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-            }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
         {/* Location */}
         <div>
-          <label
-            htmlFor="location"
-            style={{ fontSize: 12, display: "block", marginBottom: 4 }}
-          >
+          <label htmlFor="location" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             Location
           </label>
           <input
             id="location"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 8,
-              border: "1px solid #ccc",
-              borderRadius: 6,
-            }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
         {/* Contact opt-in (3 options) */}
         <fieldset
           aria-label="Contact opt-in"
-          style={{
-            border: "1px solid #e5e5e5",
-            borderRadius: 8,
-            padding: 10,
-          }}
+          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10 }}
         >
-          <legend style={{ fontSize: 12, padding: "0 6px" }}>
-            Contact opt-in
-          </legend>
+          <legend style={{ fontSize: 12, padding: "0 6px" }}>Contact opt in</legend>
           <div style={{ display: "grid", gap: 6 }}>
             <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
               <input
@@ -970,18 +973,13 @@ export default function HomePage() {
           >
             Save Profile
           </button>
-          <span
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.8 }}
-          >
+          <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
             {profileStatus}
           </span>
         </div>
       </form>
 
-      {/* Small CSV button right above the gallery, with hover explanation */}
+      {/* Small CSV button */}
       <div style={{ margin: "4px 0 10px" }}>
         <button
           onClick={exportCSV}
@@ -1008,18 +1006,13 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* Gallery status (initial) — announced, no visual change */}
+      {/* Gallery status (initial) */}
       {galleryStatus && items.length === 0 ? (
         <div
           role="status"
           aria-live="polite"
           aria-atomic="true"
-          style={{
-            padding: 12,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            marginBottom: 12,
-          }}
+          style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, marginBottom: 12 }}
         >
           {galleryStatus}
         </div>
@@ -1060,21 +1053,8 @@ export default function HomePage() {
                   <img
                     src={url}
                     alt={row.filename || row.storage_path || "image"}
-                    style={{
-                      width: "100%",
-                      height: 160,
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onError={() =>
-                      handleImgError(
-                        row.id,
-                        i,
-                        row.storage_path,
-                        row.filename,
-                        row.user_id
-                      )
-                    }
+                    style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
+                    onError={() => handleImgError(row.id, i, row.storage_path, row.filename, row.user_id)}
                   />
                 ) : (
                   <div
@@ -1093,22 +1073,13 @@ export default function HomePage() {
                   </div>
                 )}
                 <div style={{ padding: 10 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 6,
-                      flexWrap: "wrap",
-                      marginBottom: 6,
-                    }}
-                  >
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                     {row.category ? <Badge>{row.category}</Badge> : null}
                     {row.category === "Blebs (clear to brown)" && row.bleb_color ? (
                       <Badge>Color: {row.bleb_color}</Badge>
                     ) : null}
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    {prettyDate(row.created_at)}
-                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
 
                   {/* Card actions */}
                   {url ? (
@@ -1157,12 +1128,7 @@ export default function HomePage() {
       {/* Load more / end-of-list / empty */}
       <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
         {items.length === 0 && !galleryStatus ? (
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.7 }}
-          >
+          <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.7 }}>
             No items yet.
           </div>
         ) : hasMore ? (
@@ -1184,12 +1150,7 @@ export default function HomePage() {
             {loading ? "Loading..." : "Load more"}
           </button>
         ) : items.length > 0 ? (
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.7 }}
-          >
+          <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.7 }}>
             No more items.
           </div>
         ) : null}
@@ -1197,4 +1158,3 @@ export default function HomePage() {
     </main>
   );
 }
-
