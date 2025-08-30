@@ -188,7 +188,6 @@ function nonEmpty(v) {
 }
 
 // Tolerant bulk update: push profile fields to all of the user's images.
-// Tries one multi-column update; if the table lacks some columns, falls back to per-column updates and ignores "column does not exist" errors.
 async function updateImageMetadataForUserProfile(userId, fields) {
   if (!userId) return;
   try {
@@ -250,6 +249,9 @@ export default function HomePage() {
 
   // One-shot retry guard for image onError (prevents loops)
   const retrySetRef = useRef(new Set());
+
+  // CSV busy state (for UX polish)
+  const [csvBusy, setCsvBusy] = useState(false);
 
   // Cleanup blob: URLs on unmount
   useEffect(() => {
@@ -371,50 +373,55 @@ export default function HomePage() {
     return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
-  // CSV export (all rows for signed-in user)
+  // CSV export (all rows for signed-in user) with UX polish
   async function exportCSV() {
-    if (!user?.id) return;
-    const { data, error } = await supabase
-      .from("image_metadata")
-      .select(
-        "id, filename, category, bleb_color, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in, notes, created_at, storage_path"
-      )
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+    if (!user?.id || csvBusy) return;
+    setCsvBusy(true);
+    try {
+      const { data, error } = await supabase
+        .from("image_metadata")
+        .select(
+          "id, filename, category, bleb_color, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in, notes, created_at, storage_path"
+        )
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
-    if (error) {
-      alert(`CSV error: ${error.message}`);
-      return;
+      if (error) {
+        alert(`CSV error: ${error.message}`);
+        return;
+      }
+
+      const rows = data || [];
+      if (rows.length === 0) {
+        alert("No rows to export.");
+        return;
+      }
+
+      const headers = Object.keys(rows[0]);
+      const csv = [
+        headers.join(","),
+        ...rows.map((r) =>
+          headers
+            .map((h) => {
+              const v = r[h];
+              if (v === null || v === undefined) return "";
+              const s = String(v).replace(/"/g, '""');
+              return /[",\n]/.test(s) ? `"${s}"` : s;
+            })
+            .join(",")
+        ),
+      ].join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "image_metadata.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setCsvBusy(false);
     }
-
-    const rows = data || [];
-    if (rows.length === 0) {
-      alert("No rows to export.");
-      return;
-    }
-
-    const headers = Object.keys(rows[0]);
-    const csv = [
-      headers.join(","),
-      ...rows.map((r) =>
-        headers
-          .map((h) => {
-            const v = r[h];
-            if (v === null || v === undefined) return "";
-            const s = String(v).replace(/"/g, '""');
-            return /[",\n]/.test(s) ? `"${s}"` : s;
-          })
-          .join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "image_metadata.csv";
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   // ---------- Profile: load (schema-tolerant) ----------
@@ -932,20 +939,25 @@ export default function HomePage() {
         <button
           onClick={exportCSV}
           aria-label="Export all image metadata to CSV"
+          aria-busy={csvBusy ? "true" : "false"}
+          aria-disabled={csvBusy ? "true" : "false"}
+          disabled={csvBusy}
           title="Download a CSV of your gallery’s details (filenames, categories, notes, and more)."
           style={{
             padding: "6px 10px",
             borderRadius: 8,
             border: "1px solid #1e293b",
-            background: "#1f2937",
+            background: csvBusy ? "#475569" : "#1f2937",
             color: "white",
-            cursor: "pointer",
+            cursor: csvBusy ? "wait" : "pointer",
             fontWeight: 600,
             fontSize: 12,
             whiteSpace: "nowrap",
+            minWidth: 100, // avoids layout shift when text changes
+            opacity: csvBusy ? 0.9 : 1,
           }}
         >
-          Export CSV
+          {csvBusy ? "Preparing…" : "Export CSV"}
         </button>
       </div>
 
