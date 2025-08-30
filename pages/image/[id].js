@@ -1,4 +1,5 @@
-// Build: 36.12_2025-08-20
+// pages/image/[id].js
+// Build: 36.12_2025-08-20 → Microburst 4 (safe delete hardening)
 // Image Detail a11y: main landmark, aria-live statuses, labeled buttons. Features unchanged.
 
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +25,23 @@ function Badge({ children }) {
       {children}
     </span>
   );
+}
+
+function normalizePath(p) {
+  if (!p) return "";
+  let s = String(p).trim();
+  if (s.startsWith("/")) s = s.slice(1);
+  return s;
+}
+
+// Compute the storage path reliably across schema variants.
+// Prefers explicit columns, then falls back to auth.uid()/filename.
+function computeStoragePath(row) {
+  const a = normalizePath(row?.storage_path || row?.path || "");
+  if (a) return a;
+  const uid = row?.user_id || "";
+  const fn = row?.filename || "";
+  return normalizePath(`${uid}/${fn}`);
 }
 
 export default function ImageDetailPage() {
@@ -59,7 +77,7 @@ export default function ImageDetailPage() {
       const { data, error } = await supabase
         .from("image_metadata")
         .select(
-          "id, user_id, path, filename, ext, category, bleb_color, fiber_bundles_color, fibers_color, created_at, notes, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
+          "id, user_id, storage_path, path, filename, ext, category, bleb_color, fiber_bundles_color, fibers_color, created_at, notes, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
         )
         .eq("user_id", user.id)
         .eq("id", id)
@@ -83,11 +101,12 @@ export default function ImageDetailPage() {
     return () => { canceled = true; };
   }, [user?.id, id]);
 
+  const storagePath = useMemo(() => computeStoragePath(row), [row]);
   const publicUrl = useMemo(() => {
-    if (!row?.path) return "";
-    const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
+    if (!storagePath) return "";
+    const { data: pub } = supabase.storage.from("images").getPublicUrl(storagePath);
     return pub?.publicUrl || "";
-  }, [row?.path]);
+  }, [storagePath]);
 
   async function saveNotes(e) {
     e.preventDefault();
@@ -112,6 +131,7 @@ export default function ImageDetailPage() {
     setTimeout(() => setStatus(""), 1500);
   }
 
+  // Safe delete: Storage → DB row → redirect home
   async function handleDelete() {
     if (!user?.id || !row?.id) return;
     const ok = window.confirm(`Delete this image and its metadata?\n\n${row.filename}\n\nThis cannot be undone.`);
@@ -120,27 +140,48 @@ export default function ImageDetailPage() {
     setDeleting(true);
     setStatus("Deleting...");
 
-    // 1) Storage delete
-    const removeRes = await supabase.storage.from("images").remove([row.path]);
-    if (removeRes.error && !/Not Found|does not exist/i.test(removeRes.error.message)) {
-      setStatus(`Storage delete error: ${removeRes.error.message}`);
+    const bucket = "images";
+    const path = computeStoragePath(row);
+
+    // 1) Delete Storage object first (treat "not found" as OK)
+    if (path) {
+      const removeRes = await supabase.storage.from(bucket).remove([path]);
+      const errMsg = removeRes?.error?.message || "";
+      if (removeRes.error && !/not\s*found|does\s*not\s*exist/i.test(errMsg)) {
+        setStatus(`Storage delete error: ${errMsg}`);
+        setDeleting(false);
+        return;
+      }
+    }
+
+    // 2) Delete DB row (retry once if transient)
+    let dbError = null;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const { error } = await supabase
+        .from("image_metadata")
+        .delete()
+        .eq("id", row.id)
+        .eq("user_id", user.id);
+      if (!error) {
+        dbError = null;
+        break;
+      }
+      // If row already gone, treat as success
+      const msg = (error.message || "").toLowerCase();
+      if (msg.includes("row") && msg.includes("not found")) {
+        dbError = null;
+        break;
+      }
+      dbError = error;
+    }
+
+    if (dbError) {
+      setStatus(`Database delete error: ${dbError.message}`);
       setDeleting(false);
       return;
     }
 
-    // 2) Row delete
-    const { error: dbErr } = await supabase
-      .from("image_metadata")
-      .delete()
-      .eq("id", row.id)
-      .eq("user_id", user.id);
-
-    if (dbErr) {
-      setStatus(`Database delete error: ${dbErr.message}`);
-      setDeleting(false);
-      return;
-    }
-
+    // 3) Redirect home only after both deletes have succeeded or been confirmed absent
     setStatus("Deleted.");
     setTimeout(() => {
       router.push("/?deleted=1");
@@ -230,7 +271,7 @@ export default function ImageDetailPage() {
                   <div><strong>Filename:</strong> {row.filename}</div>
                   <div><strong>Type:</strong> {row.ext?.toUpperCase() || "—"}</div>
                   <div><strong>Uploaded:</strong> {prettyDate(row.created_at)}</div>
-                  <div><strong>Storage path:</strong> {row.path}</div>
+                  <div><strong>Storage path:</strong> {storagePath || "—"}</div>
                 </div>
 
                 {/* Danger zone */}
@@ -239,6 +280,7 @@ export default function ImageDetailPage() {
                     onClick={handleDelete}
                     disabled={deleting}
                     aria-label="Delete this image"
+                    aria-busy={deleting ? "true" : "false"}
                     style={{
                       padding: "8px 12px",
                       borderRadius: 8,
@@ -287,6 +329,7 @@ export default function ImageDetailPage() {
                     type="submit"
                     disabled={saving}
                     aria-label="Save notes"
+                    aria-busy={saving ? "true" : "false"}
                     style={{
                       padding: "10px 14px",
                       borderRadius: 8,
@@ -329,5 +372,6 @@ export default function ImageDetailPage() {
     </main>
   );
 }
+
 
 
