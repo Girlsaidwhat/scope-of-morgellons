@@ -95,7 +95,7 @@ function setItemUrl(setItems, absIndex, url) {
   setItems((prev) => {
     if (!prev[absIndex]) return prev;
     const next = [...prev];
-    next[absIndex] = { ...next[absIndex], display_url: url };
+    next[absIndex] = { ...prev[absIndex], display_url: url };
     return next;
   });
 }
@@ -207,14 +207,16 @@ async function updateImageMetadataForUserProfile(userId, fields) {
           .eq("user_id", userId);
         if (error) {
           const raw = error.message || "";
-          const msg = raw.toLowerCase();
-          const ignorable =
-            msg.includes("does not exist") ||
-            msg.includes("could not find") ||
-            msg.includes("schema cache") ||
-            (msg.includes("unknown") && msg.includes("column")) ||
-            (msg.includes("column") && msg.includes("not found"));
-          if (!ignorable) throw error;
+          theMsg: {
+            const msg = raw.toLowerCase();
+            const ignorable =
+              msg.includes("does not exist") ||
+              msg.includes("could not find") ||
+              msg.includes("schema cache") ||
+              (msg.includes("unknown") && msg.includes("column")) ||
+              (msg.includes("column") && msg.includes("not found"));
+            if (!ignorable) throw error;
+          }
         }
       } catch {}
     }
@@ -277,7 +279,6 @@ export default function HomePage() {
     const newQuery = { ...router.query };
     delete newQuery.deleted;
     router.replace({ pathname: router.pathname, query: newQuery }, undefined, { shallow: true });
-    // Only run when 'deleted' is present/changes
   }, [router.isReady, router.query?.deleted, router.pathname]);
 
   // Cleanup blob: URLs on unmount
@@ -329,6 +330,69 @@ export default function HomePage() {
     setGalleryStatus("");
     setCopiedMap({});
     retrySetRef.current = new Set(); // reset retry guard on user change
+  }, [user?.id]);
+
+  // ---------- Profile: load (schema-tolerant) ----------
+  useEffect(() => {
+    if (!user?.id) return;
+    let canceled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_profile")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (canceled) return;
+
+      if (error && error.code === "PGRST116") {
+        // No row yet; fall back to auth metadata for names
+        if (nonEmpty(user?.user_metadata?.first_name)) {
+          setFirstNameField(user.user_metadata.first_name);
+        }
+        if (nonEmpty(user?.user_metadata?.last_name)) {
+          setLastNameField(user.user_metadata.last_name);
+        }
+        setProfileStatus("");
+        return;
+      }
+      if (error) {
+        setProfileStatus(`Profile load error: ${error.message}`);
+        return;
+      }
+      const d = data || {};
+
+      setInitials(d.uploader_initials ?? d.initials ?? "");
+
+      // Names: prefer DB values, otherwise fall back to auth metadata
+      const dbFirst = d.first_name ?? d.uploader_first_name ?? "";
+      const dbLast = d.last_name ?? d.uploader_last_name ?? "";
+      setFirstNameField(nonEmpty(dbFirst) ? dbFirst : (user?.user_metadata?.first_name || ""));
+      setLastNameField(nonEmpty(dbLast) ? dbLast : (user?.user_metadata?.last_name || ""));
+
+      const ageSrc = d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
+      setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
+
+      setLocation(d.uploader_location ?? d.location ?? "");
+
+      if (typeof d.contact_preference === "string") {
+        const v = d.contact_preference;
+        if (
+          v === "researchers_and_members" ||
+          v === "researchers_only" ||
+          v === "members_only"
+        ) {
+          setContactPref(v);
+        }
+      } else {
+        const opt = d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
+        if (opt === false) setContactPref("members_only");
+        if (opt === true) setContactPref("researchers_and_members");
+      }
+      setProfileStatus("");
+    })();
+    return () => { canceled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Fetch total count
@@ -703,7 +767,7 @@ export default function HomePage() {
             });
 
             setProfileStatus("Profile saved.");
-            showToast("Saved"); // NEW: tiny toast on success
+            showToast("Saved"); // tiny toast on success
             setTimeout(() => setProfileStatus(""), 1500);
           } catch (err) {
             setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
@@ -1133,3 +1197,4 @@ export default function HomePage() {
     </main>
   );
 }
+
