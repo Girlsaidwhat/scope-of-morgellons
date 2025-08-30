@@ -257,32 +257,6 @@ export default function HomePage() {
   const csvStartRef = useRef(0);
   const MIN_BUSY_MS = 1000; // ensure visible "Preparing…" + inhibit rapid re-clicks
 
-  // ---- A11y live status (no visual changes) ----
-  const VISUALLY_HIDDEN = {
-    position: "absolute",
-    left: -9999,
-    top: "auto",
-    width: 1,
-    height: 1,
-    overflow: "hidden",
-  };
-
-  const hasMore = useMemo(() => {
-    if (loading) return false;
-    if (items.length === 0) return false;
-    if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0;
-  }, [items.length, count, loading]);
-
-  const liveStatus = useMemo(() => {
-    // Prefer explicit galleryStatus (e.g., "Loading..." or "Load error: ...")
-    if (galleryStatus) return galleryStatus;
-    if (loading && items.length > 0) return "Loading more…";
-    if (items.length === 0) return "No items yet.";
-    if (!hasMore) return "No more items.";
-    return "";
-  }, [galleryStatus, loading, items.length, hasMore]);
-
   // Cleanup blob: URLs on unmount
   useEffect(() => {
     return () => {
@@ -395,6 +369,14 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Determine if more pages likely exist
+  const hasMore = useMemo(() => {
+    if (loading) return false;
+    if (items.length === 0) return false;
+    if (typeof count === "number") return items.length < count;
+    return items.length % PAGE_SIZE === 0;
+  }, [items.length, count, loading]);
+
   // CSV export (all rows for signed-in user) with visible busy window + double-click guard
   async function exportCSV() {
     if (!user?.id) return;
@@ -453,6 +435,162 @@ export default function HomePage() {
         setCsvBusy(false);
         csvGateRef.current = false;
       }, remaining);
+    }
+  }
+
+  // ---------- Profile: load (schema-tolerant) ----------
+  useEffect(() => {
+    if (!user?.id) return;
+    let canceled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("user_profile")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (canceled) return;
+
+      if (error && error.code === "PGRST116") {
+        // No row yet; fall back to auth metadata for names
+        if (nonEmpty(user?.user_metadata?.first_name)) {
+          setFirstNameField(user.user_metadata.first_name);
+        }
+        if (nonEmpty(user?.user_metadata?.last_name)) {
+          setLastNameField(user.user_metadata.last_name);
+        }
+        setProfileStatus("");
+        return;
+      }
+      if (error) {
+        setProfileStatus(`Profile load error: ${error.message}`);
+        return;
+      }
+      const d = data || {};
+
+      setInitials(d.uploader_initials ?? d.initials ?? "");
+
+      // Names: prefer DB values, otherwise fall back to auth metadata
+      const dbFirst = d.first_name ?? d.uploader_first_name ?? "";
+      const dbLast = d.last_name ?? d.uploader_last_name ?? "";
+      setFirstNameField(nonEmpty(dbFirst) ? dbFirst : (user?.user_metadata?.first_name || ""));
+      setLastNameField(nonEmpty(dbLast) ? dbLast : (user?.user_metadata?.last_name || ""));
+
+      const ageSrc =
+        d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
+      setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
+
+      setLocation(d.uploader_location ?? d.location ?? "");
+
+      if (typeof d.contact_preference === "string") {
+        const v = d.contact_preference;
+        if (
+          v === "researchers_and_members" ||
+          v === "researchers_only" ||
+          v === "members_only"
+        ) {
+          setContactPref(v);
+        }
+      } else {
+        const opt =
+          d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
+        if (opt === false) setContactPref("members_only");
+        if (opt === true) setContactPref("researchers_and_members");
+      }
+      setProfileStatus("");
+    })();
+    return () => {
+      canceled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // ---------- Profile: save (save to auth.user_metadata + DB columns; then push to images) ----------
+  async function saveProfile(e) {
+    e.preventDefault();
+    if (!user?.id) return;
+    setProfileStatus("Saving...");
+
+    try {
+      // 0) Ensure row exists
+      await supabase
+        .from("user_profile")
+        .upsert({ user_id: user.id }, { onConflict: "user_id" });
+
+      // 1) Update auth metadata (reliable persistence across sessions)
+      const metaPayload = {
+        first_name: nonEmpty(firstNameField) ? firstNameField : null,
+        last_name: nonEmpty(lastNameField) ? lastNameField : null,
+      };
+      const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
+      if (metaErr) {
+        // Non-fatal: continue to DB updates
+        console.warn("auth.updateUser error:", metaErr?.message);
+      }
+
+      // 2) DB updates (best-effort, tolerant to missing columns)
+      const ageVal =
+        age === "" || age === null || typeof age === "undefined"
+          ? null
+          : Number(age);
+
+      const researchersAllowed =
+        contactPref === "researchers_and_members" ||
+        contactPref === "researchers_only";
+
+      const updates = [
+        ["uploader_initials", initials || null],
+        ["initials", initials || null],
+
+        // Names to both styles (if columns exist)
+        ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
+        ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
+        ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
+        ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
+
+        ["uploader_age", ageVal],
+        ["age", ageVal],
+        ["uploader_location", location || null],
+        ["location", location || null],
+        ["contact_preference", contactPref],
+        ["uploader_contact_opt_in", researchersAllowed],
+        ["contact_opt_in", researchersAllowed],
+      ];
+
+      for (const [col, val] of updates) {
+        const { error } = await supabase
+          .from("user_profile")
+          .update({ [col]: val })
+          .eq("user_id", user.id);
+
+        if (error) {
+          const raw = error.message || "";
+          const msg = raw.toLowerCase();
+          const ignorable =
+            msg.includes("does not exist") ||
+            msg.includes("could not find") ||
+            msg.includes("schema cache") ||
+            (msg.includes("unknown") && msg.includes("column")) ||
+            (msg.includes("column") && msg.includes("not found"));
+          if (ignorable) continue;
+          throw error;
+        }
+      }
+
+      // 3) Push updated profile fields to all existing images for this user (RLS-safe)
+      await updateImageMetadataForUserProfile(user.id, {
+        uploader_initials: initials || null,
+        uploader_first_name: nonEmpty(firstNameField) ? firstNameField : null,
+        uploader_last_name: nonEmpty(lastNameField) ? lastNameField : null,
+        uploader_age: ageVal,
+        uploader_location: location || null,
+        uploader_contact_opt_in: researchersAllowed,
+      });
+
+      setProfileStatus("Profile saved.");
+      setTimeout(() => setProfileStatus(""), 1500);
+    } catch (err) {
+      setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
     }
   }
 
@@ -539,16 +677,6 @@ export default function HomePage() {
       tabIndex={-1}
       style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
     >
-      {/* Hidden live region for screen readers (no visual changes) */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        style={VISUALLY_HIDDEN}
-      >
-        {liveStatus}
-      </div>
-
       {/* Header */}
       <header
         style={{
@@ -1018,4 +1146,3 @@ export default function HomePage() {
     </main>
   );
 }
-
