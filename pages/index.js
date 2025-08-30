@@ -95,7 +95,7 @@ function setItemUrl(setItems, absIndex, url) {
   setItems((prev) => {
     if (!prev[absIndex]) return prev;
     const next = [...prev];
-    next[absIndex] = { ...next[absIndex], display_url: url };
+    next[absIndex] = { ...prev[absIndex], display_url: url };
     return next;
   });
 }
@@ -187,6 +187,9 @@ function nonEmpty(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+// Small helper
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Tolerant bulk update: push profile fields to all of the user's images.
 // Tries one multi-column update; if the table lacks some columns, falls back to per-column updates and ignores "column does not exist" errors.
 async function updateImageMetadataForUserProfile(userId, fields) {
@@ -256,6 +259,9 @@ export default function HomePage() {
   const csvGateRef = useRef(false); // blocks ultra-fast double clicks before React re-renders
   const csvStartRef = useRef(0);
   const MIN_BUSY_MS = 1000; // ensure visible "Preparing…" + inhibit rapid re-clicks
+
+  // Minimum visible loading window for gallery loads
+  const MIN_GALLERY_BUSY_MS = 500;
 
   // Cleanup blob: URLs on unmount
   useEffect(() => {
@@ -329,11 +335,13 @@ export default function HomePage() {
     };
   }, [user?.id]);
 
-  // Load a page of gallery items (append)
+  // Load a page of gallery items (append) with a minimum visible "Loading…" window
   async function loadMore() {
     if (!user?.id) return;
+    // Start busy window
     setLoading(true);
     if (items.length === 0) setGalleryStatus("Loading...");
+    const start = performance.now();
 
     const { data, error } = await supabase
       .from("image_metadata")
@@ -354,11 +362,18 @@ export default function HomePage() {
     // 1) Show the grid immediately with placeholders
     setItems((prev) => [...prev, ...batch]);
     setOffset((prev) => prev + batch.length);
-    setGalleryStatus("");
-    setLoading(false);
 
     // 2) Resolve URLs in the background
     resolveUrlsInBackground(setItems, startIndex, batch, "images", user.id);
+
+    // 3) Hold the loading state briefly on fast responses
+    const elapsed = performance.now() - start;
+    const remaining = Math.max(0, MIN_GALLERY_BUSY_MS - elapsed);
+    if (remaining) await sleep(remaining);
+
+    // Clear status and busy
+    setGalleryStatus("");
+    setLoading(false);
   }
 
   // Initial gallery load
@@ -435,162 +450,6 @@ export default function HomePage() {
         setCsvBusy(false);
         csvGateRef.current = false;
       }, remaining);
-    }
-  }
-
-  // ---------- Profile: load (schema-tolerant) ----------
-  useEffect(() => {
-    if (!user?.id) return;
-    let canceled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("user_profile")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-
-      if (canceled) return;
-
-      if (error && error.code === "PGRST116") {
-        // No row yet; fall back to auth metadata for names
-        if (nonEmpty(user?.user_metadata?.first_name)) {
-          setFirstNameField(user.user_metadata.first_name);
-        }
-        if (nonEmpty(user?.user_metadata?.last_name)) {
-          setLastNameField(user.user_metadata.last_name);
-        }
-        setProfileStatus("");
-        return;
-      }
-      if (error) {
-        setProfileStatus(`Profile load error: ${error.message}`);
-        return;
-      }
-      const d = data || {};
-
-      setInitials(d.uploader_initials ?? d.initials ?? "");
-
-      // Names: prefer DB values, otherwise fall back to auth metadata
-      const dbFirst = d.first_name ?? d.uploader_first_name ?? "";
-      const dbLast = d.last_name ?? d.uploader_last_name ?? "";
-      setFirstNameField(nonEmpty(dbFirst) ? dbFirst : (user?.user_metadata?.first_name || ""));
-      setLastNameField(nonEmpty(dbLast) ? dbLast : (user?.user_metadata?.last_name || ""));
-
-      const ageSrc =
-        d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
-      setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
-
-      setLocation(d.uploader_location ?? d.location ?? "");
-
-      if (typeof d.contact_preference === "string") {
-        const v = d.contact_preference;
-        if (
-          v === "researchers_and_members" ||
-          v === "researchers_only" ||
-          v === "members_only"
-        ) {
-          setContactPref(v);
-        }
-      } else {
-        const opt =
-          d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
-        if (opt === false) setContactPref("members_only");
-        if (opt === true) setContactPref("researchers_and_members");
-      }
-      setProfileStatus("");
-    })();
-    return () => {
-      canceled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
-  // ---------- Profile: save (save to auth.user_metadata + DB columns; then push to images) ----------
-  async function saveProfile(e) {
-    e.preventDefault();
-    if (!user?.id) return;
-    setProfileStatus("Saving...");
-
-    try {
-      // 0) Ensure row exists
-      await supabase
-        .from("user_profile")
-        .upsert({ user_id: user.id }, { onConflict: "user_id" });
-
-      // 1) Update auth metadata (reliable persistence across sessions)
-      const metaPayload = {
-        first_name: nonEmpty(firstNameField) ? firstNameField : null,
-        last_name: nonEmpty(lastNameField) ? lastNameField : null,
-      };
-      const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
-      if (metaErr) {
-        // Non-fatal: continue to DB updates
-        console.warn("auth.updateUser error:", metaErr?.message);
-      }
-
-      // 2) DB updates (best-effort, tolerant to missing columns)
-      const ageVal =
-        age === "" || age === null || typeof age === "undefined"
-          ? null
-          : Number(age);
-
-      const researchersAllowed =
-        contactPref === "researchers_and_members" ||
-        contactPref === "researchers_only";
-
-      const updates = [
-        ["uploader_initials", initials || null],
-        ["initials", initials || null],
-
-        // Names to both styles (if columns exist)
-        ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
-        ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
-        ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
-        ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
-
-        ["uploader_age", ageVal],
-        ["age", ageVal],
-        ["uploader_location", location || null],
-        ["location", location || null],
-        ["contact_preference", contactPref],
-        ["uploader_contact_opt_in", researchersAllowed],
-        ["contact_opt_in", researchersAllowed],
-      ];
-
-      for (const [col, val] of updates) {
-        const { error } = await supabase
-          .from("user_profile")
-          .update({ [col]: val })
-          .eq("user_id", user.id);
-
-        if (error) {
-          const raw = error.message || "";
-          const msg = raw.toLowerCase();
-          const ignorable =
-            msg.includes("does not exist") ||
-            msg.includes("could not find") ||
-            msg.includes("schema cache") ||
-            (msg.includes("unknown") && msg.includes("column")) ||
-            (msg.includes("column") && msg.includes("not found"));
-          if (ignorable) continue;
-          throw error;
-        }
-      }
-
-      // 3) Push updated profile fields to all existing images for this user (RLS-safe)
-      await updateImageMetadataForUserProfile(user.id, {
-        uploader_initials: initials || null,
-        uploader_first_name: nonEmpty(firstNameField) ? firstNameField : null,
-        uploader_last_name: nonEmpty(lastNameField) ? lastNameField : null,
-        uploader_age: ageVal,
-        uploader_location: location || null,
-        uploader_contact_opt_in: researchersAllowed,
-      });
-
-      setProfileStatus("Profile saved.");
-      setTimeout(() => setProfileStatus(""), 1500);
-    } catch (err) {
-      setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
     }
   }
 
@@ -967,7 +826,7 @@ export default function HomePage() {
             fontWeight: 600,
             fontSize: 12,
             whiteSpace: "nowrap",
-            minWidth: 110, // avoids layout shift when text changes
+            minWidth: 110,
             opacity: csvBusy ? 0.9 : 1,
           }}
         >
@@ -975,9 +834,12 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* Gallery status (initial) */}
+      {/* Gallery status (initial) — now with aria-live; we enforce a brief hold in JS */}
       {galleryStatus && items.length === 0 ? (
         <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           style={{
             padding: 12,
             border: "1px solid #ddd",
@@ -1121,12 +983,20 @@ export default function HomePage() {
       {/* Load more / end-of-list / empty */}
       <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
         {items.length === 0 && !galleryStatus ? (
-          <div style={{ fontSize: 12, opacity: 0.7 }}>No items yet.</div>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: 12, opacity: 0.7 }}
+          >
+            No items yet.
+          </div>
         ) : hasMore ? (
           <button
             onClick={loadMore}
             disabled={loading}
             aria-label="Load more images"
+            aria-busy={loading ? "true" : "false"}
             style={{
               padding: "10px 14px",
               borderRadius: 8,
@@ -1140,7 +1010,14 @@ export default function HomePage() {
             {loading ? "Loading..." : "Load more"}
           </button>
         ) : items.length > 0 ? (
-          <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: 12, opacity: 0.7 }}
+          >
+            No more items.
+          </div>
         ) : null}
       </div>
     </main>
