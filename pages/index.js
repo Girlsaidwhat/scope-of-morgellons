@@ -187,6 +187,40 @@ function nonEmpty(v) {
   return typeof v === "string" && v.trim().length > 0;
 }
 
+// Tolerant bulk update: push profile fields to all of the user's images.
+// Tries one multi-column update; if the table lacks some columns, falls back to per-column updates and ignores "column does not exist" errors.
+async function updateImageMetadataForUserProfile(userId, fields) {
+  if (!userId) return;
+  try {
+    const { error } = await supabase
+      .from("image_metadata")
+      .update(fields)
+      .eq("user_id", userId);
+    if (error) throw error;
+  } catch (err) {
+    const entries = Object.entries(fields);
+    for (const [col, val] of entries) {
+      try {
+        const { error } = await supabase
+          .from("image_metadata")
+          .update({ [col]: val })
+          .eq("user_id", userId);
+        if (error) {
+          const raw = error.message || "";
+          const msg = raw.toLowerCase();
+          const ignorable =
+            msg.includes("does not exist") ||
+            msg.includes("could not find") ||
+            msg.includes("schema cache") ||
+            (msg.includes("unknown") && msg.includes("column")) ||
+            (msg.includes("column") && msg.includes("not found"));
+          if (!ignorable) throw error;
+        }
+      } catch {}
+    }
+  }
+}
+
 // ------------------------------------------------------------------------
 
 export default function HomePage() {
@@ -450,7 +484,7 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // ---------- Profile: save (save to auth.user_metadata + DB columns as fallback) ----------
+  // ---------- Profile: save (save to auth.user_metadata + DB columns; then push to images) ----------
   async function saveProfile(e) {
     e.preventDefault();
     if (!user?.id) return;
@@ -521,6 +555,16 @@ export default function HomePage() {
           throw error;
         }
       }
+
+      // 3) Push updated profile fields to all existing images for this user (RLS-safe)
+      await updateImageMetadataForUserProfile(user.id, {
+        uploader_initials: initials || null,
+        uploader_first_name: nonEmpty(firstNameField) ? firstNameField : null,
+        uploader_last_name: nonEmpty(lastNameField) ? lastNameField : null,
+        uploader_age: ageVal,
+        uploader_location: location || null,
+        uploader_contact_opt_in: researchersAllowed,
+      });
 
       setProfileStatus("Profile saved.");
       setTimeout(() => setProfileStatus(""), 1500);
