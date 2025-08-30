@@ -188,6 +188,7 @@ function nonEmpty(v) {
 }
 
 // Tolerant bulk update: push profile fields to all of the user's images.
+// Tries one multi-column update; if the table lacks some columns, falls back to per-column updates and ignores "column does not exist" errors.
 async function updateImageMetadataForUserProfile(userId, fields) {
   if (!userId) return;
   try {
@@ -250,8 +251,11 @@ export default function HomePage() {
   // One-shot retry guard for image onError (prevents loops)
   const retrySetRef = useRef(new Set());
 
-  // CSV busy state (for UX polish)
+  // CSV busy state + guards (for UX polish)
   const [csvBusy, setCsvBusy] = useState(false);
+  const csvGateRef = useRef(false); // blocks ultra-fast double clicks before React re-renders
+  const csvStartRef = useRef(0);
+  const MIN_BUSY_MS = 1000; // ensure visible "Preparing…" + inhibit rapid re-clicks
 
   // Cleanup blob: URLs on unmount
   useEffect(() => {
@@ -373,10 +377,14 @@ export default function HomePage() {
     return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
-  // CSV export (all rows for signed-in user) with UX polish
+  // CSV export (all rows for signed-in user) with visible busy window + double-click guard
   async function exportCSV() {
-    if (!user?.id || csvBusy) return;
+    if (!user?.id) return;
+    if (csvGateRef.current || csvBusy) return; // hard guard against ultra-fast double click
+    csvGateRef.current = true;
     setCsvBusy(true);
+    csvStartRef.current = performance.now();
+
     try {
       const { data, error } = await supabase
         .from("image_metadata")
@@ -420,7 +428,13 @@ export default function HomePage() {
       a.click();
       URL.revokeObjectURL(url);
     } finally {
-      setCsvBusy(false);
+      // Ensure the busy state is visible for at least MIN_BUSY_MS
+      const elapsed = performance.now() - csvStartRef.current;
+      const remaining = Math.max(0, MIN_BUSY_MS - elapsed);
+      setTimeout(() => {
+        setCsvBusy(false);
+        csvGateRef.current = false;
+      }, remaining);
     }
   }
 
@@ -953,7 +967,7 @@ export default function HomePage() {
             fontWeight: 600,
             fontSize: 12,
             whiteSpace: "nowrap",
-            minWidth: 100, // avoids layout shift when text changes
+            minWidth: 110, // avoids layout shift when text changes
             opacity: csvBusy ? 0.9 : 1,
           }}
         >
