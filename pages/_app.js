@@ -1,10 +1,10 @@
 ﻿// pages/_app.js
-// Single source of truth for sign-in UI, global build badge, and logged-out Explore.
-// Update: slim left menu rail with hamburger at very top, menu drops into its own side space
-// (no overlay/jump). Main content is centered in the remaining area. Extra subtitle spacing.
-// Global font set to Arial for the whole site.
+// Explore landing + sign-in lives here.
+// Update: slimmer left rail (menu), more subtitle spacing, and a 3-across anonymized carousel.
+// NOTE on privacy/RLS: We attempt to fetch recent images without user filter. If RLS blocks this
+// (which is safe), visitors will see placeholders instead. No uploader info is displayed.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
@@ -13,7 +13,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-const MENU_RAIL_WIDTH = 140; // slim side space for the hamburger + dropdown
+// Slim side rail for the hamburger menu
+const MENU_RAIL_WIDTH = 120;
 
 function BuildBadge() {
   return (
@@ -33,7 +34,6 @@ function BuildBadge() {
         zIndex: 1000,
       }}
     >
-      {/* Build badge (intentionally bumped earlier this session) */}
       Build 36.171_2025-09-01
     </div>
   );
@@ -55,13 +55,12 @@ export default function MyApp({ Component, pageProps }) {
     return () => sub.subscription?.unsubscribe?.();
   }, []);
 
-  // Allow these routes to be public when logged out
+  // Public routes while logged out
   const publicPaths = new Set(["/about", "/news", "/resources"]);
   const path =
     typeof window === "undefined" ? router.pathname : window.location.pathname;
 
   if (!session) {
-    // Logged out: allow public pages; otherwise show Explore + hidden auth shell at "/"
     if (publicPaths.has(path)) {
       return (
         <>
@@ -90,7 +89,7 @@ export default function MyApp({ Component, pageProps }) {
   );
 }
 
-// Global font (site-wide)
+// Site-wide font
 function GlobalStyles() {
   return (
     <style jsx global>{`
@@ -173,7 +172,6 @@ function AuthScreen({ onSignedIn }) {
       id="main"
       tabIndex={-1}
       style={{
-        // Start near the top (no deep vertical centering)
         minHeight: "100vh",
         display: "block",
         padding: "32px 24px",
@@ -349,7 +347,7 @@ function AuthScreen({ onSignedIn }) {
   );
 }
 
-// ---- Explore landing with slim left rail + hamburger (top) and centered main content ----
+// ---- Explore landing with slim left rail + hamburger and centered main content ----
 function ExplorePanel({ onSignIn }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -365,9 +363,6 @@ function ExplorePanel({ onSignIn }) {
         background: "#fff",
       }}
     >
-      {/* Two-column layout:
-          - Left: persistent slim rail (hamburger at the very top, dropdown opens within this rail)
-          - Right: all main content, centered within its column */}
       <div
         style={{
           display: "grid",
@@ -380,7 +375,6 @@ function ExplorePanel({ onSignIn }) {
         <aside
           aria-label="Explore menu rail"
           style={{
-            position: "relative",
             border: "1px solid #e5e7eb",
             borderRadius: 10,
             padding: 10,
@@ -416,7 +410,7 @@ function ExplorePanel({ onSignIn }) {
             </div>
           </button>
 
-          {/* Dropdown lives entirely inside the rail (no overlay on main) */}
+          {/* Dropdown lives entirely inside the rail */}
           {menuOpen ? (
             <nav id="explore-menu" role="menu" aria-label="Explore menu">
               <a role="menuitem" href="/about" style={menuLinkStyle}>About</a>
@@ -428,7 +422,7 @@ function ExplorePanel({ onSignIn }) {
 
         {/* Right main area */}
         <div>
-          {/* Top row: centered title and CTA on the right */}
+          {/* Title + CTA */}
           <div
             style={{
               display: "grid",
@@ -462,56 +456,194 @@ function ExplorePanel({ onSignIn }) {
             </div>
           </div>
 
-          {/* Subtitle with extra space below before tiles */}
-          <header style={{ textAlign: "center", margin: "8px 0 32px" }}>
+          {/* Subtitle with MORE space below before carousel */}
+          <header style={{ textAlign: "center", margin: "8px 0 48px" }}>
             <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
               An anonymized visual overview to help researchers and the curious
               understand patterns and categories.
             </p>
           </header>
 
-          {/* Tiles */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-              gap: 10,
-            }}
-          >
-            {[
-              "Blebs (clear to brown)",
-              "Fibers",
-              "Fiber Bundles",
-              "Crystals / Particles",
-            ].map((label) => (
-              <div
-                key={label}
-                role="img"
-                aria-label={`Category ${label}`}
-                style={{
-                  height: 120,
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  background:
-                    "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 600,
-                  fontSize: 13,
-                  textAlign: "center",
-                  padding: "0 6px",
-                }}
-                title={label}
-              >
-                {label}
-              </div>
-            ))}
-          </div>
+          {/* 3-across anonymized carousel grid */}
+          <CarouselGrid />
         </div>
       </div>
     </section>
   );
+}
+
+/** --------- CarouselGrid (3 columns) --------- **/
+function CarouselGrid() {
+  const [urls, setUrls] = useState([]); // flat list of display URLs
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // Try to fetch recent images across the site (RLS may block; that's okay)
+        const { data, error: err } = await supabase
+          .from("image_metadata")
+          .select("id, storage_path, path, filename, created_at")
+          .order("created_at", { ascending: false })
+          .limit(30);
+
+        if (cancelled) return;
+
+        if (err) {
+          setError("Images unavailable.");
+          setUrls([]);
+          return;
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const paths = rows
+          .map((r) => normalizePath(r.storage_path || r.path || ""))
+          .filter(Boolean);
+
+        // Resolve display URLs (prefer signed, fallback public)
+        const resolved = await resolveSignedUrls(paths, "images");
+        if (!cancelled) setUrls(resolved);
+      } catch (e) {
+        if (!cancelled) {
+          setError("Images unavailable.");
+          setUrls([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Split into 3 buckets for the three carousels
+  const columns = useMemo(() => {
+    const cols = [[], [], []];
+    urls.forEach((u, i) => {
+      cols[i % 3].push(u);
+    });
+    return cols.map((col) => (col.length ? col : []));
+  }, [urls]);
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 12,
+      }}
+    >
+      {columns.map((col, idx) => (
+        <CarouselSlot key={idx} images={col} />
+      ))}
+      {/* If no images resolved, show placeholders (anonymous) */}
+      {urls.length === 0 ? (
+        <>
+          <PlaceholderCard />
+          <PlaceholderCard />
+          <PlaceholderCard />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function CarouselSlot({ images }) {
+  const [i, setI] = useState(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!images || images.length === 0) return;
+    timerRef.current = setInterval(() => {
+      setI((prev) => (prev + 1) % images.length);
+    }, 3500);
+    return () => clearInterval(timerRef.current);
+  }, [images]);
+
+  const url = images && images.length ? images[i] : "";
+
+  return (
+    <div
+      aria-label="Anonymized image carousel"
+      style={{
+        height: 180,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        overflow: "hidden",
+        background: "#f1f5f9",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt="Anonymized project image"
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : (
+        <span style={{ color: "#64748b", fontSize: 12 }}>Loading…</span>
+      )}
+    </div>
+  );
+}
+
+function PlaceholderCard() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        height: 180,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        background:
+          "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8fafc 100%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#94a3b8",
+        fontSize: 12,
+      }}
+    >
+      Preview loading…
+    </div>
+  );
+}
+
+/** --------- Helpers for storage URLs --------- **/
+function normalizePath(p) {
+  if (!p) return "";
+  let s = String(p).trim();
+  while (s.startsWith("/")) s = s.slice(1);
+  return s;
+}
+
+async function resolveSignedUrls(paths, bucket) {
+  if (!paths || paths.length === 0) return [];
+  try {
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 60 * 60);
+    if (error || !Array.isArray(data)) {
+      // fallback to public urls
+      return paths.map((p) => {
+        const { data: pu } = supabase.storage.from(bucket).getPublicUrl(p);
+        return pu?.publicUrl || "";
+      }).filter(Boolean);
+    }
+    const signed = data.map((x, idx) => {
+      if (x?.signedUrl) return x.signedUrl;
+      const { data: pu } = supabase.storage.from(bucket).getPublicUrl(paths[idx]);
+      return pu?.publicUrl || "";
+    });
+    return signed.filter(Boolean);
+  } catch {
+    // fallback to public for all
+    return paths.map((p) => {
+      const { data: pu } = supabase.storage.from(bucket).getPublicUrl(p);
+      return pu?.publicUrl || "";
+    }).filter(Boolean);
+  }
 }
 
 const menuLinkStyle = {
