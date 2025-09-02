@@ -164,12 +164,6 @@ function AuthScreen({ onSignedIn }) {
           boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
         }}
       >
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 12 }}>
-          <div style={{ opacity: 0.8, fontSize: 12, marginBottom: 4 }}>Welcome to</div>
-          <h1 style={{ margin: 0, fontSize: 22 }}>The Scope of Morgellons</h1>
-        </div>
-
         {/* Explore panel: ALWAYS visible (anonymized, no user images) */}
         <ExplorePanel
           onSignIn={() => {
