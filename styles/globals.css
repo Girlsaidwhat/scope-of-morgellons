@@ -40,3 +40,10 @@ a {
     color-scheme: dark;
   }
 }
+/* Build badge safe-space */
+:root {
+  --build-badge-safe-space: 96px; /* room for the fixed badge */
+}
+#main {
+  padding-bottom: var(--build-badge-safe-space);
+}
