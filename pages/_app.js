@@ -462,7 +462,8 @@ function LandingScreen() {
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        padding: "8px 24px 24px",
+        // Extra bottom padding so images never sit right behind the build badge
+        padding: "8px 24px 140px",
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
@@ -605,7 +606,7 @@ function ExplorePanel() {
   );
 }
 
-/** --------- CarouselRow: exactly 3 slots, anonymized --------- **/
+/** --------- CarouselRow: exactly 3 slots, anonymized, staggered fade --------- **/
 function CarouselRow() {
   const [urls, setUrls] = useState([]);
 
@@ -646,6 +647,9 @@ function CarouselRow() {
     cols[i % 3].push(u);
   });
 
+  // Stagger: slot 0 starts immediately, slot 1 after 1200ms, slot 2 after 2400ms
+  const delays = [0, 1200, 2400];
+
   return (
     <div
       style={{
@@ -655,48 +659,144 @@ function CarouselRow() {
       }}
     >
       {cols.map((images, idx) => (
-        <CarouselSlot key={idx} images={images} />
+        <CarouselSlot key={idx} images={images} delay={delays[idx] || 0} />
       ))}
     </div>
   );
 }
 
-function CarouselSlot({ images }) {
-  const [i, setI] = useState(0);
-  const ref = useRef(null);
+/** Cross-fade slot with two layers; changes one at a time with fade **/
+function CarouselSlot({ images, delay = 0 }) {
+  const [aIdx, setAIdx] = useState(0);
+  const [bIdx, setBIdx] = useState(images && images.length > 1 ? 1 : 0);
+  const [showA, setShowA] = useState(true);
+  const intervalRef = useRef(null);
+  const startedRef = useRef(false);
+
+  // Re-init when images change
+  useEffect(() => {
+    setAIdx(0);
+    setBIdx(images && images.length > 1 ? 1 : 0);
+    setShowA(true);
+  }, [images]);
 
   useEffect(() => {
     if (!images || images.length === 0) return;
-    ref.current = setInterval(() => {
-      setI((prev) => (prev + 1) % images.length);
-    }, 3500);
-    return () => clearInterval(ref.current);
-  }, [images]);
 
-  const url = images && images.length ? images[i] : "";
+    // Clear any prior timers
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    const start = () => {
+      // Rotate every 3.5s after the initial (staggered) delay
+      intervalRef.current = setInterval(() => {
+        if (!images || images.length <= 1) return;
+        // Determine next index
+        const currentIdx = showA ? aIdx : bIdx;
+        const nextIdx = (currentIdx + 1) % images.length;
+
+        if (showA) {
+          // Prepare B with next, then reveal B
+          setBIdx(nextIdx);
+          setShowA(false);
+        } else {
+          // Prepare A with next, then reveal A
+          setAIdx(nextIdx);
+          setShowA(true);
+        }
+      }, 3500);
+    };
+
+    let launchTimer = null;
+    if (!startedRef.current) {
+      startedRef.current = true;
+      launchTimer = setTimeout(start, Math.max(0, delay));
+    } else {
+      start();
+    }
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (launchTimer) clearTimeout(launchTimer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images, delay, aIdx, bIdx, showA]);
+
+  const urlA = images && images.length ? images[aIdx] : "";
+  const urlB = images && images.length ? images[bIdx] : "";
+
+  // Single image: just render it without animation
+  if (!images || images.length <= 1) {
+    const only = images && images[0] ? images[0] : "";
+    return (
+      <div
+        aria-label="Anonymized image (single)"
+        style={{
+          position: "relative",
+          height: 140,
+          borderRadius: 12,
+          border: "1px solid #27272a",
+          overflow: "hidden",
+          background: "#111111",
+        }}
+      >
+        {only ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={only}
+            alt="Anonymized project image"
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div
       aria-label="Anonymized image carousel"
       style={{
+        position: "relative",
         height: 140,
         borderRadius: 12,
         border: "1px solid #27272a",
         overflow: "hidden",
         background: "#111111",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
       }}
     >
-      {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={url}
-          alt="Anonymized project image"
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-        />
-      ) : null}
+      {/* Layer A */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={urlA}
+        alt="Anonymized project image"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+          opacity: showA ? 1 : 0,
+          transition: "opacity 700ms ease-in-out",
+          pointerEvents: "none",
+        }}
+      />
+      {/* Layer B */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={urlB}
+        alt="Anonymized project image"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+          opacity: showA ? 0 : 1,
+          transition: "opacity 700ms ease-in-out",
+          pointerEvents: "none",
+        }}
+      />
     </div>
   );
 }
@@ -788,4 +888,5 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
