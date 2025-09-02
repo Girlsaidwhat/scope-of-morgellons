@@ -1,513 +1,426 @@
 ﻿// pages/_app.js
-// Build 36.145_2025-08-29
-import "../styles/globals.css";
-import { useEffect, useRef, useState } from "react";
+// Single source of truth for sign-in UI, global build badge, and behavior.
+// Explore panel is ALWAYS visible above the sign-in form when logged out.
+// No routing tricks, no new pages.
+
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.145_2025-08-29";
-
-// Browser-safe Supabase client (public keys only)
-const supabase =
-  typeof window !== "undefined"
-    ? createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      )
-    : null;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 function BuildBadge() {
-  const badgeStyle = {
-    position: "fixed",
-    right: 8,
-    bottom: 48, // keep above Windows taskbar
-    zIndex: 2147483647,
-    fontSize: 12,
-    padding: "4px 10px",
-    borderRadius: 8,
-    color: "#fff",
-    background: "#111",
-    border: "1px solid #000",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-    pointerEvents: "none",
-  };
   return (
-    <div aria-label="Build version" style={badgeStyle}>
-      {BUILD_VERSION}
+    <div
+      aria-label="Build badge"
+      style={{
+        position: "fixed",
+        right: 10,
+        bottom: 10,
+        fontSize: 12,
+        background: "#0f172a",
+        color: "white",
+        padding: "6px 10px",
+        borderRadius: 999,
+        border: "1px solid #0b1221",
+        opacity: 0.9,
+        zIndex: 1000,
+      }}
+    >
+      {/* Do not change unless explicitly bumped */}
+      Build 36.141_2025-08-29
     </div>
-  );
-}
-
-function useAuthPresence() {
-  const [signedIn, setSignedIn] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    if (!supabase) {
-      setChecking(false);
-      return;
-    }
-    let unsub = () => {};
-    (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      setSignedIn(!!session);
-      setChecking(false);
-      const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-        setSignedIn(!!s);
-      });
-      unsub = sub.subscription?.unsubscribe || (() => {});
-    })();
-    return () => unsub();
-  }, []);
-
-  return { signedIn, checking };
-}
-
-/** Canonical sign-in screen */
-function AuthScreen() {
-  const router = useRouter();
-  const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showTips, setShowTips] = useState(false);
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-
-  // Layout
-  const pageWrap = {
-    maxWidth: 980,
-    margin: "20px auto",
-    padding: "0 12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    textAlign: "center",
-  };
-  const formStyle = {
-    display: "grid",
-    gap: 10,
-    width: "100%",
-    maxWidth: 360,
-    margin: "0 auto",
-  };
-  const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
-  const input = {
-    width: 300,
-    padding: "10px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    fontSize: 14,
-  };
-  const row = {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    marginTop: 6,
-  };
-  const btn = {
-    padding: "10px 14px",
-    border: "1px solid #111",
-    borderRadius: 8,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  };
-  const linkBtn = {
-    padding: "6px 10px",
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    background: "#fff",
-    color: "#111",
-    fontSize: 12,
-    cursor: "pointer",
-  };
-  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
-
-  // v2 sign-in with on-demand client fallback
-  async function handleSignIn(e) {
-    e.preventDefault?.();
-    setErr("");
-    setMsg("Signing in…");
-    try {
-      const sb =
-        supabase ||
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      setMsg("Signed in.");
-      router.replace("/");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not sign in.");
-    }
-  }
-
-  async function handleSignUp(e) {
-    e.preventDefault?.();
-    setErr("");
-    setMsg("Creating account…");
-    try {
-      if (!supabase) throw new Error("Client not ready");
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      setMsg("Account created. Check your email to confirm, then sign in.");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not sign up.");
-    }
-  }
-
-  async function handleForgot(e) {
-    e.preventDefault?.();
-    setErr("");
-    setMsg("Sending reset email…");
-    try {
-      if (!supabase) throw new Error("Client not ready");
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset`,
-      });
-      if (error) throw error;
-      setMsg("Check your email for the reset link.");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not send reset email.");
-    }
-  }
-
-  return (
-    <main id="main" style={pageWrap}>
-      <header style={{ width: "100%", paddingTop: 28 }}>
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 600,
-            color: "#333",
-            textAlign: "center",
-            marginLeft: 0,
-            marginBottom: 0,
-            letterSpacing: 0.2,
-            lineHeight: 1.0,
-          }}
-        >
-          Welcome to
-        </div>
-        <h1
-          style={{
-            margin: "0 0 6px",
-            textAlign: "center",
-            lineHeight: 1.12,
-          }}
-        >
-          The Scope of Morgellons
-        </h1>
-      </header>
-
-      <section
-        aria-label="Sign in"
-        style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}
-      >
-        <form
-          onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp}
-          aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"}
-          style={formStyle}
-        >
-          <label style={inputWrap}>
-            <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={input}
-            />
-          </label>
-
-          <label style={inputWrap}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: 300,
-              }}
-            >
-              <span>Password</span>
-              <button
-                type="button"
-                aria-label="Password tips"
-                onClick={() => setShowTips((v) => !v)}
-                style={{ fontSize: 12, padding: "2px 8px" }}
-              >
-                ?
-              </button>
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
-              required
-              style={input}
-            />
-          </label>
-
-          {showTips ? (
-            <div
-              role="dialog"
-              aria-label="Password tips"
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
-                padding: 10,
-                margin: "0 auto",
-                width: 320,
-                textAlign: "left",
-                fontSize: 12, // slightly smaller tips text
-                lineHeight: 1.4,
-              }}
-            >
-              <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>
-                Password tips
-              </strong>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>
-                  Use a long passphrase (3–5 random words, 16–24+ characters).{" "}
-                  <em>Spaces are OK</em> and encouraged between words.
-                </li>
-                <li>Make it unique for every site; never reuse passwords.</li>
-                <li>Use a password manager to generate and store passwords.</li>
-                <li>Avoid predictable substitutions or patterns (e.g., P@ssw0rd123!).</li>
-                <li>Change it only if you suspect compromise, not on a schedule.</li>
-              </ul>
-              <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
-                Enable two-factor authentication (authenticator app) whenever available.
-              </div>
-            </div>
-          ) : null}
-
-          <div style={row}>
-            <button type="submit" style={btn}>
-              {mode === "sign_in" ? "Sign in" : "Sign up"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
-              aria-label="Toggle sign in or sign up"
-              style={linkBtn}
-            >
-              {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
-            <button
-              type="button"
-              onClick={handleForgot}
-              aria-label="Forgot password?"
-              style={linkBtn}
-            >
-              Forgot password?
-            </button>
-          </div>
-
-          <p aria-live="polite" style={statusStyle}>
-            {msg}
-          </p>
-          {err ? (
-            <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
-              {err}
-            </div>
-          ) : null}
-        </form>
-      </section>
-    </main>
-  );
-}
-
-/** Create-new-password screen shown after clicking the reset link */
-function ResetPasswordScreen({ onDone }) {
-  const router = useRouter();
-  const [p1, setP1] = useState("");
-  const [p2, setP2] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-  const passRef = useRef(null);
-
-  useEffect(() => {
-    passRef.current?.focus();
-  }, []);
-
-  const pageWrap = {
-    maxWidth: 980,
-    margin: "24px auto",
-    padding: "0 12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  };
-  const formStyle = {
-    display: "grid",
-    gap: 10,
-    width: "100%",
-    maxWidth: 360,
-    margin: "0 auto",
-  };
-  const input = {
-    width: 300,
-    padding: "10px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    fontSize: 14,
-  };
-  const btn = {
-    padding: "10px 14px",
-    border: "1px solid #111",
-    borderRadius: 8,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  };
-  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
-
-  async function handleSubmit(e) {
-    e.preventDefault?.();
-    setErr("");
-    if (!p1 || !p2) {
-      setErr("Enter your new password in both fields.");
-      return;
-    }
-    if (p1 !== p2) {
-      setErr("Passwords do not match.");
-      return;
-    }
-    if (p1.length < 8) {
-      setErr("Password must be at least 8 characters.");
-      return;
-    }
-    setMsg("Updating password…");
-    try {
-      const sb =
-        supabase ||
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
-      const { error } = await sb.auth.updateUser({ password: p1 });
-      if (error) throw error;
-      setMsg("Password updated.");
-      // After success, sign out, then route to Welcome
-      await sb.auth.signOut();
-      onDone?.();
-      router.replace("/");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not update password.");
-    }
-  }
-
-  return (
-    <main id="main" aria-label="Create new password" style={pageWrap}>
-      <h1 style={{ margin: "0 0 12px" }}>Create new password</h1>
-      <form onSubmit={handleSubmit} style={formStyle} aria-labelledby="reset-heading">
-        <label>
-          <span style={{ display: "block", marginBottom: 6 }}>New password</span>
-          <input
-            ref={passRef}
-            type="password"
-            value={p1}
-            onChange={(e) => setP1(e.target.value)}
-            autoComplete="new-password"
-            required
-            style={input}
-          />
-        </label>
-        <label>
-          <span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span>
-          <input
-            type="password"
-            value={p2}
-            onChange={(e) => setP2(e.target.value)}
-            autoComplete="new-password"
-            required
-            style={input}
-          />
-        </label>
-        <button type="submit" style={btn} aria-label="Update password">
-          Update password
-        </button>
-        <p aria-live="polite" style={statusStyle}>
-          {msg}
-        </p>
-        {err ? (
-          <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
-            {err}
-          </div>
-        ) : null}
-      </form>
-    </main>
   );
 }
 
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
-  const { signedIn, checking } = useAuthPresence();
-
-  // Reset-mode detection: route, hash, and Supabase event
-  const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
-  const [resetMode, setResetMode] = useState(isResetPath);
+  const [session, setSession] = useState(null);
 
   useEffect(() => {
-    if (isResetPath) setResetMode(true);
-  }, [isResetPath]);
-
-  useEffect(() => {
-    if (!supabase) return;
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setResetMode(true);
-      }
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (mounted) setSession(data?.session ?? null);
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
+      setSession(sess ?? null);
     });
-    return () => sub?.subscription?.unsubscribe?.();
+    return () => sub.subscription?.unsubscribe?.();
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const hash = window.location.hash || "";
-    const q = window.location.search || "";
-    if (hash.includes("type=recovery") || q.includes("type=recovery")) {
-      setResetMode(true);
-    }
-  }, []);
-
-  if (checking) {
-    return <BuildBadge />;
-  }
-
-  // If in reset mode, always show Create-new-password screen
-  if (resetMode) {
+  if (!session) {
     return (
       <>
-        <ResetPasswordScreen onDone={() => setResetMode(false)} />
+        <AuthScreen onSignedIn={() => router.push("/")} />
         <BuildBadge />
       </>
     );
   }
 
-  // Single source of truth: when logged out on "/", show Auth; otherwise render page
-  const onHome = router?.pathname === "/";
-  const showAuth = onHome && !signedIn;
-
   return (
     <>
-      {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
+      <Component {...pageProps} />
       <BuildBadge />
     </>
+  );
+}
+
+function AuthScreen({ onSignedIn }) {
+  const router = useRouter();
+  const [mode, setMode] = useState("signin"); // "signin" | "signup" | "forgot"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+
+  async function doSignIn(e) {
+    e.preventDefault();
+    setBusy(true);
+    setStatus("Signing in...");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setStatus(error.message);
+      setBusy(false);
+      return;
+    }
+    setStatus("Signed in.");
+    onSignedIn?.();
+  }
+
+  async function doSignUp(e) {
+    e.preventDefault();
+    setBusy(true);
+    setStatus("Creating account...");
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: {} },
+    });
+    if (error) {
+      setStatus(error.message);
+      setBusy(false);
+      return;
+    }
+    setStatus("Check your email to confirm your account.");
+    setBusy(false);
+  }
+
+  async function doForgot(e) {
+    e.preventDefault();
+    setBusy(true);
+    setStatus("Sending reset email...");
+    try {
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/auth/reset`,
+      });
+      if (error) throw error;
+      setStatus("Reset email sent. Check your inbox.");
+    } catch (err) {
+      setStatus(err?.message || "Failed to send reset email.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main
+      id="main"
+      tabIndex={-1}
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        padding: 24,
+        background: "#f8fafc",
+      }}
+    >
+      <a
+        href="#auth-form"
+        style={{
+          position: "absolute",
+          left: -9999,
+          top: "auto",
+          width: 1,
+          height: 1,
+          overflow: "hidden",
+        }}
+      >
+        Skip to sign-in form
+      </a>
+
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 860,
+          padding: 20,
+          background: "white",
+          border: "1px solid #e5e7eb",
+          borderRadius: 12,
+          boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+        }}
+      >
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 12 }}>
+          <div style={{ opacity: 0.8, fontSize: 12, marginBottom: 4 }}>Welcome to</div>
+          <h1 style={{ margin: 0, fontSize: 22 }}>The Scope of Morgellons</h1>
+        </div>
+
+        {/* Explore panel: ALWAYS visible (anonymized, no user images) */}
+        <ExplorePanel
+          onSignIn={() => {
+            const el = document.getElementById("email");
+            if (el) el.focus();
+          }}
+        />
+
+        {/* Auth card(s) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(260px, 420px)",
+            justifyContent: "center",
+            marginTop: 16,
+          }}
+        >
+          {mode !== "forgot" ? (
+            <form id="auth-form" onSubmit={mode === "signin" ? doSignIn : doSignUp}>
+              <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                Email
+              </label>
+              <input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+              />
+
+              <div style={{ height: 10 }} />
+
+              <label htmlFor="password" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                Password{" "}
+                <span
+                  title="Tips: long passphrases are great; spaces are allowed; avoid common phrases."
+                  aria-label="Password tips"
+                  style={{ borderBottom: "1px dotted #64748b", cursor: "help" }}
+                >
+                  (?)
+                </span>
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+              />
+
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setMode("forgot")}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  Forgot password?
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #0f766e",
+                    background: busy ? "#8dd3cd" : "#14b8a6",
+                    color: "white",
+                    fontWeight: 600,
+                    cursor: busy ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {mode === "signin" ? (busy ? "Signing in..." : "Sign in") : (busy ? "Creating..." : "Create account")}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form id="auth-form" onSubmit={doForgot}>
+              <p style={{ fontSize: 14, marginTop: 0 }}>
+                Enter your email and we’ll send a reset link.
+              </p>
+              <label htmlFor="forgot-email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                Email
+              </label>
+              <input
+                id="forgot-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setMode("signin")}
+                  style={{
+                    background: "transparent",
+                    border: "1px solid #cbd5e1",
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 8,
+                    border: "1px solid #1e293b",
+                    background: busy ? "#64748b" : "#111827",
+                    color: "white",
+                    fontWeight: 600,
+                    cursor: busy ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {busy ? "Sending..." : "Send reset link"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: 12, opacity: 0.85, marginTop: 10, minHeight: 18, textAlign: "center" }}
+          >
+            {status}
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+// ---- Anonymized Explore panel (no user images) ----
+function ExplorePanel({ onSignIn }) {
+  const categories = [
+    { key: "blebs", label: "Blebs (clear to brown)" },
+    { key: "fibers", label: "Fibers" },
+    { key: "bundles", label: "Fiber Bundles" },
+    { key: "crystals", label: "Crystals / Particles" },
+  ];
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % categories.length), 3000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <section
+      id="explore-panel"
+      aria-label="Project overview"
+      style={{
+        border: "1px solid #e5e7eb",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+        background: "#fff",
+      }}
+    >
+      {/* Simple nav */}
+      <nav aria-label="Overview navigation" style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginBottom: 8 }}>
+        <a href="#about" style={{ textDecoration: "none" }} title="Learn about the project">About</a>
+        <a href="#news" style={{ textDecoration: "none" }} title="Latest updates">News</a>
+        <a href="#resources" style={{ textDecoration: "none" }} title="Helpful links">Resources</a>
+        <button
+          onClick={onSignIn}
+          style={{
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid #1e293b",
+            background: "#111827",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}
+          aria-label="Sign in or create an account"
+          title="Sign in / Sign up"
+        >
+          Sign in
+        </button>
+      </nav>
+
+      {/* Hero */}
+      <header style={{ textAlign: "center", margin: "6px 0 12px" }}>
+        <h2 style={{ margin: 0, fontSize: 20 }}>The Scope of Morgellons</h2>
+        <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
+          An anonymized visual overview to help researchers and the curious understand patterns and categories.
+        </p>
+      </header>
+
+      {/* Anonymized category tiles (no photos; soft gradients) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+        {categories.map((c, i) => {
+          const active = i === idx;
+          return (
+            <div
+              key={c.key}
+              role="img"
+              aria-label={`Category ${c.label}`}
+              style={{
+                height: 120,
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                background: active
+                  ? "radial-gradient(60% 60% at 50% 40%, #e5f3ff 0%, #eef2ff 70%, #f8fafc 100%)"
+                  : "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+                fontSize: 13,
+              }}
+              title={c.label}
+            >
+              {c.label}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Anchors (placeholder content only) */}
+      <section id="about" style={{ marginTop: 14, borderTop: "1px solid #e5e7eb", paddingTop: 8 }}>
+        <h3 style={{ fontSize: 16, margin: 0 }}>About</h3>
+        <p style={{ marginTop: 6, opacity: 0.9, fontSize: 14 }}>
+          This project invites contributions and analysis while protecting member privacy. Images here are anonymized placeholders.
+        </p>
+      </section>
+
+      <section id="news" style={{ marginTop: 12 }}>
+        <h3 style={{ fontSize: 16, margin: 0 }}>News</h3>
+        <p style={{ marginTop: 6, opacity: 0.9, fontSize: 14 }}>Updates coming soon.</p>
+      </section>
+
+      <section id="resources" style={{ marginTop: 12 }}>
+        <h3 style={{ fontSize: 16, margin: 0 }}>Resources</h3>
+        <p style={{ marginTop: 6, opacity: 0.9, fontSize: 14 }}>Curated links and reading will appear here.</p>
+      </section>
+    </section>
   );
 }
