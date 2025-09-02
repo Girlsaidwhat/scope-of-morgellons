@@ -281,17 +281,23 @@ function ResetPasswordScreen({ onDone }) {
 
 /* ---------- Landing (logged-out default) ---------- */
 function LandingScreen() {
+  // Add a right-side viewport gutter so content never sits under the fixed build badge
+  const BADGE_GUTTER_RIGHT = 180; // px reserved on the right for the badge
+
   return (
     <main
       id="main"
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        // Big bottom padding so the badge never crowds the images
-        padding: "8px 24px 420px",
+        paddingTop: 8,
+        paddingBottom: 420,       // vertical breathing room
+        paddingLeft: 24,
+        paddingRight: BADGE_GUTTER_RIGHT, // horizontal gutter from the badge
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
+        boxSizing: "border-box",
       }}
     >
       <div
@@ -305,21 +311,25 @@ function LandingScreen() {
           borderRadius: 12,
           boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
           position: "relative",
+          boxSizing: "border-box",
         }}
       >
         <ExplorePanel />
       </div>
-      {/* Extra guarantee spacer below the card for the build badge */}
+      {/* Extra spacer below the card (failsafe) */}
       <div style={{ height: 280 }} />
     </main>
   );
 }
 
-// ---- Explore landing: slimmer left rail; CTA pinned far right; header+images share exact width; a bit left-aligned
+// ---- Explore landing: slim left rail; CTA pinned far right; header+images share exact inner width
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const MENU_RAIL_WIDTH = 64;     // slim rail
-  const CONTENT_MAX = 640;        // header & carousel share this exact width
+
+  // One inner width we apply to BOTH the header and the carousel so they match edges.
+  const CONTENT_INNER_WIDTH = 560; // shrink a bit so images don’t exceed header width
+
+  const MENU_RAIL_WIDTH = 64; // slim rail
 
   return (
     <section
@@ -412,8 +422,8 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area — fixed inner width shared by header & images (slightly left aligned) */}
-        <div style={{ width: CONTENT_MAX, paddingRight: 8, paddingLeft: 6 }}>
+        {/* Right main area — fixed inner width shared by header & images */}
+        <div style={{ width: CONTENT_INNER_WIDTH, padding: 0, boxSizing: "content-box" }}>
           <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
             The Scope of Morgellons
           </h2>
@@ -422,7 +432,7 @@ function ExplorePanel() {
           <div style={{ height: 72 }} />
 
           {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
-          <CarouselRow maxWidth={CONTENT_MAX} />
+          <CarouselRow maxWidth={CONTENT_INNER_WIDTH} />
 
           {/* Bottom spacer to keep images well clear of the build badge */}
           <div style={{ height: 260 }} />
@@ -433,7 +443,7 @@ function ExplorePanel() {
 }
 
 /** --------- CarouselRow: exactly 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
-function CarouselRow({ maxWidth = 640 }) {
+function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
@@ -468,8 +478,8 @@ function CarouselRow({ maxWidth = 640 }) {
   const cols = [[], [], []];
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  // Even, longer stagger: slot 0 now, slot 1 +5s, slot 2 +10s
-  const delays = [0, 5000, 10000];
+  // Even, longer stagger: slot 0 now, slot 1 +4.5s, slot 2 +9.0s
+  const delays = [0, 4500, 9000];
 
   return (
     <div
@@ -479,6 +489,7 @@ function CarouselRow({ maxWidth = 640 }) {
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
         margin: "0 auto",
+        boxSizing: "content-box",
       }}
     >
       {cols.map((images, idx) => (
@@ -488,9 +499,9 @@ function CarouselRow({ maxWidth = 640 }) {
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 5s → swap → fade in 5s **/
+/** Single-img fade-to-black: HOLD → fade out 4.5s → swap → fade in 4.5s **/
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 5000;   // slower fade in/out (≈5s)
+  const FADE_MS = 4500;   // slower fade in/out (~4.5s)
   const HOLD_MS = 8000;   // display time before fading
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
@@ -622,6 +633,5 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
 
