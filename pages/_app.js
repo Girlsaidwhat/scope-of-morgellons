@@ -65,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen */
+/** Canonical sign-in screen (unchanged) */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -281,10 +281,6 @@ function ResetPasswordScreen({ onDone }) {
 
 /* ---------- Landing (logged-out default) ---------- */
 function LandingScreen() {
-  // Reserve vertical space for the floating build badge without adding a right column.
-  // This clamps the content block to end at least 150px above the viewport bottom.
-  const ABOVE_BADGE_MIN = 150; // tweakable visual gap above badge
-
   return (
     <main
       id="main"
@@ -295,12 +291,8 @@ function LandingScreen() {
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
-        // Layout clamp: inner wrapper gets minHeight: calc(100vh - ABOVE_BADGE_MIN)
-        display: "grid",
-        gridTemplateRows: `minmax(calc(100vh - ${ABOVE_BADGE_MIN}px), auto) auto`,
       }}
     >
-      {/* Row 1: the card, pinned near the top, never running into the badge area */}
       <div style={{ padding: "8px 24px" }}>
         <div
           style={{
@@ -314,24 +306,23 @@ function LandingScreen() {
             boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
             position: "relative",
             boxSizing: "border-box",
+            // This is the simple, robust fix: always leave room below the card.
+            marginBottom: 320,
           }}
         >
           <ExplorePanel />
         </div>
       </div>
-
-      {/* Row 2: a tiny footer spacer to keep page height natural (not strictly necessary) */}
-      <div style={{ height: 8 }} />
     </main>
   );
 }
 
-// ---- Explore landing: slim left rail; header & images share one exact inner width
+// ---- Explore landing: slim left rail; header & images share exact width; left-aligned
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Single inner width applied to BOTH header and carousel so they match edges.
-  const CONTENT_INNER_WIDTH = 520; // narrower so images never exceed header visually
+  // Single inner width applied to BOTH header and carousel so they match exactly.
+  const CONTENT_INNER_WIDTH = 500; // narrower so images never exceed header width
   const MENU_RAIL_WIDTH = 64; // slim rail
 
   return (
@@ -348,7 +339,7 @@ function ExplorePanel() {
         position: "relative",
       }}
     >
-      {/* CTA pinned to the far right of the whole panel */}
+      {/* CTA pinned to the far right of the panel */}
       <a
         href="/signin"
         style={{
@@ -425,21 +416,21 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area — wrapper sets the exact inner width shared by header & images */}
-        <div style={{ display: "grid", justifyItems: "center" }}>
+        {/* Right main area — exact width, left-aligned */}
+        <div>
           <div style={{ width: CONTENT_INNER_WIDTH }}>
-            <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
+            <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "left" }}>
               The Scope of Morgellons
             </h2>
 
             {/* Spacer before images */}
             <div style={{ height: 72 }} />
 
-            {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
+            {/* One-row, three-slot carousel */}
             <CarouselRow maxWidth={CONTENT_INNER_WIDTH} />
 
-            {/* Dedicated vertical gap below the carousel to improve visual distance to the badge */}
-            <div style={{ height: 180 }} />
+            {/* Extra space below images to visually separate from the fixed badge */}
+            <div style={{ height: 220 }} />
           </div>
         </div>
       </div>
@@ -447,8 +438,8 @@ function ExplorePanel() {
   );
 }
 
-/** --------- CarouselRow: exactly 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
-function CarouselRow({ maxWidth = 520 }) {
+/** --------- CarouselRow: 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
+function CarouselRow({ maxWidth = 500 }) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
@@ -493,7 +484,7 @@ function CarouselRow({ maxWidth = 520 }) {
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
-        margin: "0 auto",
+        margin: "0",
         boxSizing: "content-box",
       }}
     >
@@ -504,10 +495,10 @@ function CarouselRow({ maxWidth = 520 }) {
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 4.0s → swap → fade in 4.0s (consistent wrap timing) **/
+/** Single-img fade-to-black: HOLD → fade out 4.0s → swap → fade in 4.0s (constant cycle) **/
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 4000;   // ~4 seconds fade in/out
-  const HOLD_MS = 8000;   // display time before fading
+  const FADE_MS = 4000;   // ~4s fade in/out
+  const HOLD_MS = 8000;   // hold before fade
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -515,19 +506,23 @@ function FadeToBlackSlot({ images, delay = 0 }) {
     if (!images || images.length === 0) return;
     let holdT, outT, inT, startT;
 
-    const begin = () => {
+    const cycle = () => {
+      // Hold current image
       holdT = setTimeout(() => {
-        setVisible(false); // start fade to black
+        // Fade out
+        setVisible(false);
         outT = setTimeout(() => {
+          // Swap image
           setIdx((p) => (p + 1) % images.length);
-          setVisible(true); // fade back in
-          // Ensure cycle duration is constant so the wrap (last→first) matches others
-          inT = setTimeout(begin, FADE_MS);
+          // Fade in
+          setVisible(true);
+          // After fade-in completes, immediately begin the next HOLD.
+          inT = setTimeout(cycle, 0);
         }, FADE_MS);
       }, HOLD_MS);
     };
 
-    startT = setTimeout(begin, Math.max(0, delay));
+    startT = setTimeout(cycle, Math.max(0, delay));
     return () => { [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t)); };
   }, [images, delay]);
 
@@ -639,5 +634,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
