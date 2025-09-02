@@ -1,6 +1,6 @@
 // pages/image/[id].js
-// Build: 36.12_2025-08-20 → Microburst 4 (safe delete hardening)
-// Image Detail a11y: main landmark, aria-live statuses, labeled buttons. Features unchanged.
+// Build: 36.12_2025-08-20 + landing feature toggle
+// Adds "Feature on landing" (public thumbnail pipeline) using public_gallery + public-thumbs.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -27,23 +27,6 @@ function Badge({ children }) {
   );
 }
 
-function normalizePath(p) {
-  if (!p) return "";
-  let s = String(p).trim();
-  if (s.startsWith("/")) s = s.slice(1);
-  return s;
-}
-
-// Compute the storage path reliably across schema variants.
-// Prefers explicit columns, then falls back to auth.uid()/filename.
-function computeStoragePath(row) {
-  const a = normalizePath(row?.storage_path || row?.path || "");
-  if (a) return a;
-  const uid = row?.user_id || "";
-  const fn = row?.filename || "";
-  return normalizePath(`${uid}/${fn}`);
-}
-
 export default function ImageDetailPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -55,6 +38,10 @@ export default function ImageDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Landing feature state
+  const [featured, setFeatured] = useState(false);
+  const [featureBusy, setFeatureBusy] = useState(false);
 
   // Auth
   useEffect(() => {
@@ -77,7 +64,7 @@ export default function ImageDetailPage() {
       const { data, error } = await supabase
         .from("image_metadata")
         .select(
-          "id, user_id, storage_path, path, filename, ext, category, bleb_color, fiber_bundles_color, fibers_color, created_at, notes, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
+          "id, user_id, path, storage_path, filename, ext, category, bleb_color, fiber_bundles_color, fibers_color, created_at, notes, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
         )
         .eq("user_id", user.id)
         .eq("id", id)
@@ -96,17 +83,25 @@ export default function ImageDetailPage() {
       setNotes(data?.notes || "");
       setStatus("");
       setLoading(false);
+
+      // Check if featured
+      const { data: pg, error: pgErr } = await supabase
+        .from("public_gallery")
+        .select("id")
+        .eq("image_id", data.id)
+        .limit(1);
+
+      if (!pgErr) setFeatured((pg && pg.length > 0) || false);
     })();
 
     return () => { canceled = true; };
   }, [user?.id, id]);
 
-  const storagePath = useMemo(() => computeStoragePath(row), [row]);
   const publicUrl = useMemo(() => {
-    if (!storagePath) return "";
-    const { data: pub } = supabase.storage.from("images").getPublicUrl(storagePath);
+    if (!row?.path) return "";
+    const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
     return pub?.publicUrl || "";
-  }, [storagePath]);
+  }, [row?.path]);
 
   async function saveNotes(e) {
     e.preventDefault();
@@ -131,7 +126,83 @@ export default function ImageDetailPage() {
     setTimeout(() => setStatus(""), 1500);
   }
 
-  // Safe delete: Storage → DB row → redirect home
+  // --- Landing "Feature" actions (public thumbnail pipeline) ---
+  function extToMime(ext) {
+    const e = (ext || "").toLowerCase();
+    if (e === "jpg" || e === "jpeg") return "image/jpeg";
+    if (e === "png") return "image/png";
+    return "application/octet-stream";
+  }
+
+  async function handleFeature() {
+    if (!user?.id || !row?.id) return;
+    setFeatureBusy(true);
+    setStatus("Featuring on landing...");
+
+    try {
+      // 1) Download original from private bucket
+      const sourcePath = row.path || row.storage_path;
+      const { data: blob, error: dlErr } = await supabase.storage.from("images").download(sourcePath);
+      if (dlErr) throw dlErr;
+
+      // 2) Upload to public-thumbs under auth.uid()/image-<id>.<ext>
+      const ext = (row.ext || "").replace(/^\./, "") || "jpg";
+      const targetPath = `${user.id}/image-${row.id}.${ext}`;
+      const { error: upErr } = await supabase
+        .from("public-thumbs")
+        .upload(targetPath, blob, { upsert: true, contentType: extToMime(ext) });
+      if (upErr) throw upErr;
+
+      // 3) Insert into public_gallery
+      const { error: insErr } = await supabase
+        .from("public_gallery")
+        .insert({ image_id: row.id, public_path: targetPath });
+      if (insErr) throw insErr;
+
+      setFeatured(true);
+      setStatus("Added to landing.");
+      setTimeout(() => setStatus(""), 1500);
+    } catch (err) {
+      setStatus(`Feature error: ${err?.message || "Unknown error"}`);
+    } finally {
+      setFeatureBusy(false);
+    }
+  }
+
+  async function handleUnfeature() {
+    if (!user?.id || !row?.id) return;
+    setFeatureBusy(true);
+    setStatus("Removing from landing...");
+
+    try {
+      const ext = (row.ext || "").replace(/^\./, "") || "jpg";
+      const targetPath = `${user.id}/image-${row.id}.${ext}`;
+
+      // 1) Delete storage object (safe delete order)
+      const { error: delObjErr } = await supabase
+        .from("public-thumbs")
+        .remove([targetPath]);
+      if (delObjErr && !/Not Found|does not exist/i.test(delObjErr.message)) {
+        throw delObjErr;
+      }
+
+      // 2) Delete DB row
+      const { error: delRowErr } = await supabase
+        .from("public_gallery")
+        .delete()
+        .eq("image_id", row.id);
+      if (delRowErr) throw delRowErr;
+
+      setFeatured(false);
+      setStatus("Removed from landing.");
+      setTimeout(() => setStatus(""), 1500);
+    } catch (err) {
+      setStatus(`Remove error: ${err?.message || "Unknown error"}`);
+    } finally {
+      setFeatureBusy(false);
+    }
+  }
+
   async function handleDelete() {
     if (!user?.id || !row?.id) return;
     const ok = window.confirm(`Delete this image and its metadata?\n\n${row.filename}\n\nThis cannot be undone.`);
@@ -140,48 +211,35 @@ export default function ImageDetailPage() {
     setDeleting(true);
     setStatus("Deleting...");
 
-    const bucket = "images";
-    const path = computeStoragePath(row);
+    // 1) Delete any public copy first
+    try {
+      const ext = (row.ext || "").replace(/^\./, "") || "jpg";
+      const targetPath = `${user.id}/image-${row.id}.${ext}`;
+      await supabase.from("public-thumbs").remove([targetPath]);
+      await supabase.from("public_gallery").delete().eq("image_id", row.id);
+    } catch {}
 
-    // 1) Delete Storage object first (treat "not found" as OK)
-    if (path) {
-      const removeRes = await supabase.storage.from(bucket).remove([path]);
-      const errMsg = removeRes?.error?.message || "";
-      if (removeRes.error && !/not\s*found|does\s*not\s*exist/i.test(errMsg)) {
-        setStatus(`Storage delete error: ${errMsg}`);
-        setDeleting(false);
-        return;
-      }
-    }
-
-    // 2) Delete DB row (retry once if transient)
-    let dbError = null;
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const { error } = await supabase
-        .from("image_metadata")
-        .delete()
-        .eq("id", row.id)
-        .eq("user_id", user.id);
-      if (!error) {
-        dbError = null;
-        break;
-      }
-      // If row already gone, treat as success
-      const msg = (error.message || "").toLowerCase();
-      if (msg.includes("row") && msg.includes("not found")) {
-        dbError = null;
-        break;
-      }
-      dbError = error;
-    }
-
-    if (dbError) {
-      setStatus(`Database delete error: ${dbError.message}`);
+    // 2) Storage delete
+    const removeRes = await supabase.storage.from("images").remove([row.path]);
+    if (removeRes.error && !/Not Found|does not exist/i.test(removeRes.error.message)) {
+      setStatus(`Storage delete error: ${removeRes.error.message}`);
       setDeleting(false);
       return;
     }
 
-    // 3) Redirect home only after both deletes have succeeded or been confirmed absent
+    // 3) Row delete
+    const { error: dbErr } = await supabase
+      .from("image_metadata")
+      .delete()
+      .eq("id", row.id)
+      .eq("user_id", user.id);
+
+    if (dbErr) {
+      setStatus(`Database delete error: ${dbErr.message}`);
+      setDeleting(false);
+      return;
+    }
+
     setStatus("Deleted.");
     setTimeout(() => {
       router.push("/?deleted=1");
@@ -271,16 +329,15 @@ export default function ImageDetailPage() {
                   <div><strong>Filename:</strong> {row.filename}</div>
                   <div><strong>Type:</strong> {row.ext?.toUpperCase() || "—"}</div>
                   <div><strong>Uploaded:</strong> {prettyDate(row.created_at)}</div>
-                  <div><strong>Storage path:</strong> {storagePath || "—"}</div>
+                  <div><strong>Storage path:</strong> {row.path}</div>
                 </div>
 
-                {/* Danger zone */}
-                <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+                {/* Actions */}
+                <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
                     aria-label="Delete this image"
-                    aria-busy={deleting ? "true" : "false"}
                     style={{
                       padding: "8px 12px",
                       borderRadius: 8,
@@ -293,6 +350,46 @@ export default function ImageDetailPage() {
                   >
                     {deleting ? "Deleting..." : "Delete image"}
                   </button>
+
+                  {/* Feature toggle */}
+                  {!featured ? (
+                    <button
+                      onClick={handleFeature}
+                      disabled={featureBusy}
+                      aria-label="Feature this image on the landing page"
+                      title="Copy a public thumbnail and show it on the landing page"
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #1e293b",
+                        background: featureBusy ? "#94a3b8" : "#111827",
+                        color: "white",
+                        fontWeight: 700,
+                        cursor: featureBusy ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {featureBusy ? "Featuring…" : "Feature on landing"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleUnfeature}
+                      disabled={featureBusy}
+                      aria-label="Remove this image from the landing page"
+                      title="Remove the public thumbnail and entry"
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #334155",
+                        background: featureBusy ? "#94a3b8" : "#475569",
+                        color: "white",
+                        fontWeight: 700,
+                        cursor: featureBusy ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {featureBusy ? "Removing…" : "Remove from landing"}
+                    </button>
+                  )}
+
                   <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
                     {status}
                   </span>
@@ -329,7 +426,6 @@ export default function ImageDetailPage() {
                     type="submit"
                     disabled={saving}
                     aria-label="Save notes"
-                    aria-busy={saving ? "true" : "false"}
                     style={{
                       padding: "10px 14px",
                       borderRadius: 8,
@@ -372,6 +468,5 @@ export default function ImageDetailPage() {
     </main>
   );
 }
-
 
 

@@ -1,8 +1,11 @@
 ﻿// pages/_app.js
 // Explore landing + sign-in lives here.
-// Update: slimmer left rail (menu), more subtitle spacing, and a 3-across anonymized carousel.
-// NOTE on privacy/RLS: We attempt to fetch recent images without user filter. If RLS blocks this
-// (which is safe), visitors will see placeholders instead. No uploader info is displayed.
+// Finalized for public landing:
+// - Slimmer left menu rail (96px) with smaller text
+// - Byline removed; extra whitespace before images
+// - Exactly one row with 3 rotating images, drawn from public_gallery/public-thumbs (public for all)
+// - No placeholders; if none featured yet, the row stays hidden
+// - Arial site-wide
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -13,8 +16,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Slim side rail for the hamburger menu
-const MENU_RAIL_WIDTH = 120;
+// Slim menu rail
+const MENU_RAIL_WIDTH = 96;
 
 function BuildBadge() {
   return (
@@ -89,7 +92,7 @@ export default function MyApp({ Component, pageProps }) {
   );
 }
 
-// Site-wide font
+// Site-wide font (Arial)
 function GlobalStyles() {
   return (
     <style jsx global>{`
@@ -347,7 +350,7 @@ function AuthScreen({ onSignedIn }) {
   );
 }
 
-// ---- Explore landing with slim left rail + hamburger and centered main content ----
+// ---- Explore landing: slim left rail + centered main content ----
 function ExplorePanel({ onSignIn }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -377,12 +380,12 @@ function ExplorePanel({ onSignIn }) {
           style={{
             border: "1px solid #e5e7eb",
             borderRadius: 10,
-            padding: 10,
+            padding: 8,
             background: "#ffffff",
             minHeight: 60,
           }}
         >
-          {/* Hamburger at the very top */}
+          {/* Hamburger at the top */}
           <button
             type="button"
             aria-label="Open menu"
@@ -392,30 +395,30 @@ function ExplorePanel({ onSignIn }) {
             onClick={() => setMenuOpen((v) => !v)}
             title="Menu"
             style={{
-              width: 36,
-              height: 32,
+              width: 32,
+              height: 28,
               borderRadius: 8,
               border: "1px solid #cbd5e1",
               background: "#f8fafc",
               display: "grid",
               placeItems: "center",
               cursor: "pointer",
-              marginBottom: 8,
+              marginBottom: 6,
             }}
           >
             <div style={{ display: "grid", gap: 3 }}>
-              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
-              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
-              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#0f172a" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#0f172a" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#0f172a" }} />
             </div>
           </button>
 
           {/* Dropdown lives entirely inside the rail */}
           {menuOpen ? (
             <nav id="explore-menu" role="menu" aria-label="Explore menu">
-              <a role="menuitem" href="/about" style={menuLinkStyle}>About</a>
-              <a role="menuitem" href="/news" style={menuLinkStyle}>News</a>
-              <a role="menuitem" href="/resources" style={menuLinkStyle}>Resources</a>
+              <a role="menuitem" href="/about" style={menuLinkStyleSmall}>About</a>
+              <a role="menuitem" href="/news" style={menuLinkStyleSmall}>News</a>
+              <a role="menuitem" href="/resources" style={menuLinkStyleSmall}>Resources</a>
             </nav>
           ) : null}
         </aside>
@@ -456,74 +459,56 @@ function ExplorePanel({ onSignIn }) {
             </div>
           </div>
 
-          {/* Subtitle with MORE space below before carousel */}
-          <header style={{ textAlign: "center", margin: "8px 0 48px" }}>
-            <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
-              An anonymized visual overview to help researchers and the curious
-              understand patterns and categories.
-            </p>
-          </header>
+          {/* Byline removed; add extra breathing room before images */}
+          <div style={{ height: 56 }} />
 
-          {/* 3-across anonymized carousel grid */}
-          <CarouselGrid />
+          {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
+          <CarouselRow />
         </div>
       </div>
     </section>
   );
 }
 
-/** --------- CarouselGrid (3 columns) --------- **/
-function CarouselGrid() {
-  const [urls, setUrls] = useState([]); // flat list of display URLs
-  const [error, setError] = useState("");
+/** --------- CarouselRow: exactly 3 slots, anonymized --------- **/
+function CarouselRow() {
+  const [urls, setUrls] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        // Try to fetch recent images across the site (RLS may block; that's okay)
-        const { data, error: err } = await supabase
-          .from("image_metadata")
-          .select("id, storage_path, path, filename, created_at")
-          .order("created_at", { ascending: false })
-          .limit(30);
+      // Pull recent public entries (anyone can read)
+      const { data, error } = await supabase
+        .from("public_gallery")
+        .select("public_path, created_at")
+        .order("created_at", { ascending: false })
+        .limit(60);
 
-        if (cancelled) return;
-
-        if (err) {
-          setError("Images unavailable.");
-          setUrls([]);
-          return;
-        }
-
-        const rows = Array.isArray(data) ? data : [];
-        const paths = rows
-          .map((r) => normalizePath(r.storage_path || r.path || ""))
-          .filter(Boolean);
-
-        // Resolve display URLs (prefer signed, fallback public)
-        const resolved = await resolveSignedUrls(paths, "images");
-        if (!cancelled) setUrls(resolved);
-      } catch (e) {
-        if (!cancelled) {
-          setError("Images unavailable.");
-          setUrls([]);
-        }
+      if (cancelled) return;
+      if (error) {
+        setUrls([]);
+        return;
       }
+
+      const bucket = "public-thumbs";
+      const list = (data || [])
+        .map((r) => {
+          const { data: pu } = supabase.storage.from(bucket).getPublicUrl(r.public_path);
+          return pu?.publicUrl || "";
+        })
+        .filter(Boolean);
+
+      setUrls(list);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  // Split into 3 buckets for the three carousels
-  const columns = useMemo(() => {
-    const cols = [[], [], []];
-    urls.forEach((u, i) => {
-      cols[i % 3].push(u);
-    });
-    return cols.map((col) => (col.length ? col : []));
-  }, [urls]);
+  // If nothing public yet, show nothing (no placeholders)
+  if (urls.length === 0) return null;
+
+  // Distribute across 3 columns, cycle each independently
+  const cols = [[], [], []];
+  urls.forEach((u, i) => { cols[i % 3].push(u); });
 
   return (
     <div
@@ -533,31 +518,23 @@ function CarouselGrid() {
         gap: 12,
       }}
     >
-      {columns.map((col, idx) => (
-        <CarouselSlot key={idx} images={col} />
+      {cols.map((images, idx) => (
+        <CarouselSlot key={idx} images={images} />
       ))}
-      {/* If no images resolved, show placeholders (anonymous) */}
-      {urls.length === 0 ? (
-        <>
-          <PlaceholderCard />
-          <PlaceholderCard />
-          <PlaceholderCard />
-        </>
-      ) : null}
     </div>
   );
 }
 
 function CarouselSlot({ images }) {
   const [i, setI] = useState(0);
-  const timerRef = useRef(null);
+  const ref = useRef(null);
 
   useEffect(() => {
     if (!images || images.length === 0) return;
-    timerRef.current = setInterval(() => {
+    ref.current = setInterval(() => {
       setI((prev) => (prev + 1) % images.length);
     }, 3500);
-    return () => clearInterval(timerRef.current);
+    return () => clearInterval(ref.current);
   }, [images]);
 
   const url = images && images.length ? images[i] : "";
@@ -583,77 +560,20 @@ function CarouselSlot({ images }) {
           alt="Anonymized project image"
           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
         />
-      ) : (
-        <span style={{ color: "#64748b", fontSize: 12 }}>Loading…</span>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function PlaceholderCard() {
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        height: 180,
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        background:
-          "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f8fafc 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "#94a3b8",
-        fontSize: 12,
-      }}
-    >
-      Preview loading…
-    </div>
-  );
-}
-
-/** --------- Helpers for storage URLs --------- **/
-function normalizePath(p) {
-  if (!p) return "";
-  let s = String(p).trim();
-  while (s.startsWith("/")) s = s.slice(1);
-  return s;
-}
-
-async function resolveSignedUrls(paths, bucket) {
-  if (!paths || paths.length === 0) return [];
-  try {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(paths, 60 * 60);
-    if (error || !Array.isArray(data)) {
-      // fallback to public urls
-      return paths.map((p) => {
-        const { data: pu } = supabase.storage.from(bucket).getPublicUrl(p);
-        return pu?.publicUrl || "";
-      }).filter(Boolean);
-    }
-    const signed = data.map((x, idx) => {
-      if (x?.signedUrl) return x.signedUrl;
-      const { data: pu } = supabase.storage.from(bucket).getPublicUrl(paths[idx]);
-      return pu?.publicUrl || "";
-    });
-    return signed.filter(Boolean);
-  } catch {
-    // fallback to public for all
-    return paths.map((p) => {
-      const { data: pu } = supabase.storage.from(bucket).getPublicUrl(p);
-      return pu?.publicUrl || "";
-    }).filter(Boolean);
-  }
-}
-
-const menuLinkStyle = {
+const menuLinkStyleSmall = {
   display: "block",
-  padding: "10px 12px",
+  padding: "6px 8px",
+  fontSize: 12,
   textDecoration: "none",
   color: "#0f172a",
   border: "1px solid #eef2f7",
   borderRadius: 8,
-  marginBottom: 8,
+  marginBottom: 6,
   background: "#f8fafc",
 };
 
