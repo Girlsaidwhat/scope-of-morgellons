@@ -1,7 +1,8 @@
 ﻿// pages/_app.js
-// Sign-in lives here. Explore landing for logged-out users.
-// Changes: global Arial preview, top spacing fix, bigger centered title,
-// more space before tiles, and a fixed left sidebar menu (no dropdown).
+// Single source of truth for sign-in UI, global build badge, and logged-out Explore.
+// Update: slim left menu rail with hamburger at very top, menu drops into its own side space
+// (no overlay/jump). Main content is centered in the remaining area. Extra subtitle spacing.
+// Global font set to Arial for the whole site.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -11,6 +12,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
+
+const MENU_RAIL_WIDTH = 140; // slim side space for the hamburger + dropdown
 
 function BuildBadge() {
   return (
@@ -30,7 +33,7 @@ function BuildBadge() {
         zIndex: 1000,
       }}
     >
-      {/* Bumped on request */}
+      {/* Build badge (intentionally bumped earlier this session) */}
       Build 36.171_2025-09-01
     </div>
   );
@@ -58,6 +61,7 @@ export default function MyApp({ Component, pageProps }) {
     typeof window === "undefined" ? router.pathname : window.location.pathname;
 
   if (!session) {
+    // Logged out: allow public pages; otherwise show Explore + hidden auth shell at "/"
     if (publicPaths.has(path)) {
       return (
         <>
@@ -76,6 +80,7 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
+  // Signed in
   return (
     <>
       <GlobalStyles />
@@ -85,7 +90,7 @@ export default function MyApp({ Component, pageProps }) {
   );
 }
 
-// Preview Arial globally (easy to revert)
+// Global font (site-wide)
 function GlobalStyles() {
   return (
     <style jsx global>{`
@@ -103,7 +108,7 @@ function AuthScreen({ onSignedIn }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [showAuth, setShowAuth] = useState(false); // hidden until CTA
+  const [showAuth, setShowAuth] = useState(false); // hidden until CTA click
 
   async function doSignIn(e) {
     e.preventDefault();
@@ -168,7 +173,7 @@ function AuthScreen({ onSignedIn }) {
       id="main"
       tabIndex={-1}
       style={{
-        // Fix: start near top instead of deep vertical centering
+        // Start near the top (no deep vertical centering)
         minHeight: "100vh",
         display: "block",
         padding: "32px 24px",
@@ -192,7 +197,7 @@ function AuthScreen({ onSignedIn }) {
       <div
         style={{
           width: "100%",
-          maxWidth: 980, // a bit wider to accommodate sidebar + content
+          maxWidth: 980,
           margin: "0 auto",
           padding: 20,
           background: "white",
@@ -201,7 +206,7 @@ function AuthScreen({ onSignedIn }) {
           boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
         }}
       >
-        {/* Explore with fixed left sidebar */}
+        {/* Explore with persistent slim left rail and centered main content */}
         <ExplorePanel onSignIn={revealAuthAndFocus} />
 
         {/* Auth card(s) — hidden until CTA is pressed */}
@@ -344,8 +349,10 @@ function AuthScreen({ onSignedIn }) {
   );
 }
 
-// ---- Explore landing with fixed left sidebar ----
+// ---- Explore landing with slim left rail + hamburger (top) and centered main content ----
 function ExplorePanel({ onSignIn }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <section
       id="explore-panel"
@@ -358,71 +365,105 @@ function ExplorePanel({ onSignIn }) {
         background: "#fff",
       }}
     >
-      {/* Top row: title centered, CTA right */}
+      {/* Two-column layout:
+          - Left: persistent slim rail (hamburger at the very top, dropdown opens within this rail)
+          - Right: all main content, centered within its column */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr auto",
-          alignItems: "center",
-          marginBottom: 8,
-          gap: 8,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 36, textAlign: "center" }}>
-          The Scope of Morgellons
-        </h2>
-
-        <div>
-          <button
-            onClick={onSignIn}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 8,
-              border: "1px solid #1e293b",
-              background: "#111827",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}
-            aria-label="Sign up or sign in"
-            title="Sign up / Sign in"
-          >
-            Sign Up / Sign In
-          </button>
-        </div>
-      </div>
-
-      {/* Fixed sidebar layout: left nav + right content */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "180px 1fr",
+          gridTemplateColumns: `${MENU_RAIL_WIDTH}px 1fr`,
           gap: 12,
           alignItems: "start",
         }}
       >
-        {/* Sidebar menu (no dropdown, no jump) */}
+        {/* Left rail */}
         <aside
-          aria-label="Explore menu"
+          aria-label="Explore menu rail"
           style={{
+            position: "relative",
             border: "1px solid #e5e7eb",
             borderRadius: 10,
             padding: 10,
             background: "#ffffff",
+            minHeight: 60,
           }}
         >
-          <nav>
-            <a href="/about" style={menuLinkStyle}>About</a>
-            <a href="/news" style={menuLinkStyle}>News</a>
-            <a href="/resources" style={menuLinkStyle}>Resources</a>
-          </nav>
+          {/* Hamburger at the very top */}
+          <button
+            type="button"
+            aria-label="Open menu"
+            aria-controls="explore-menu"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen ? "true" : "false"}
+            onClick={() => setMenuOpen((v) => !v)}
+            title="Menu"
+            style={{
+              width: 36,
+              height: 32,
+              borderRadius: 8,
+              border: "1px solid #cbd5e1",
+              background: "#f8fafc",
+              display: "grid",
+              placeItems: "center",
+              cursor: "pointer",
+              marginBottom: 8,
+            }}
+          >
+            <div style={{ display: "grid", gap: 3 }}>
+              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
+              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
+              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
+            </div>
+          </button>
+
+          {/* Dropdown lives entirely inside the rail (no overlay on main) */}
+          {menuOpen ? (
+            <nav id="explore-menu" role="menu" aria-label="Explore menu">
+              <a role="menuitem" href="/about" style={menuLinkStyle}>About</a>
+              <a role="menuitem" href="/news" style={menuLinkStyle}>News</a>
+              <a role="menuitem" href="/resources" style={menuLinkStyle}>Resources</a>
+            </nav>
+          ) : null}
         </aside>
 
-        {/* Main column */}
+        {/* Right main area */}
         <div>
-          {/* Byline with extra space below */}
-          <header style={{ textAlign: "center", margin: "6px 0 28px" }}>
+          {/* Top row: centered title and CTA on the right */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr auto",
+              alignItems: "center",
+              marginBottom: 8,
+              gap: 8,
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: 36, textAlign: "center" }}>
+              The Scope of Morgellons
+            </h2>
+            <div>
+              <button
+                onClick={onSignIn}
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #1e293b",
+                  background: "#111827",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                }}
+                aria-label="Sign up or sign in"
+                title="Sign up / Sign in"
+              >
+                Sign Up / Sign In
+              </button>
+            </div>
+          </div>
+
+          {/* Subtitle with extra space below before tiles */}
+          <header style={{ textAlign: "center", margin: "8px 0 32px" }}>
             <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
               An anonymized visual overview to help researchers and the curious
               understand patterns and categories.
