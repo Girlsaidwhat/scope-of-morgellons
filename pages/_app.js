@@ -1,8 +1,8 @@
 ﻿// pages/_app.js
 // Single source of truth for sign-in UI, global build badge, and behavior.
-// Explore panel is ALWAYS visible above the sign-in form when logged out.
+// Explore panel is ALWAYS visible above the (hidden by default) sign-in form when logged out.
 // Left hamburger menu (About/News/Resources). Top-right button: "Sign Up / Sign In".
-// Title centered and larger.
+// Title centered and larger. Menu does not overlay images. Extra space above tiles.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -31,8 +31,8 @@ function BuildBadge() {
         zIndex: 1000,
       }}
     >
-      {/* Do not change unless explicitly bumped */}
-      Build 36.141_2025-08-29
+      {/* Bumped on request */}
+      Build 36.171_2025-09-01
     </div>
   );
 }
@@ -59,7 +59,7 @@ export default function MyApp({ Component, pageProps }) {
     typeof window === "undefined" ? router.pathname : window.location.pathname;
 
   if (!session) {
-    // Logged out: allow public pages; otherwise show sign-in (at "/")
+    // Logged out: allow public pages; otherwise show the Explore + (hidden) auth shell at "/"
     if (publicPaths.has(path)) {
       return (
         <>
@@ -92,6 +92,7 @@ function AuthScreen({ onSignedIn }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
+  const [showAuth, setShowAuth] = useState(false); // hide sign-in area by default
 
   async function doSignIn(e) {
     e.preventDefault();
@@ -143,6 +144,15 @@ function AuthScreen({ onSignedIn }) {
     }
   }
 
+  function revealAuthAndFocus() {
+    setShowAuth(true);
+    // allow DOM to paint
+    setTimeout(() => {
+      const el = document.getElementById("email");
+      if (el) el.focus();
+    }, 0);
+  }
+
   return (
     <main
       id="main"
@@ -181,146 +191,143 @@ function AuthScreen({ onSignedIn }) {
         }}
       >
         {/* Explore panel: ALWAYS visible (anonymized, with hamburger menu) */}
-        <ExplorePanel
-          onSignIn={() => {
-            const el = document.getElementById("email");
-            if (el) el.focus();
-          }}
-        />
+        <ExplorePanel onSignIn={revealAuthAndFocus} />
 
-        {/* Auth card(s) */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(260px, 420px)",
-            justifyContent: "center",
-            marginTop: 16,
-          }}
-        >
-          {mode !== "forgot" ? (
-            <form id="auth-form" onSubmit={mode === "signin" ? doSignIn : doSignUp}>
-              <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-              />
-
-              <div style={{ height: 10 }} />
-
-              <label htmlFor="password" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                Password{" "}
-                <span
-                  title="Tips: long passphrases are great; spaces are allowed; avoid common phrases."
-                  aria-label="Password tips"
-                  style={{ borderBottom: "1px dotted #64748b", cursor: "help" }}
-                >
-                  (?)
-                </span>
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-              />
-
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setMode("forgot")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  Forgot password?
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #0f766e",
-                    background: busy ? "#8dd3cd" : "#14b8a6",
-                    color: "white",
-                    fontWeight: 600,
-                    cursor: busy ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {mode === "signin" ? (busy ? "Signing in..." : "Sign in") : (busy ? "Creating..." : "Create account")}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form id="auth-form" onSubmit={doForgot}>
-              <p style={{ fontSize: 14, marginTop: 0 }}>
-                Enter your email and we’ll send a reset link.
-              </p>
-              <label htmlFor="forgot-email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                Email
-              </label>
-              <input
-                id="forgot-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setMode("signin")}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #cbd5e1",
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #1e293b",
-                    background: busy ? "#64748b" : "#111827",
-                    color: "white",
-                    fontWeight: 600,
-                    cursor: busy ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {busy ? "Sending..." : "Send reset link"}
-                </button>
-              </div>
-            </form>
-          )}
-
+        {/* Auth card(s) — hidden until CTA is pressed */}
+        {showAuth ? (
           <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.85, marginTop: 10, minHeight: 18, textAlign: "center" }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(260px, 420px)",
+              justifyContent: "center",
+              marginTop: 16,
+            }}
           >
-            {status}
+            {mode !== "forgot" ? (
+              <form id="auth-form" onSubmit={mode === "signin" ? doSignIn : doSignUp}>
+                <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+                />
+
+                <div style={{ height: 10 }} />
+
+                <label htmlFor="password" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                  Password{" "}
+                  <span
+                    title="Tips: long passphrases are great; spaces are allowed; avoid common phrases."
+                    aria-label="Password tips"
+                    style={{ borderBottom: "1px dotted #64748b", cursor: "help" }}
+                  >
+                    (?)
+                  </span>
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+                />
+
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMode("forgot")}
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#2563eb",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: "1px solid #0f766e",
+                      background: busy ? "#8dd3cd" : "#14b8a6",
+                      color: "white",
+                      fontWeight: 600,
+                      cursor: busy ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {mode === "signin" ? (busy ? "Signing in..." : "Sign in") : (busy ? "Creating..." : "Create account")}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form id="auth-form" onSubmit={doForgot}>
+                <p style={{ fontSize: 14, marginTop: 0 }}>
+                  Enter your email and we’ll send a reset link.
+                </p>
+                <label htmlFor="forgot-email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+                  Email
+                </label>
+                <input
+                  id="forgot-email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+                />
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMode("signin")}
+                    style={{
+                      background: "transparent",
+                      border: "1px solid #cbd5e1",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: "1px solid #1e293b",
+                      background: busy ? "#64748b" : "#111827",
+                      color: "white",
+                      fontWeight: 600,
+                      cursor: busy ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {busy ? "Sending..." : "Send reset link"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              style={{ fontSize: 12, opacity: 0.85, marginTop: 10, minHeight: 18, textAlign: "center" }}
+            >
+              {status}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </main>
   );
@@ -391,8 +398,8 @@ function ExplorePanel({ onSignIn }) {
           </button>
         </div>
 
-        {/* Center title */}
-        <h2 style={{ margin: 0, fontSize: 28, textAlign: "center" }}>The Scope of Morgellons</h2>
+        {/* Center title (bigger) */}
+        <h2 style={{ margin: 0, fontSize: 36, textAlign: "center" }}>The Scope of Morgellons</h2>
 
         {/* CTA (right) */}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -416,22 +423,19 @@ function ExplorePanel({ onSignIn }) {
         </div>
       </div>
 
-      {/* Dropdown menu (About / News / Resources) */}
+      {/* Dropdown menu (About / News / Resources) — inline, not overlay */}
       {menuOpen ? (
         <div
           id="explore-menu"
           role="menu"
           aria-label="Explore menu"
           style={{
-            position: "absolute",
-            left: 12,
-            top: 56,
-            width: 200,
+            width: 160,
             background: "white",
             border: "1px solid #e5e7eb",
             borderRadius: 10,
             boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
-            zIndex: 10,
+            marginBottom: 12,
           }}
         >
           <a role="menuitem" href="/about" style={menuLinkStyle}>About</a>
@@ -440,8 +444,8 @@ function ExplorePanel({ onSignIn }) {
         </div>
       ) : null}
 
-      {/* Supporting line */}
-      <header style={{ textAlign: "center", margin: "6px 0 12px" }}>
+      {/* Supporting line with more space before tiles */}
+      <header style={{ textAlign: "center", margin: "10px 0 18px" }}>
         <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
           An anonymized visual overview to help researchers and the curious understand patterns and categories.
         </p>
@@ -484,3 +488,4 @@ const menuLinkStyle = {
   color: "#0f172a",
   borderBottom: "1px solid #eef2f7",
 };
+
