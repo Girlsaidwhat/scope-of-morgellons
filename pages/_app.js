@@ -2,7 +2,7 @@
 // Single source of truth for sign-in UI, global build badge, and behavior.
 // Explore panel is ALWAYS visible above the sign-in form when logged out.
 // Left hamburger menu (About/News/Resources). Top-right button: "Sign Up / Sign In".
-// Title centered and larger. No other pages changed.
+// Title centered and larger.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
