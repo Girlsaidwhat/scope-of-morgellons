@@ -1,13 +1,13 @@
 ﻿// pages/_app.js
 // Explore landing + sign-in lives here.
-// Finalized for public landing:
-// - Slimmer left menu rail (96px) with smaller text
-// - Byline removed; extra whitespace before images
-// - Exactly one row with 3 rotating images, drawn from public_gallery/public-thumbs (public for all)
-// - No placeholders; if none featured yet, the row stays hidden
-// - Arial site-wide
+// Tweaks in this edit:
+// - Page starts flush to the top (no unwanted top gap)
+// - In Explore: CTA button sits above; the big title is centered *below* the CTA
+// - Landing uses black background with off-white text (auth card stays readable)
+// - Keeps slim left rail + 3-slot public carousel
+// - Site font = Arial (unchanged)
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
@@ -16,7 +16,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Slim menu rail
+// Slim menu rail (kept as-is)
 const MENU_RAIL_WIDTH = 96;
 
 function BuildBadge() {
@@ -92,12 +92,14 @@ export default function MyApp({ Component, pageProps }) {
   );
 }
 
-// Site-wide font (Arial)
+// Site-wide font + remove default body margin so page starts at the top
 function GlobalStyles() {
   return (
     <style jsx global>{`
-      html, body {
+      html,
+      body {
         font-family: Arial, Helvetica, sans-serif;
+        margin: 0;
       }
     `}</style>
   );
@@ -174,11 +176,13 @@ function AuthScreen({ onSignedIn }) {
     <main
       id="main"
       tabIndex={-1}
+      /* Flush to top: reduced top padding; black theme just for this landing */
       style={{
         minHeight: "100vh",
         display: "block",
-        padding: "32px 24px",
-        background: "#f8fafc",
+        padding: "8px 24px 24px",
+        background: "#000000",
+        color: "#f4f4f5",
       }}
     >
       <a
@@ -195,22 +199,22 @@ function AuthScreen({ onSignedIn }) {
         Skip to sign-in form
       </a>
 
+      {/* Landing content block (dark card) */}
       <div
         style={{
           width: "100%",
           maxWidth: 980,
           margin: "0 auto",
-          padding: 20,
-          background: "white",
-          border: "1px solid #e5e7eb",
+          padding: 16,
+          background: "#0a0a0a",
+          border: "1px solid #27272a",
           borderRadius: 12,
-          boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
+          boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
         }}
       >
-        {/* Explore with persistent slim left rail and centered main content */}
         <ExplorePanel onSignIn={revealAuthAndFocus} />
 
-        {/* Auth card(s) — hidden until CTA is pressed */}
+        {/* Auth card(s) — hidden until CTA is pressed; keep readable on white */}
         {showAuth ? (
           <div
             style={{
@@ -221,7 +225,17 @@ function AuthScreen({ onSignedIn }) {
             }}
           >
             {mode !== "forgot" ? (
-              <form id="auth-form" onSubmit={mode === "signin" ? doSignIn : doSignUp}>
+              <form
+                id="auth-form"
+                onSubmit={mode === "signin" ? doSignIn : doSignUp}
+                style={{
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  padding: 16,
+                }}
+              >
                 <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
                   Email
                 </label>
@@ -287,7 +301,17 @@ function AuthScreen({ onSignedIn }) {
                 </div>
               </form>
             ) : (
-              <form id="auth-form" onSubmit={doForgot}>
+              <form
+                id="auth-form"
+                onSubmit={doForgot}
+                style={{
+                  background: "#ffffff",
+                  color: "#0f172a",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 12,
+                  padding: 16,
+                }}
+              >
                 <p style={{ fontSize: 14, marginTop: 0 }}>
                   Enter your email and we’ll send a reset link.
                 </p>
@@ -350,20 +374,20 @@ function AuthScreen({ onSignedIn }) {
   );
 }
 
-// ---- Explore landing: slim left rail + centered main content ----
+// ---- Explore landing: slim left rail + centered content; CTA above title on dark theme ----
 function ExplorePanel({ onSignIn }) {
   const [menuOpen, setMenuOpen] = useState(false);
-
   return (
     <section
       id="explore-panel"
       aria-label="Project overview"
       style={{
-        border: "1px solid #e5e7eb",
+        border: "1px solid #27272a",
         borderRadius: 12,
         padding: 12,
         marginBottom: 12,
-        background: "#fff",
+        background: "#0a0a0a",
+        color: "#f4f4f5",
       }}
     >
       <div
@@ -378,14 +402,14 @@ function ExplorePanel({ onSignIn }) {
         <aside
           aria-label="Explore menu rail"
           style={{
-            border: "1px solid #e5e7eb",
+            border: "1px solid #27272a",
             borderRadius: 10,
             padding: 8,
-            background: "#ffffff",
+            background: "#0b0b0b",
             minHeight: 60,
           }}
         >
-          {/* Hamburger at the top */}
+          {/* Hamburger at the very top */}
           <button
             type="button"
             aria-label="Open menu"
@@ -398,8 +422,8 @@ function ExplorePanel({ onSignIn }) {
               width: 32,
               height: 28,
               borderRadius: 8,
-              border: "1px solid #cbd5e1",
-              background: "#f8fafc",
+              border: "1px solid #374151",
+              background: "#111827",
               display: "grid",
               placeItems: "center",
               cursor: "pointer",
@@ -407,59 +431,57 @@ function ExplorePanel({ onSignIn }) {
             }}
           >
             <div style={{ display: "grid", gap: 3 }}>
-              <span style={{ display: "block", width: 14, height: 2, background: "#0f172a" }} />
-              <span style={{ display: "block", width: 14, height: 2, background: "#0f172a" }} />
-              <span style={{ display: "block", width: 14, height: 2, background: "#0f172a" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
             </div>
           </button>
 
           {/* Dropdown lives entirely inside the rail */}
           {menuOpen ? (
             <nav id="explore-menu" role="menu" aria-label="Explore menu">
-              <a role="menuitem" href="/about" style={menuLinkStyleSmall}>About</a>
-              <a role="menuitem" href="/news" style={menuLinkStyleSmall}>News</a>
-              <a role="menuitem" href="/resources" style={menuLinkStyleSmall}>Resources</a>
+              <a role="menuitem" href="/about" style={menuLinkStyleSmallDark}>
+                About
+              </a>
+              <a role="menuitem" href="/news" style={menuLinkStyleSmallDark}>
+                News
+              </a>
+              <a role="menuitem" href="/resources" style={menuLinkStyleSmallDark}>
+                Resources
+              </a>
             </nav>
           ) : null}
         </aside>
 
         {/* Right main area */}
         <div>
-          {/* Title + CTA */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr auto",
-              alignItems: "center",
-              marginBottom: 8,
-              gap: 8,
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: 36, textAlign: "center" }}>
-              The Scope of Morgellons
-            </h2>
-            <div>
-              <button
-                onClick={onSignIn}
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  border: "1px solid #1e293b",
-                  background: "#111827",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                }}
-                aria-label="Sign up or sign in"
-                title="Sign up / Sign in"
-              >
-                Sign Up / Sign In
-              </button>
-            </div>
+          {/* CTA row sits above */}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={onSignIn}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid #334155",
+                background: "#111827",
+                color: "#f8fafc",
+                cursor: "pointer",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+              aria-label="Sign up or sign in"
+              title="Sign up / Sign in"
+            >
+              Sign Up / Sign In
+            </button>
           </div>
 
-          {/* Byline removed; add extra breathing room before images */}
+          {/* Title sits below the CTA, centered */}
+          <h2 style={{ margin: "10px 0 0", fontSize: 36, textAlign: "center" }}>
+            The Scope of Morgellons
+          </h2>
+
+          {/* Extra breathing room before images */}
           <div style={{ height: 56 }} />
 
           {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
@@ -477,7 +499,6 @@ function CarouselRow() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Pull recent public entries (anyone can read)
       const { data, error } = await supabase
         .from("public_gallery")
         .select("public_path, created_at")
@@ -503,10 +524,8 @@ function CarouselRow() {
     return () => { cancelled = true; };
   }, []);
 
-  // If nothing public yet, show nothing (no placeholders)
   if (urls.length === 0) return null;
 
-  // Distribute across 3 columns, cycle each independently
   const cols = [[], [], []];
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
@@ -545,9 +564,9 @@ function CarouselSlot({ images }) {
       style={{
         height: 180,
         borderRadius: 12,
-        border: "1px solid #e5e7eb",
+        border: "1px solid #27272a",
         overflow: "hidden",
-        background: "#f1f5f9",
+        background: "#111111",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -565,15 +584,14 @@ function CarouselSlot({ images }) {
   );
 }
 
-const menuLinkStyleSmall = {
+const menuLinkStyleSmallDark = {
   display: "block",
   padding: "6px 8px",
   fontSize: 12,
   textDecoration: "none",
-  color: "#0f172a",
-  border: "1px solid #eef2f7",
+  color: "#f4f4f5",
+  border: "1px solid #30363d",
   borderRadius: 8,
   marginBottom: 6,
-  background: "#f8fafc",
+  background: "#111827",
 };
-
