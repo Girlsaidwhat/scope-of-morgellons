@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Explore landing + sign-in lives here.
-// Changes:
-// - More space between CTA and title
-// - "Sign Up / Sign In" now routes to /signin (dedicated auth view)
-// - /signin shows ONLY the auth UI (same single source of truth)
-// - Landing stays black/off-white, flush to top, slim left rail, 3-slot carousel
-// - Site font = Arial
+// Landing + sign-in (single source of truth).
+// Fixes:
+// - CTA is a real link to /signin (no in-page popup).
+// - Adds extra space between top buttons and header.
+// - /signin shows ONLY the auth UI, rendered from here.
+// - Landing stays black/off-white, slim left rail, 3-slot carousel.
+// - Font = Arial.
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -57,23 +57,20 @@ export default function MyApp({ Component, pageProps }) {
     return () => sub.subscription?.unsubscribe?.();
   }, []);
 
-  // Public pages available while logged out
-  const publicPaths = new Set(["/about", "/news", "/resources"]);
   const path =
     typeof window === "undefined" ? router.pathname : window.location.pathname;
+  const publicPaths = new Set(["/about", "/news", "/resources"]);
 
   if (!session) {
-    // Dedicated sign-in route (auth-only view)
     if (path === "/signin") {
       return (
         <>
           <GlobalStyles />
-          <AuthScreen onSignedIn={() => router.push("/")} standalone />
+          <AuthScreen onSignedIn={() => router.push("/")} />
           <BuildBadge />
         </>
       );
     }
-    // Public content pages (if you add them)
     if (publicPaths.has(path)) {
       return (
         <>
@@ -83,11 +80,11 @@ export default function MyApp({ Component, pageProps }) {
         </>
       );
     }
-    // Default logged-out: landing + CTA that routes to /signin
+    // Default logged-out = landing only
     return (
       <>
         <GlobalStyles />
-        <AuthScreen onSignedIn={() => router.push("/")} />
+        <LandingScreen />
         <BuildBadge />
       </>
     );
@@ -103,7 +100,6 @@ export default function MyApp({ Component, pageProps }) {
   );
 }
 
-// Site-wide font + remove default body margin so page starts at the top
 function GlobalStyles() {
   return (
     <style jsx global>{`
@@ -116,15 +112,13 @@ function GlobalStyles() {
   );
 }
 
-function AuthScreen({ onSignedIn, standalone = false }) {
-  const router = useRouter();
-  const [mode, setMode] = useState("signin"); // "signin" | "signup" | "forgot"
+/* ---------- Standalone Auth (at /signin) ---------- */
+function AuthScreen({ onSignedIn }) {
+  const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  // If standalone (/signin), show the form immediately; otherwise hide until CTA
-  const [showAuth, setShowAuth] = useState(standalone);
 
   async function doSignIn(e) {
     e.preventDefault();
@@ -182,205 +176,199 @@ function AuthScreen({ onSignedIn, standalone = false }) {
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        display: "block",
+        padding: "24px",
+        background: "#000000",
+        color: "#f4f4f5",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(260px, 420px)",
+          justifyContent: "center",
+        }}
+      >
+        {mode !== "forgot" ? (
+          <form
+            id="auth-form"
+            onSubmit={mode === "signin" ? doSignIn : doSignUp}
+            style={{
+              background: "#ffffff",
+              color: "#0f172a",
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+            />
+
+            <div style={{ height: 10 }} />
+
+            <label htmlFor="password" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+              Password{" "}
+              <span
+                title="Tips: long passphrases are great; spaces are allowed; avoid common phrases."
+                aria-label="Password tips"
+                style={{ borderBottom: "1px dotted #64748b", cursor: "help" }}
+              >
+                (?)
+              </span>
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+            />
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setMode("forgot")}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#2563eb",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Forgot password?
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #0f766e",
+                  background: busy ? "#8dd3cd" : "#14b8a6",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: busy ? "not-allowed" : "pointer",
+                }}
+              >
+                {mode === "signin" ? (busy ? "Signing in..." : "Sign in") : (busy ? "Creating..." : "Create account")}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form
+            id="auth-form"
+            onSubmit={doForgot}
+            style={{
+              background: "#ffffff",
+              color: "#0f172a",
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <p style={{ fontSize: 14, marginTop: 0 }}>
+              Enter your email and we’ll send a reset link.
+            </p>
+            <label htmlFor="forgot-email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+              Email
+            </label>
+            <input
+              id="forgot-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                style={{
+                  background: "transparent",
+                  border: "1px solid #cbd5e1",
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #1e293b",
+                  background: busy ? "#64748b" : "#111827",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: busy ? "not-allowed" : "pointer",
+                }}
+              >
+                {busy ? "Sending..." : "Send reset link"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ fontSize: 12, opacity: 0.85, marginTop: 10, minHeight: 18, textAlign: "center" }}
+        >
+          {status}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/* ---------- Landing (logged-out default) ---------- */
+function LandingScreen() {
+  return (
+    <main
+      id="main"
+      tabIndex={-1}
+      style={{
+        minHeight: "100vh",
         padding: "8px 24px 24px",
         background: "#000000",
         color: "#f4f4f5",
       }}
     >
-      <a
-        href="#auth-form"
+      <div
         style={{
-          position: "absolute",
-          left: -9999,
-          top: "auto",
-          width: 1,
-          height: 1,
-          overflow: "hidden",
+          width: "100%",
+          maxWidth: 980,
+          margin: "0 auto",
+          padding: 16,
+          background: "#0a0a0a",
+          border: "1px solid #27272a",
+          borderRadius: 12,
+          boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
         }}
       >
-        Skip to sign-in form
-      </a>
-
-      {/* Landing block when not standalone */}
-      {!standalone && (
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 980,
-            margin: "0 auto",
-            padding: 16,
-            background: "#0a0a0a",
-            border: "1px solid #27272a",
-            borderRadius: 12,
-            boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-          }}
-        >
-          <ExplorePanel onSignIn={() => router.push("/signin")} />
-        </div>
-      )}
-
-      {/* Auth card(s) */}
-      {showAuth && (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(260px, 420px)",
-            justifyContent: "center",
-            marginTop: standalone ? 24 : 16,
-          }}
-        >
-          {mode !== "forgot" ? (
-            <form
-              id="auth-form"
-              onSubmit={mode === "signin" ? doSignIn : doSignUp}
-              style={{
-                background: "#ffffff",
-                color: "#0f172a",
-                border: "1px solid #e5e7eb",
-                borderRadius: 12,
-                padding: 16,
-              }}
-            >
-              <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-              />
-
-              <div style={{ height: 10 }} />
-
-              <label htmlFor="password" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                Password{" "}
-                <span
-                  title="Tips: long passphrases are great; spaces are allowed; avoid common phrases."
-                  aria-label="Password tips"
-                  style={{ borderBottom: "1px dotted #64748b", cursor: "help" }}
-                >
-                  (?)
-                </span>
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-              />
-
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setMode("forgot")}
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  Forgot password?
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #0f766e",
-                    background: busy ? "#8dd3cd" : "#14b8a6",
-                    color: "white",
-                    fontWeight: 600,
-                    cursor: busy ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {mode === "signin" ? (busy ? "Signing in..." : "Sign in") : (busy ? "Creating..." : "Create account")}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <form
-              id="auth-form"
-              onSubmit={doForgot}
-              style={{
-                background: "#ffffff",
-                color: "#0f172a",
-                border: "1px solid #e5e7eb",
-                borderRadius: 12,
-                padding: 16,
-              }}
-            >
-              <p style={{ fontSize: 14, marginTop: 0 }}>
-                Enter your email and we’ll send a reset link.
-              </p>
-              <label htmlFor="forgot-email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-                Email
-              </label>
-              <input
-                id="forgot-email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10 }}>
-                <button
-                  type="button"
-                  onClick={() => setMode("signin")}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid #cbd5e1",
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  Back
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #1e293b",
-                    background: busy ? "#64748b" : "#111827",
-                    color: "white",
-                    fontWeight: 600,
-                    cursor: busy ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {busy ? "Sending..." : "Send reset link"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.85, marginTop: 10, minHeight: 18, textAlign: "center" }}
-          >
-            {status}
-          </div>
-        </div>
-      )}
+        <ExplorePanel />
+      </div>
     </main>
   );
 }
 
-// ---- Explore landing: slim left rail + centered content; CTA above title on dark theme ----
-function ExplorePanel({ onSignIn }) {
+// ---- Explore landing: slim left rail + centered content ----
+function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <section
@@ -414,7 +402,7 @@ function ExplorePanel({ onSignIn }) {
             minHeight: 60,
           }}
         >
-          {/* Hamburger at the very top */}
+          {/* Hamburger */}
           <button
             type="button"
             aria-label="Open menu"
@@ -442,7 +430,6 @@ function ExplorePanel({ onSignIn }) {
             </div>
           </button>
 
-          {/* Dropdown lives entirely inside the rail */}
           {menuOpen ? (
             <nav id="explore-menu" role="menu" aria-label="Explore menu">
               <a role="menuitem" href="/about" style={menuLinkStyleSmallDark}>
@@ -462,15 +449,15 @@ function ExplorePanel({ onSignIn }) {
         <div>
           {/* CTA row sits above */}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              onClick={onSignIn}
+            <a
+              href="/signin"
               style={{
                 padding: "6px 10px",
                 borderRadius: 8,
                 border: "1px solid #334155",
                 background: "#111827",
                 color: "#f8fafc",
-                cursor: "pointer",
+                textDecoration: "none",
                 fontWeight: 600,
                 whiteSpace: "nowrap",
               }}
@@ -478,11 +465,11 @@ function ExplorePanel({ onSignIn }) {
               title="Sign up / Sign in"
             >
               Sign Up / Sign In
-            </button>
+            </a>
           </div>
 
-          {/* Title sits below the CTA, centered — increased spacing to 24px */}
-          <h2 style={{ margin: "24px 0 0", fontSize: 36, textAlign: "center" }}>
+          {/* More space between buttons and header */}
+          <h2 style={{ margin: "28px 0 0", fontSize: 36, textAlign: "center" }}>
             The Scope of Morgellons
           </h2>
 
