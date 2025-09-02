@@ -1,11 +1,10 @@
 ﻿// pages/_app.js
 // Landing + sign-in (single source of truth).
-// Fixes:
-// - CTA is a real link to /signin (no in-page popup).
-// - Adds extra space between top buttons and header.
-// - /signin shows ONLY the auth UI, rendered from here.
-// - Landing stays black/off-white, slim left rail, 3-slot carousel.
-// - Font = Arial.
+// Changes in this edit:
+// - Real right-side gutter on landing by centering a narrower content column and adding padding-right
+// - /signin now renders a full-page white sign-in (standalone mode) that matches your “actual sign-in page” feel
+// - CTA still links to /signin
+// - Font = Arial, landing dark theme remains
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -66,7 +65,7 @@ export default function MyApp({ Component, pageProps }) {
       return (
         <>
           <GlobalStyles />
-          <AuthScreen onSignedIn={() => router.push("/")} />
+          <AuthScreen standalone onSignedIn={() => router.push("/")} />
           <BuildBadge />
         </>
       );
@@ -80,7 +79,7 @@ export default function MyApp({ Component, pageProps }) {
         </>
       );
     }
-    // Default logged-out = landing only
+    // Default logged-out = landing
     return (
       <>
         <GlobalStyles />
@@ -113,7 +112,7 @@ function GlobalStyles() {
 }
 
 /* ---------- Standalone Auth (at /signin) ---------- */
-function AuthScreen({ onSignedIn }) {
+function AuthScreen({ onSignedIn, standalone = false }) {
   const [mode, setMode] = useState("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -170,24 +169,33 @@ function AuthScreen({ onSignedIn }) {
     }
   }
 
+  // Standalone = full-page white background sign-in (no dark landing behind it)
+  const pageBg = standalone ? "#ffffff" : "#000000";
+  const pageColor = standalone ? "#0f172a" : "#f4f4f5";
+
   return (
     <main
       id="main"
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        padding: "24px",
-        background: "#000000",
-        color: "#f4f4f5",
+        padding: standalone ? "40px 24px" : "24px",
+        background: pageBg,
+        color: pageColor,
       }}
     >
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(260px, 420px)",
-          justifyContent: "center",
+          maxWidth: 520,
+          margin: "0 auto",
         }}
       >
+        {standalone ? (
+          <header style={{ textAlign: "center", marginBottom: 16 }}>
+            <h1 style={{ fontSize: 28, margin: 0 }}>Sign in to The Scope of Morgellons</h1>
+          </header>
+        ) : null}
+
         {mode !== "forgot" ? (
           <form
             id="auth-form"
@@ -198,6 +206,7 @@ function AuthScreen({ onSignedIn }) {
               border: "1px solid #e5e7eb",
               borderRadius: 12,
               padding: 16,
+              boxShadow: standalone ? "0 8px 20px rgba(0,0,0,0.08)" : "none",
             }}
           >
             <label htmlFor="email" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
@@ -274,6 +283,7 @@ function AuthScreen({ onSignedIn }) {
               border: "1px solid #e5e7eb",
               borderRadius: 12,
               padding: 16,
+              boxShadow: standalone ? "0 8px 20px rgba(0,0,0,0.08)" : "none",
             }}
           >
             <p style={{ fontSize: 14, marginTop: 0 }}>
@@ -367,7 +377,7 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slim left rail + centered content ----
+// ---- Explore landing: slim left rail + centered right content + right gutter ----
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
@@ -445,8 +455,8 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area */}
-        <div>
+        {/* Right main area (narrower + centered + extra right padding for visible gutter) */}
+        <div style={{ maxWidth: 760, margin: "0 auto", paddingRight: 28 }}>
           {/* CTA row sits above */}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <a
@@ -474,7 +484,7 @@ function ExplorePanel() {
           </h2>
 
           {/* Extra breathing room before images */}
-          <div style={{ height: 56 }} />
+          <div style={{ height: 64 }} />
 
           {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
           <CarouselRow />
@@ -526,7 +536,7 @@ function CarouselRow() {
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 12,
+        gap: 10,
       }}
     >
       {cols.map((images, idx) => (
@@ -554,7 +564,7 @@ function CarouselSlot({ images }) {
     <div
       aria-label="Anonymized image carousel"
       style={{
-        height: 180,
+        height: 140, // smaller cards to improve overall balance
         borderRadius: 12,
         border: "1px solid #27272a",
         overflow: "hidden",
