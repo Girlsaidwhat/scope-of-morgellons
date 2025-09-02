@@ -65,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen */
+/** Canonical sign-in screen — unchanged */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
@@ -271,7 +271,7 @@ function AuthScreen() {
                 margin: "0 auto",
                 width: 320,
                 textAlign: "left",
-                fontSize: 12, // slightly smaller tips text
+                fontSize: 12,
                 lineHeight: 1.4,
               }}
             >
@@ -402,7 +402,6 @@ function ResetPasswordScreen({ onDone }) {
       const { error } = await sb.auth.updateUser({ password: p1 });
       if (error) throw error;
       setMsg("Password updated.");
-      // After success, sign out, then route to Welcome
       await sb.auth.signOut();
       onDone?.();
       router.replace("/");
@@ -455,6 +454,264 @@ function ResetPasswordScreen({ onDone }) {
   );
 }
 
+/* ---------- Landing (logged-out default) ---------- */
+function LandingScreen() {
+  return (
+    <main
+      id="main"
+      tabIndex={-1}
+      style={{
+        minHeight: "100vh",
+        padding: "8px 24px 24px",
+        background: "#000000",
+        color: "#f4f4f5",
+        fontFamily: "Arial, Helvetica, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 980,
+          margin: "0 auto",
+          padding: 16,
+          background: "#0a0a0a",
+          border: "1px solid #27272a",
+          borderRadius: 12,
+          boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+        }}
+      >
+        <ExplorePanel />
+      </div>
+    </main>
+  );
+}
+
+// ---- Explore landing: slim left rail + centered right content + right gutter ----
+function ExplorePanel() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const MENU_RAIL_WIDTH = 84; // slightly slimmer
+  return (
+    <section
+      id="explore-panel"
+      aria-label="Project overview"
+      style={{
+        border: "1px solid #27272a",
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 12,
+        background: "#0a0a0a",
+        color: "#f4f4f5",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `${MENU_RAIL_WIDTH}px 1fr`,
+          gap: 12,
+          alignItems: "start",
+        }}
+      >
+        {/* Left rail */}
+        <aside
+          aria-label="Explore menu rail"
+          style={{
+            border: "1px solid #27272a",
+            borderRadius: 10,
+            padding: 8,
+            background: "#0b0b0b",
+            minHeight: 60,
+          }}
+        >
+          {/* Hamburger */}
+          <button
+            type="button"
+            aria-label="Open menu"
+            aria-controls="explore-menu"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen ? "true" : "false"}
+            onClick={() => setMenuOpen((v) => !v)}
+            title="Menu"
+            style={{
+              width: 32,
+              height: 28,
+              borderRadius: 8,
+              border: "1px solid #374151",
+              background: "#111827",
+              display: "grid",
+              placeItems: "center",
+              cursor: "pointer",
+              marginBottom: 6,
+            }}
+          >
+            <div style={{ display: "grid", gap: 3 }}>
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+            </div>
+          </button>
+
+          {menuOpen ? (
+            <nav id="explore-menu" role="menu" aria-label="Explore menu">
+              <a role="menuitem" href="/about" style={menuLinkStyleSmallDark}>
+                About
+              </a>
+              <a role="menuitem" href="/news" style={menuLinkStyleSmallDark}>
+                News
+              </a>
+              <a role="menuitem" href="/resources" style={menuLinkStyleSmallDark}>
+                Resources
+              </a>
+            </nav>
+          ) : null}
+        </aside>
+
+        {/* Right main area (narrower + centered + extra right padding for visible gutter) */}
+        <div style={{ maxWidth: 760, margin: "0 auto", paddingRight: 28 }}>
+          {/* CTA row — move all the way right */}
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <a
+              href="/signin"
+              style={{
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid #334155",
+                background: "#111827",
+                color: "#f8fafc",
+                textDecoration: "none",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+              aria-label="Sign up or sign in"
+              title="Sign up / Sign in"
+            >
+              Sign Up / Sign In
+            </a>
+          </div>
+
+          {/* Title */}
+          <h2 style={{ margin: "28px 0 0", fontSize: 36, textAlign: "center" }}>
+            The Scope of Morgellons
+          </h2>
+
+          {/* Spacer before images */}
+          <div style={{ height: 64 }} />
+
+          {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
+          <CarouselRow />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** --------- CarouselRow: exactly 3 slots, anonymized --------- **/
+function CarouselRow() {
+  const [urls, setUrls] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // Load up to 60 recent public thumbnails
+      const { data, error } = await supabase
+        ?.from("public_gallery")
+        .select("public_path, created_at")
+        .order("created_at", { ascending: false })
+        .limit(60);
+
+      if (cancelled || error || !Array.isArray(data)) {
+        setUrls([]);
+        return;
+      }
+
+      const bucket = "public-thumbs";
+      const list = data
+        .map((r) => {
+          const { data: pu } = supabase.storage.from(bucket).getPublicUrl(r.public_path);
+          return pu?.publicUrl || "";
+        })
+        .filter(Boolean);
+
+      setUrls(list);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!urls.length) return null;
+
+  const cols = [[], [], []];
+  urls.forEach((u, i) => {
+    cols[i % 3].push(u);
+  });
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 10,
+      }}
+    >
+      {cols.map((images, idx) => (
+        <CarouselSlot key={idx} images={images} />
+      ))}
+    </div>
+  );
+}
+
+function CarouselSlot({ images }) {
+  const [i, setI] = useState(0);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!images || images.length === 0) return;
+    ref.current = setInterval(() => {
+      setI((prev) => (prev + 1) % images.length);
+    }, 3500);
+    return () => clearInterval(ref.current);
+  }, [images]);
+
+  const url = images && images.length ? images[i] : "";
+
+  return (
+    <div
+      aria-label="Anonymized image carousel"
+      style={{
+        height: 140,
+        borderRadius: 12,
+        border: "1px solid #27272a",
+        overflow: "hidden",
+        background: "#111111",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt="Anonymized project image"
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+const menuLinkStyleSmallDark = {
+  display: "block",
+  padding: "6px 8px",
+  fontSize: 12,
+  textDecoration: "none",
+  color: "#f4f4f5",
+  border: "1px solid #30363d",
+  borderRadius: 8,
+  marginBottom: 6,
+  background: "#111827",
+};
+
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
@@ -500,13 +757,35 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
-  // Single source of truth: when logged out on "/", show Auth; otherwise render page
-  const onHome = router?.pathname === "/";
-  const showAuth = onHome && !signedIn;
+  // ROUTING (logged out):
+  // - "/" => LandingScreen
+  // - "/signin" => AuthScreen
+  // Signed-in: render requested page.
+  const path = router?.pathname || "/";
+  const loggedOut = !signedIn;
 
+  if (loggedOut) {
+    if (path === "/signin") {
+      return (
+        <>
+          <AuthScreen />
+          <BuildBadge />
+        </>
+      );
+    }
+    // Default logged-out route = Landing
+    return (
+      <>
+        <LandingScreen />
+        <BuildBadge />
+      </>
+    );
+  }
+
+  // Signed in: render app pages
   return (
     <>
-      {showAuth ? <AuthScreen /> : <Component {...pageProps} />}
+      <Component {...pageProps} />
       <BuildBadge />
     </>
   );
