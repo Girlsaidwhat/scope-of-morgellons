@@ -281,19 +281,13 @@ function ResetPasswordScreen({ onDone }) {
 
 /* ---------- Landing (logged-out default) ---------- */
 function LandingScreen() {
-  // Add a right-side viewport gutter so content never sits under the fixed build badge
-  const BADGE_GUTTER_RIGHT = 180; // px reserved on the right for the badge
-
   return (
     <main
       id="main"
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        paddingTop: 8,
-        paddingBottom: 420,       // vertical breathing room
-        paddingLeft: 24,
-        paddingRight: BADGE_GUTTER_RIGHT, // horizontal gutter from the badge
+        padding: "8px 24px 420px", // big bottom padding (vertical room for badge)
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
@@ -322,13 +316,12 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slim left rail; CTA pinned far right; header+images share exact inner width
+// ---- Explore landing: slim left rail; header & images share one exact inner width
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // One inner width we apply to BOTH the header and the carousel so they match edges.
-  const CONTENT_INNER_WIDTH = 560; // shrink a bit so images don’t exceed header width
-
+  // One inner width applied to BOTH header and carousel so they match edges.
+  const CONTENT_INNER_WIDTH = 560; // tuned so images never exceed header width
   const MENU_RAIL_WIDTH = 64; // slim rail
 
   return (
@@ -422,20 +415,22 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area — fixed inner width shared by header & images */}
-        <div style={{ width: CONTENT_INNER_WIDTH, padding: 0, boxSizing: "content-box" }}>
-          <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
-            The Scope of Morgellons
-          </h2>
+        {/* Right main area — wrapper sets the exact inner width shared by header & images */}
+        <div style={{ display: "grid", justifyItems: "center" }}>
+          <div style={{ width: CONTENT_INNER_WIDTH }}>
+            <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
+              The Scope of Morgellons
+            </h2>
 
-          {/* Spacer before images */}
-          <div style={{ height: 72 }} />
+            {/* Spacer before images */}
+            <div style={{ height: 72 }} />
 
-          {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
-          <CarouselRow maxWidth={CONTENT_INNER_WIDTH} />
+            {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
+            <CarouselRow maxWidth={CONTENT_INNER_WIDTH} />
 
-          {/* Bottom spacer to keep images well clear of the build badge */}
-          <div style={{ height: 260 }} />
+            {/* Dedicated gap below the carousel so the fixed build badge never crowds it */}
+            <div style={{ height: 160 }} />
+          </div>
         </div>
       </div>
     </section>
@@ -478,8 +473,8 @@ function CarouselRow({ maxWidth = 560 }) {
   const cols = [[], [], []];
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  // Even, longer stagger: slot 0 now, slot 1 +4.5s, slot 2 +9.0s
-  const delays = [0, 4500, 9000];
+  // Even stagger: slot 0 now, slot 1 +4.0s, slot 2 +8.0s
+  const delays = [0, 4000, 8000];
 
   return (
     <div
@@ -499,9 +494,9 @@ function CarouselRow({ maxWidth = 560 }) {
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 4.5s → swap → fade in 4.5s **/
+/** Single-img fade-to-black: HOLD → fade out 4.0s → swap → fade in 4.0s **/
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 4500;   // slower fade in/out (~4.5s)
+  const FADE_MS = 4000;   // ~4 seconds fade in/out
   const HOLD_MS = 8000;   // display time before fading
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
