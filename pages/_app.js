@@ -128,7 +128,6 @@ function AuthScreen() {
   };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
-  // v2 sign-in with on-demand client fallback
   async function handleSignIn(e) {
     e.preventDefault?.();
     setErr("");
@@ -462,8 +461,8 @@ function LandingScreen() {
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        // Extra bottom padding so images never sit behind the build badge
-        padding: "8px 24px 240px",
+        // Hefty bottom padding so the badge never crowds the images
+        padding: "8px 24px 320px",
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
@@ -484,11 +483,13 @@ function LandingScreen() {
       >
         <ExplorePanel />
       </div>
+      {/* Guaranteed spacer below the card for the build badge */}
+      <div style={{ height: 240 }} />
     </main>
   );
 }
 
-// ---- Explore landing: slimmer left rail, absolute CTA at far right, more spacing ----
+// ---- Explore landing: slimmer left rail, CTA pinned far right, more spacing; bump main area left a bit ----
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   const MENU_RAIL_WIDTH = 64; // slimmer rail
@@ -591,8 +592,8 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area */}
-        <div style={{ maxWidth: 760, margin: "0 auto", paddingRight: 28 }}>
+        {/* Right main area — bumped slightly left */}
+        <div style={{ maxWidth: 760, margin: 0, paddingRight: 12, paddingLeft: 6 }}>
           {/* Big title */}
           <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
             The Scope of Morgellons
@@ -603,9 +604,6 @@ function ExplorePanel() {
 
           {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
           <CarouselRow />
-
-          {/* Bottom spacer to keep images visually away from build badge */}
-          <div style={{ height: 140 }} />
         </div>
       </div>
     </section>
@@ -653,8 +651,8 @@ function CarouselRow() {
     cols[i % 3].push(u);
   });
 
-  // Stagger starts: slot 0 now, slot 1 +1.5s, slot 2 +3s
-  const delays = [0, 1500, 3000];
+  // Much longer, even stagger: slot 0 now, slot 1 +3.5s, slot 2 +7.0s
+  const delays = [0, 3500, 7000];
 
   return (
     <div
@@ -673,8 +671,8 @@ function CarouselRow() {
 
 /** Single-img cross-fade-to-black: hold → fade out to black → swap → fade in **/
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 1300;   // slower fade
-  const HOLD_MS = 6500;   // images stay longer
+  const FADE_MS = 1300;   // fade duration
+  const HOLD_MS = 8000;   // images stay longer before switching
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
