@@ -65,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (unchanged UI) */
+/** Canonical sign-in screen */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -281,37 +281,47 @@ function ResetPasswordScreen({ onDone }) {
 
 /* ---------- Landing (logged-out default) ---------- */
 function LandingScreen() {
+  // Reserve vertical space for the floating build badge without adding a right column.
+  // This clamps the content block to end at least 150px above the viewport bottom.
+  const ABOVE_BADGE_MIN = 150; // tweakable visual gap above badge
+
   return (
     <main
       id="main"
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        padding: "8px 24px 420px", // big bottom padding (vertical room for badge)
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
+        // Layout clamp: inner wrapper gets minHeight: calc(100vh - ABOVE_BADGE_MIN)
+        display: "grid",
+        gridTemplateRows: `minmax(calc(100vh - ${ABOVE_BADGE_MIN}px), auto) auto`,
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 980,
-          margin: "0 auto",
-          padding: 16,
-          background: "#0a0a0a",
-          border: "1px solid #27272a",
-          borderRadius: 12,
-          boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-          position: "relative",
-          boxSizing: "border-box",
-        }}
-      >
-        <ExplorePanel />
+      {/* Row 1: the card, pinned near the top, never running into the badge area */}
+      <div style={{ padding: "8px 24px" }}>
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 980,
+            margin: "0 auto",
+            padding: 16,
+            background: "#0a0a0a",
+            border: "1px solid #27272a",
+            borderRadius: 12,
+            boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+            position: "relative",
+            boxSizing: "border-box",
+          }}
+        >
+          <ExplorePanel />
+        </div>
       </div>
-      {/* Extra spacer below the card (failsafe) */}
-      <div style={{ height: 280 }} />
+
+      {/* Row 2: a tiny footer spacer to keep page height natural (not strictly necessary) */}
+      <div style={{ height: 8 }} />
     </main>
   );
 }
@@ -320,8 +330,8 @@ function LandingScreen() {
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // One inner width applied to BOTH header and carousel so they match edges.
-  const CONTENT_INNER_WIDTH = 560; // tuned so images never exceed header width
+  // Single inner width applied to BOTH header and carousel so they match edges.
+  const CONTENT_INNER_WIDTH = 520; // narrower so images never exceed header visually
   const MENU_RAIL_WIDTH = 64; // slim rail
 
   return (
@@ -428,8 +438,8 @@ function ExplorePanel() {
             {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
             <CarouselRow maxWidth={CONTENT_INNER_WIDTH} />
 
-            {/* Dedicated gap below the carousel so the fixed build badge never crowds it */}
-            <div style={{ height: 160 }} />
+            {/* Dedicated vertical gap below the carousel to improve visual distance to the badge */}
+            <div style={{ height: 180 }} />
           </div>
         </div>
       </div>
@@ -438,7 +448,7 @@ function ExplorePanel() {
 }
 
 /** --------- CarouselRow: exactly 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
-function CarouselRow({ maxWidth = 560 }) {
+function CarouselRow({ maxWidth = 520 }) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
@@ -494,7 +504,7 @@ function CarouselRow({ maxWidth = 560 }) {
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 4.0s → swap → fade in 4.0s **/
+/** Single-img fade-to-black: HOLD → fade out 4.0s → swap → fade in 4.0s (consistent wrap timing) **/
 function FadeToBlackSlot({ images, delay = 0 }) {
   const FADE_MS = 4000;   // ~4 seconds fade in/out
   const HOLD_MS = 8000;   // display time before fading
@@ -511,7 +521,8 @@ function FadeToBlackSlot({ images, delay = 0 }) {
         outT = setTimeout(() => {
           setIdx((p) => (p + 1) % images.length);
           setVisible(true); // fade back in
-          inT = setTimeout(begin, FADE_MS); // wait for fade-in to finish
+          // Ensure cycle duration is constant so the wrap (last→first) matches others
+          inT = setTimeout(begin, FADE_MS);
         }, FADE_MS);
       }, HOLD_MS);
     };
