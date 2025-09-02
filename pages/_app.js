@@ -1,7 +1,8 @@
 ﻿// pages/_app.js
 // Single source of truth for sign-in UI, global build badge, and behavior.
 // Explore panel is ALWAYS visible above the sign-in form when logged out.
-// Adds a left-side hamburger menu linking to /about, /news, /resources (public routes).
+// Left hamburger menu (About/News/Resources). Top-right button: "Sign Up / Sign In".
+// Title centered and larger. No other pages changed.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -351,9 +352,18 @@ function ExplorePanel({ onSignIn }) {
         background: "#fff",
       }}
     >
-      {/* Top bar with left hamburger */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {/* Top bar: grid centers title; menu left; CTA right */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "auto 1fr auto",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        {/* Hamburger (left) */}
+        <div>
           <button
             type="button"
             aria-label="Open menu"
@@ -379,29 +389,34 @@ function ExplorePanel({ onSignIn }) {
               <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
             </div>
           </button>
-          <h2 style={{ margin: 0, fontSize: 18 }}>The Scope of Morgellons</h2>
         </div>
 
-        <button
-          onClick={onSignIn}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #1e293b",
-            background: "#111827",
-            color: "white",
-            cursor: "pointer",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-          }}
-          aria-label="Sign in or create an account"
-          title="Sign in / Sign up"
-        >
-          Sign in
-        </button>
+        {/* Center title */}
+        <h2 style={{ margin: 0, fontSize: 28, textAlign: "center" }}>The Scope of Morgellons</h2>
+
+        {/* CTA (right) */}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={onSignIn}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #1e293b",
+              background: "#111827",
+              color: "white",
+              cursor: "pointer",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+            aria-label="Sign up or sign in"
+            title="Sign up / Sign in"
+          >
+            Sign Up / Sign In
+          </button>
+        </div>
       </div>
 
-      {/* Dropdown menu */}
+      {/* Dropdown menu (About / News / Resources) */}
       {menuOpen ? (
         <div
           id="explore-menu"
@@ -422,18 +437,10 @@ function ExplorePanel({ onSignIn }) {
           <a role="menuitem" href="/about" style={menuLinkStyle}>About</a>
           <a role="menuitem" href="/news" style={menuLinkStyle}>News</a>
           <a role="menuitem" href="/resources" style={menuLinkStyle}>Resources</a>
-          <button
-            role="menuitem"
-            onClick={() => (setMenuOpen(false), onSignIn?.())}
-            style={{ ...menuLinkStyle, width: "100%", textAlign: "left", background: "transparent", border: "none" }}
-            aria-label="Jump to sign in form"
-          >
-            Sign in
-          </button>
         </div>
       ) : null}
 
-      {/* Hero text */}
+      {/* Supporting line */}
       <header style={{ textAlign: "center", margin: "6px 0 12px" }}>
         <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
           An anonymized visual overview to help researchers and the curious understand patterns and categories.
@@ -457,6 +464,8 @@ function ExplorePanel({ onSignIn }) {
               justifyContent: "center",
               fontWeight: 600,
               fontSize: 13,
+              textAlign: "center",
+              padding: "0 6px",
             }}
             title={label}
           >
