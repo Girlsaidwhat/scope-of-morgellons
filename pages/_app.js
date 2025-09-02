@@ -486,10 +486,11 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slim left rail + centered right content + right gutter ----
+// ---- Explore landing: slimmer left rail + text-only links + more space before header ----
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const MENU_RAIL_WIDTH = 84; // slightly slimmer
+  const MENU_RAIL_WIDTH = 64; // slimmer rail
+
   return (
     <section
       id="explore-panel"
@@ -517,9 +518,9 @@ function ExplorePanel() {
           style={{
             border: "1px solid #27272a",
             borderRadius: 10,
-            padding: 8,
+            padding: 6,
             background: "#0b0b0b",
-            minHeight: 60,
+            minHeight: 48,
           }}
         >
           {/* Hamburger */}
@@ -532,8 +533,8 @@ function ExplorePanel() {
             onClick={() => setMenuOpen((v) => !v)}
             title="Menu"
             style={{
-              width: 32,
-              height: 28,
+              width: 28,
+              height: 24,
               borderRadius: 8,
               border: "1px solid #374151",
               background: "#111827",
@@ -552,34 +553,34 @@ function ExplorePanel() {
 
           {menuOpen ? (
             <nav id="explore-menu" role="menu" aria-label="Explore menu">
-              <a role="menuitem" href="/about" style={menuLinkStyleSmallDark}>
+              <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>
                 About
               </a>
-              <a role="menuitem" href="/news" style={menuLinkStyleSmallDark}>
+              <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>
                 News
               </a>
-              <a role="menuitem" href="/resources" style={menuLinkStyleSmallDark}>
+              <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>
                 Resources
               </a>
             </nav>
           ) : null}
         </aside>
 
-        {/* Right main area (narrower + centered + extra right padding for visible gutter) */}
+        {/* Right main area (centered; extra space before header; discreet CTA) */}
         <div style={{ maxWidth: 760, margin: "0 auto", paddingRight: 28 }}>
-          {/* CTA row — move all the way right */}
+          {/* Top row: CTA all the way right */}
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <a
               href="/signin"
               style={{
-                padding: "6px 10px",
-                borderRadius: 8,
-                border: "1px solid #334155",
-                background: "#111827",
-                color: "#f8fafc",
+                padding: "4px 8px",
+                borderRadius: 6,
+                border: "1px solid transparent",
+                background: "transparent",
+                color: "#cbd5e1",
                 textDecoration: "none",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
+                fontWeight: 500,
+                fontSize: 12,
               }}
               aria-label="Sign up or sign in"
               title="Sign up / Sign in"
@@ -588,8 +589,8 @@ function ExplorePanel() {
             </a>
           </div>
 
-          {/* Title */}
-          <h2 style={{ margin: "28px 0 0", fontSize: 36, textAlign: "center" }}>
+          {/* More space between top row and header */}
+          <h2 style={{ margin: "48px 0 0", fontSize: 36, textAlign: "center" }}>
             The Scope of Morgellons
           </h2>
 
@@ -700,16 +701,13 @@ function CarouselSlot({ images }) {
   );
 }
 
-const menuLinkStyleSmallDark = {
+const menuLinkStyleTextDark = {
   display: "block",
-  padding: "6px 8px",
+  padding: "2px 0",
   fontSize: 12,
-  textDecoration: "none",
+  textDecoration: "underline",
   color: "#f4f4f5",
-  border: "1px solid #30363d",
-  borderRadius: 8,
-  marginBottom: 6,
-  background: "#111827",
+  marginBottom: 4,
 };
 
 export default function MyApp({ Component, pageProps }) {
@@ -790,3 +788,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
