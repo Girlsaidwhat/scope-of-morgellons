@@ -20,7 +20,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 48, // keep above Windows taskbar
+    bottom: 48, // above Windows taskbar
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -65,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (unchanged) */
+/** Canonical sign-in screen (unchanged UI) */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -287,10 +287,11 @@ function LandingScreen() {
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        background: "#000000",
+        background: "#000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
+        paddingBottom: 360, // real space so the fixed badge never hugs content
       }}
     >
       <div style={{ padding: "8px 24px" }}>
@@ -306,8 +307,6 @@ function LandingScreen() {
             boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
             position: "relative",
             boxSizing: "border-box",
-            // This is the simple, robust fix: always leave room below the card.
-            marginBottom: 320,
           }}
         >
           <ExplorePanel />
@@ -317,13 +316,26 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slim left rail; header & images share exact width; left-aligned
+// ---- Explore landing: slim left rail; shared wrapper width; left-aligned
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Single inner width applied to BOTH header and carousel so they match exactly.
-  const CONTENT_INNER_WIDTH = 500; // narrower so images never exceed header width
-  const MENU_RAIL_WIDTH = 64; // slim rail
+  // Shared wrapper so header and carousel use the exact same width.
+  const MAX_CONTENT_WIDTH = 500; // hard cap
+  const MENU_RAIL_WIDTH = 64;
+
+  // Measure the wrapper width so the carousel never exceeds the header container.
+  const contentRef = useRef(null);
+  const [measuredWidth, setMeasuredWidth] = useState(MAX_CONTENT_WIDTH);
+  useEffect(() => {
+    function sync() {
+      const w = contentRef.current?.offsetWidth || MAX_CONTENT_WIDTH;
+      setMeasuredWidth(Math.min(w, MAX_CONTENT_WIDTH));
+    }
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+  }, []);
 
   return (
     <section
@@ -416,9 +428,16 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area — exact width, left-aligned */}
+        {/* Right main area — shared wrapper governs both header and carousel widths */}
         <div>
-          <div style={{ width: CONTENT_INNER_WIDTH }}>
+          <div
+            ref={contentRef}
+            style={{
+              width: "100%",
+              maxWidth: MAX_CONTENT_WIDTH,
+              boxSizing: "border-box",
+            }}
+          >
             <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "left" }}>
               The Scope of Morgellons
             </h2>
@@ -426,11 +445,11 @@ function ExplorePanel() {
             {/* Spacer before images */}
             <div style={{ height: 72 }} />
 
-            {/* One-row, three-slot carousel */}
-            <CarouselRow maxWidth={CONTENT_INNER_WIDTH} />
+            {/* One-row, three-slot carousel constrained by the measured header wrapper width */}
+            <CarouselRow maxWidth={measuredWidth} />
 
-            {/* Extra space below images to visually separate from the fixed badge */}
-            <div style={{ height: 220 }} />
+            {/* Big spacer to separate from the fixed badge */}
+            <div style={{ height: 260 }} />
           </div>
         </div>
       </div>
@@ -438,7 +457,7 @@ function ExplorePanel() {
   );
 }
 
-/** --------- CarouselRow: 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
+/** --------- CarouselRow: exactly 3 slots, anonymized, fade-to-black --------- **/
 function CarouselRow({ maxWidth = 500 }) {
   const [urls, setUrls] = useState([]);
 
@@ -484,8 +503,8 @@ function CarouselRow({ maxWidth = 500 }) {
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
-        margin: "0",
-        boxSizing: "content-box",
+        margin: 0,
+        boxSizing: "border-box",
       }}
     >
       {cols.map((images, idx) => (
@@ -495,10 +514,10 @@ function CarouselRow({ maxWidth = 500 }) {
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 4.0s → swap → fade in 4.0s (constant cycle) **/
+/** Single-img fade-to-black: HOLD → fade out 4s → swap → fade in 4s (no wrap lag) **/
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 4000;   // ~4s fade in/out
-  const HOLD_MS = 8000;   // hold before fade
+  const FADE_MS = 4000;
+  const HOLD_MS = 8000;
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -507,17 +526,12 @@ function FadeToBlackSlot({ images, delay = 0 }) {
     let holdT, outT, inT, startT;
 
     const cycle = () => {
-      // Hold current image
       holdT = setTimeout(() => {
-        // Fade out
-        setVisible(false);
+        setVisible(false); // fade to black
         outT = setTimeout(() => {
-          // Swap image
-          setIdx((p) => (p + 1) % images.length);
-          // Fade in
-          setVisible(true);
-          // After fade-in completes, immediately begin the next HOLD.
-          inT = setTimeout(cycle, 0);
+          setIdx((p) => (p + 1) % images.length); // swap
+          setVisible(true); // fade in
+          inT = setTimeout(cycle, 0); // start next hold immediately after fade-in
         }, FADE_MS);
       }, HOLD_MS);
     };
