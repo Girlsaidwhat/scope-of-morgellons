@@ -462,8 +462,8 @@ function LandingScreen() {
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        // Extra bottom padding so images never sit right behind the build badge
-        padding: "8px 24px 140px",
+        // Extra bottom padding so images never sit behind the build badge
+        padding: "8px 24px 240px",
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
@@ -479,6 +479,7 @@ function LandingScreen() {
           border: "1px solid #27272a",
           borderRadius: 12,
           boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+          position: "relative",
         }}
       >
         <ExplorePanel />
@@ -487,7 +488,7 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slimmer left rail + text-only links + more space before header ----
+// ---- Explore landing: slimmer left rail, absolute CTA at far right, more spacing ----
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   const MENU_RAIL_WIDTH = 64; // slimmer rail
@@ -503,8 +504,31 @@ function ExplorePanel() {
         marginBottom: 12,
         background: "#0a0a0a",
         color: "#f4f4f5",
+        position: "relative",
       }}
     >
+      {/* CTA pinned to the far right of the whole panel */}
+      <a
+        href="/signin"
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 10,
+          padding: "4px 8px",
+          borderRadius: 6,
+          border: "1px solid transparent",
+          background: "transparent",
+          color: "#cbd5e1",
+          textDecoration: "none",
+          fontWeight: 500,
+          fontSize: 12,
+        }}
+        aria-label="Sign up or sign in"
+        title="Sign up / Sign in"
+      >
+        Sign Up / Sign In
+      </a>
+
       <div
         style={{
           display: "grid",
@@ -567,46 +591,28 @@ function ExplorePanel() {
           ) : null}
         </aside>
 
-        {/* Right main area (centered; extra space before header; discreet CTA) */}
+        {/* Right main area */}
         <div style={{ maxWidth: 760, margin: "0 auto", paddingRight: 28 }}>
-          {/* Top row: CTA all the way right */}
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <a
-              href="/signin"
-              style={{
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: "1px solid transparent",
-                background: "transparent",
-                color: "#cbd5e1",
-                textDecoration: "none",
-                fontWeight: 500,
-                fontSize: 12,
-              }}
-              aria-label="Sign up or sign in"
-              title="Sign up / Sign in"
-            >
-              Sign Up / Sign In
-            </a>
-          </div>
-
-          {/* More space between top row and header */}
-          <h2 style={{ margin: "48px 0 0", fontSize: 36, textAlign: "center" }}>
+          {/* Big title */}
+          <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
             The Scope of Morgellons
           </h2>
 
           {/* Spacer before images */}
-          <div style={{ height: 64 }} />
+          <div style={{ height: 72 }} />
 
           {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
           <CarouselRow />
+
+          {/* Bottom spacer to keep images visually away from build badge */}
+          <div style={{ height: 140 }} />
         </div>
       </div>
     </section>
   );
 }
 
-/** --------- CarouselRow: exactly 3 slots, anonymized, staggered fade --------- **/
+/** --------- CarouselRow: exactly 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
 function CarouselRow() {
   const [urls, setUrls] = useState([]);
 
@@ -647,8 +653,8 @@ function CarouselRow() {
     cols[i % 3].push(u);
   });
 
-  // Stagger: slot 0 starts immediately, slot 1 after 1200ms, slot 2 after 2400ms
-  const delays = [0, 1200, 2400];
+  // Stagger starts: slot 0 now, slot 1 +1.5s, slot 2 +3s
+  const delays = [0, 1500, 3000];
 
   return (
     <div
@@ -659,97 +665,46 @@ function CarouselRow() {
       }}
     >
       {cols.map((images, idx) => (
-        <CarouselSlot key={idx} images={images} delay={delays[idx] || 0} />
+        <FadeToBlackSlot key={idx} images={images} delay={delays[idx] || 0} />
       ))}
     </div>
   );
 }
 
-/** Cross-fade slot with two layers; changes one at a time with fade **/
-function CarouselSlot({ images, delay = 0 }) {
-  const [aIdx, setAIdx] = useState(0);
-  const [bIdx, setBIdx] = useState(images && images.length > 1 ? 1 : 0);
-  const [showA, setShowA] = useState(true);
-  const intervalRef = useRef(null);
-  const startedRef = useRef(false);
-
-  // Re-init when images change
-  useEffect(() => {
-    setAIdx(0);
-    setBIdx(images && images.length > 1 ? 1 : 0);
-    setShowA(true);
-  }, [images]);
+/** Single-img cross-fade-to-black: hold → fade out to black → swap → fade in **/
+function FadeToBlackSlot({ images, delay = 0 }) {
+  const FADE_MS = 1300;   // slower fade
+  const HOLD_MS = 6500;   // images stay longer
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
     if (!images || images.length === 0) return;
+    let holdT, outT, inT, startT;
 
-    // Clear any prior timers
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    const start = () => {
-      // Rotate every 3.5s after the initial (staggered) delay
-      intervalRef.current = setInterval(() => {
-        if (!images || images.length <= 1) return;
-        // Determine next index
-        const currentIdx = showA ? aIdx : bIdx;
-        const nextIdx = (currentIdx + 1) % images.length;
-
-        if (showA) {
-          // Prepare B with next, then reveal B
-          setBIdx(nextIdx);
-          setShowA(false);
-        } else {
-          // Prepare A with next, then reveal A
-          setAIdx(nextIdx);
-          setShowA(true);
-        }
-      }, 3500);
+    const begin = () => {
+      // Hold current image
+      holdT = setTimeout(() => {
+        // Fade to black
+        setVisible(false);
+        // After fade completes, swap image and fade back in
+        outT = setTimeout(() => {
+          setIdx((p) => (p + 1) % images.length);
+          setVisible(true);
+          // After fade-in completes, schedule next cycle
+          inT = setTimeout(begin, FADE_MS);
+        }, FADE_MS);
+      }, HOLD_MS);
     };
 
-    let launchTimer = null;
-    if (!startedRef.current) {
-      startedRef.current = true;
-      launchTimer = setTimeout(start, Math.max(0, delay));
-    } else {
-      start();
-    }
+    startT = setTimeout(begin, Math.max(0, delay));
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (launchTimer) clearTimeout(launchTimer);
+      [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [images, delay, aIdx, bIdx, showA]);
+  }, [images, delay]);
 
-  const urlA = images && images.length ? images[aIdx] : "";
-  const urlB = images && images.length ? images[bIdx] : "";
-
-  // Single image: just render it without animation
-  if (!images || images.length <= 1) {
-    const only = images && images[0] ? images[0] : "";
-    return (
-      <div
-        aria-label="Anonymized image (single)"
-        style={{
-          position: "relative",
-          height: 140,
-          borderRadius: 12,
-          border: "1px solid #27272a",
-          overflow: "hidden",
-          background: "#111111",
-        }}
-      >
-        {only ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={only}
-            alt="Anonymized project image"
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          />
-        ) : null}
-      </div>
-    );
-  }
+  const url = images && images.length ? images[idx] : "";
 
   return (
     <div
@@ -760,13 +715,12 @@ function CarouselSlot({ images, delay = 0 }) {
         borderRadius: 12,
         border: "1px solid #27272a",
         overflow: "hidden",
-        background: "#111111",
+        background: "#000", // true black backdrop for fade-to-black
       }}
     >
-      {/* Layer A */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={urlA}
+        src={url}
         alt="Anonymized project image"
         style={{
           position: "absolute",
@@ -775,25 +729,8 @@ function CarouselSlot({ images, delay = 0 }) {
           height: "100%",
           objectFit: "cover",
           display: "block",
-          opacity: showA ? 1 : 0,
-          transition: "opacity 700ms ease-in-out",
-          pointerEvents: "none",
-        }}
-      />
-      {/* Layer B */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={urlB}
-        alt="Anonymized project image"
-        style={{
-          position: "absolute",
-          inset: 0,
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-          opacity: showA ? 0 : 1,
-          transition: "opacity 700ms ease-in-out",
+          opacity: visible ? 1 : 0,
+          transition: `opacity ${FADE_MS}ms ease-in-out`,
           pointerEvents: "none",
         }}
       />
