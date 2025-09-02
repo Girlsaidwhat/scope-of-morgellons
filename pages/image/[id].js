@@ -1,5 +1,5 @@
 // pages/image/[id].js
-// Build: 36.12_2025-08-20 + landing feature toggle
+// Build: 36.12_2025-08-20 + landing feature toggle (storage API fix)
 // Adds "Feature on landing" (public thumbnail pipeline) using public_gallery + public-thumbs.
 
 import { useEffect, useMemo, useState } from "react";
@@ -148,7 +148,7 @@ export default function ImageDetailPage() {
       // 2) Upload to public-thumbs under auth.uid()/image-<id>.<ext>
       const ext = (row.ext || "").replace(/^\./, "") || "jpg";
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
-      const { error: upErr } = await supabase
+      const { error: upErr } = await supabase.storage
         .from("public-thumbs")
         .upload(targetPath, blob, { upsert: true, contentType: extToMime(ext) });
       if (upErr) throw upErr;
@@ -179,7 +179,7 @@ export default function ImageDetailPage() {
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
 
       // 1) Delete storage object (safe delete order)
-      const { error: delObjErr } = await supabase
+      const { error: delObjErr } = await supabase.storage
         .from("public-thumbs")
         .remove([targetPath]);
       if (delObjErr && !/Not Found|does not exist/i.test(delObjErr.message)) {
@@ -215,7 +215,7 @@ export default function ImageDetailPage() {
     try {
       const ext = (row.ext || "").replace(/^\./, "") || "jpg";
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
-      await supabase.from("public-thumbs").remove([targetPath]);
+      await supabase.storage.from("public-thumbs").remove([targetPath]);
       await supabase.from("public_gallery").delete().eq("image_id", row.id);
     } catch {}
 
