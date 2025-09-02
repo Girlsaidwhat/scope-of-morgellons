@@ -65,17 +65,16 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen — unchanged */
+/** Canonical sign-in screen (unchanged UI) */
 function AuthScreen() {
   const router = useRouter();
-  const [mode, setMode] = useState("sign_in"); // "sign_in" | "sign_up"
+  const [mode, setMode] = useState("sign_in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showTips, setShowTips] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // Layout
   const pageWrap = {
     maxWidth: 980,
     margin: "20px auto",
@@ -85,13 +84,7 @@ function AuthScreen() {
     alignItems: "center",
     textAlign: "center",
   };
-  const formStyle = {
-    display: "grid",
-    gap: 10,
-    width: "100%",
-    maxWidth: 360,
-    margin: "0 auto",
-  };
+  const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
   const input = {
     width: 300,
@@ -100,32 +93,9 @@ function AuthScreen() {
     borderRadius: 8,
     fontSize: 14,
   };
-  const row = {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    marginTop: 6,
-  };
-  const btn = {
-    padding: "10px 14px",
-    border: "1px solid #111",
-    borderRadius: 8,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  };
-  const linkBtn = {
-    padding: "6px 10px",
-    border: "1px solid #ddd",
-    borderRadius: 6,
-    background: "#fff",
-    color: "#111",
-    fontSize: 12,
-    cursor: "pointer",
-  };
+  const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
+  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+  const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSignIn(e) {
@@ -184,145 +154,53 @@ function AuthScreen() {
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%", paddingTop: 28 }}>
-        <div
-          style={{
-            fontSize: 18,
-            fontWeight: 600,
-            color: "#333",
-            textAlign: "center",
-            marginLeft: 0,
-            marginBottom: 0,
-            letterSpacing: 0.2,
-            lineHeight: 1.0,
-          }}
-        >
+        <div style={{ fontSize: 18, fontWeight: 600, color: "#333", textAlign: "center", marginLeft: 0, marginBottom: 0, letterSpacing: 0.2, lineHeight: 1.0 }}>
           Welcome to
         </div>
-        <h1
-          style={{
-            margin: "0 0 6px",
-            textAlign: "center",
-            lineHeight: 1.12,
-          }}
-        >
+        <h1 style={{ margin: "0 0 6px", textAlign: "center", lineHeight: 1.12 }}>
           The Scope of Morgellons
         </h1>
       </header>
 
-      <section
-        aria-label="Sign in"
-        style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}
-      >
-        <form
-          onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp}
-          aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"}
-          style={formStyle}
-        >
+      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
+        <form onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp} aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"} style={formStyle}>
           <label style={inputWrap}>
             <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={input}
-            />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} />
           </label>
 
           <label style={inputWrap}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: 300,
-              }}
-            >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 300 }}>
               <span>Password</span>
-              <button
-                type="button"
-                aria-label="Password tips"
-                onClick={() => setShowTips((v) => !v)}
-                style={{ fontSize: 12, padding: "2px 8px" }}
-              >
-                ?
-              </button>
+              <button type="button" aria-label="Password tips" onClick={() => setShowTips((v) => !v)} style={{ fontSize: 12, padding: "2px 8px" }}>?</button>
             </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "sign_in" ? "current-password" : "new-password"}
-              required
-              style={input}
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "sign_in" ? "current-password" : "new-password"} required style={input} />
           </label>
 
           {showTips ? (
-            <div
-              role="dialog"
-              aria-label="Password tips"
-              style={{
-                border: "1px solid #ddd",
-                borderRadius: 10,
-                background: "white",
-                padding: 10,
-                margin: "0 auto",
-                width: 320,
-                textAlign: "left",
-                fontSize: 12,
-                lineHeight: 1.4,
-              }}
-            >
-              <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>
-                Password tips
-              </strong>
+            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
+              <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>
-                  Use a long passphrase (3–5 random words, 16–24+ characters).{" "}
-                  <em>Spaces are OK</em> and encouraged between words.
-                </li>
+                <li>Use a long passphrase (3–5 random words, 16–24+ characters). <em>Spaces are OK</em> and encouraged between words.</li>
                 <li>Make it unique for every site; never reuse passwords.</li>
                 <li>Use a password manager to generate and store passwords.</li>
                 <li>Avoid predictable substitutions or patterns (e.g., P@ssw0rd123!).</li>
                 <li>Change it only if you suspect compromise, not on a schedule.</li>
               </ul>
-              <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
-                Enable two-factor authentication (authenticator app) whenever available.
-              </div>
+              <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>Enable two-factor authentication (authenticator app) whenever available.</div>
             </div>
           ) : null}
 
           <div style={row}>
-            <button type="submit" style={btn}>
-              {mode === "sign_in" ? "Sign in" : "Sign up"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))}
-              aria-label="Toggle sign in or sign up"
-              style={linkBtn}
-            >
+            <button type="submit" style={btn}>{mode === "sign_in" ? "Sign in" : "Sign up"}</button>
+            <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>
               {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
             </button>
-            <button
-              type="button"
-              onClick={handleForgot}
-              aria-label="Forgot password?"
-              style={linkBtn}
-            >
-              Forgot password?
-            </button>
+            <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
           </div>
 
-          <p aria-live="polite" style={statusStyle}>
-            {msg}
-          </p>
-          {err ? (
-            <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
-              {err}
-            </div>
-          ) : null}
+          <p aria-live="polite" style={statusStyle}>{msg}</p>
+          {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
         </form>
       </section>
     </main>
@@ -350,46 +228,17 @@ function ResetPasswordScreen({ onDone }) {
     flexDirection: "column",
     alignItems: "center",
   };
-  const formStyle = {
-    display: "grid",
-    gap: 10,
-    width: "100%",
-    maxWidth: 360,
-    margin: "0 auto",
-  };
-  const input = {
-    width: 300,
-    padding: "10px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    fontSize: 14,
-  };
-  const btn = {
-    padding: "10px 14px",
-    border: "1px solid #111",
-    borderRadius: 8,
-    background: "#111",
-    color: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  };
+  const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
+  const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSubmit(e) {
     e.preventDefault?.();
     setErr("");
-    if (!p1 || !p2) {
-      setErr("Enter your new password in both fields.");
-      return;
-    }
-    if (p1 !== p2) {
-      setErr("Passwords do not match.");
-      return;
-    }
-    if (p1.length < 8) {
-      setErr("Password must be at least 8 characters.");
-      return;
-    }
+    if (!p1 || !p2) return setErr("Enter your new password in both fields.");
+    if (p1 !== p2) return setErr("Passwords do not match.");
+    if (p1.length < 8) return setErr("Password must be at least 8 characters.");
     setMsg("Updating password…");
     try {
       const sb =
@@ -416,38 +265,15 @@ function ResetPasswordScreen({ onDone }) {
       <form onSubmit={handleSubmit} style={formStyle} aria-labelledby="reset-heading">
         <label>
           <span style={{ display: "block", marginBottom: 6 }}>New password</span>
-          <input
-            ref={passRef}
-            type="password"
-            value={p1}
-            onChange={(e) => setP1(e.target.value)}
-            autoComplete="new-password"
-            required
-            style={input}
-          />
+          <input ref={passRef} type="password" value={p1} onChange={(e) => setP1(e.target.value)} autoComplete="new-password" required style={input} />
         </label>
         <label>
           <span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span>
-          <input
-            type="password"
-            value={p2}
-            onChange={(e) => setP2(e.target.value)}
-            autoComplete="new-password"
-            required
-            style={input}
-          />
+          <input type="password" value={p2} onChange={(e) => setP2(e.target.value)} autoComplete="new-password" required style={input} />
         </label>
-        <button type="submit" style={btn} aria-label="Update password">
-          Update password
-        </button>
-        <p aria-live="polite" style={statusStyle}>
-          {msg}
-        </p>
-        {err ? (
-          <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>
-            {err}
-          </div>
-        ) : null}
+        <button type="submit" style={btn} aria-label="Update password">Update password</button>
+        <p aria-live="polite" style={statusStyle}>{msg}</p>
+        {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
       </form>
     </main>
   );
@@ -461,8 +287,8 @@ function LandingScreen() {
       tabIndex={-1}
       style={{
         minHeight: "100vh",
-        // Hefty bottom padding so the badge never crowds the images
-        padding: "8px 24px 320px",
+        // Big bottom padding so the badge never crowds the images
+        padding: "8px 24px 420px",
         background: "#000000",
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
@@ -483,16 +309,17 @@ function LandingScreen() {
       >
         <ExplorePanel />
       </div>
-      {/* Guaranteed spacer below the card for the build badge */}
-      <div style={{ height: 240 }} />
+      {/* Extra guarantee spacer below the card for the build badge */}
+      <div style={{ height: 280 }} />
     </main>
   );
 }
 
-// ---- Explore landing: slimmer left rail, CTA pinned far right, more spacing; bump main area left a bit ----
+// ---- Explore landing: slimmer left rail; CTA pinned far right; header+images share exact width; a bit left-aligned
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const MENU_RAIL_WIDTH = 64; // slimmer rail
+  const MENU_RAIL_WIDTH = 64;     // slim rail
+  const CONTENT_MAX = 640;        // header & carousel share this exact width
 
   return (
     <section
@@ -549,7 +376,6 @@ function ExplorePanel() {
             minHeight: 48,
           }}
         >
-          {/* Hamburger */}
           <button
             type="button"
             aria-label="Open menu"
@@ -579,22 +405,15 @@ function ExplorePanel() {
 
           {menuOpen ? (
             <nav id="explore-menu" role="menu" aria-label="Explore menu">
-              <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>
-                About
-              </a>
-              <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>
-                News
-              </a>
-              <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>
-                Resources
-              </a>
+              <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
+              <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
+              <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
             </nav>
           ) : null}
         </aside>
 
-        {/* Right main area — bumped slightly left */}
-        <div style={{ maxWidth: 760, margin: 0, paddingRight: 12, paddingLeft: 6 }}>
-          {/* Big title */}
+        {/* Right main area — fixed inner width shared by header & images (slightly left aligned) */}
+        <div style={{ width: CONTENT_MAX, paddingRight: 8, paddingLeft: 6 }}>
           <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
             The Scope of Morgellons
           </h2>
@@ -603,7 +422,10 @@ function ExplorePanel() {
           <div style={{ height: 72 }} />
 
           {/* One-row, three-slot carousel from public_gallery/public-thumbs */}
-          <CarouselRow />
+          <CarouselRow maxWidth={CONTENT_MAX} />
+
+          {/* Bottom spacer to keep images well clear of the build badge */}
+          <div style={{ height: 260 }} />
         </div>
       </div>
     </section>
@@ -611,13 +433,12 @@ function ExplorePanel() {
 }
 
 /** --------- CarouselRow: exactly 3 slots, anonymized, one-at-a-time fade-to-black --------- **/
-function CarouselRow() {
+function CarouselRow({ maxWidth = 640 }) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // Load up to 60 recent public thumbnails
       const { data, error } = await supabase
         ?.from("public_gallery")
         .select("public_path, created_at")
@@ -639,27 +460,25 @@ function CarouselRow() {
 
       setUrls(list);
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   if (!urls.length) return null;
 
   const cols = [[], [], []];
-  urls.forEach((u, i) => {
-    cols[i % 3].push(u);
-  });
+  urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  // Much longer, even stagger: slot 0 now, slot 1 +3.5s, slot 2 +7.0s
-  const delays = [0, 3500, 7000];
+  // Even, longer stagger: slot 0 now, slot 1 +5s, slot 2 +10s
+  const delays = [0, 5000, 10000];
 
   return (
     <div
       style={{
+        width: maxWidth,
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
+        margin: "0 auto",
       }}
     >
       {cols.map((images, idx) => (
@@ -669,10 +488,10 @@ function CarouselRow() {
   );
 }
 
-/** Single-img cross-fade-to-black: hold → fade out to black → swap → fade in **/
+/** Single-img fade-to-black: HOLD → fade out 5s → swap → fade in 5s **/
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 1300;   // fade duration
-  const HOLD_MS = 8000;   // images stay longer before switching
+  const FADE_MS = 5000;   // slower fade in/out (≈5s)
+  const HOLD_MS = 8000;   // display time before fading
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -681,25 +500,18 @@ function FadeToBlackSlot({ images, delay = 0 }) {
     let holdT, outT, inT, startT;
 
     const begin = () => {
-      // Hold current image
       holdT = setTimeout(() => {
-        // Fade to black
-        setVisible(false);
-        // After fade completes, swap image and fade back in
+        setVisible(false); // start fade to black
         outT = setTimeout(() => {
           setIdx((p) => (p + 1) % images.length);
-          setVisible(true);
-          // After fade-in completes, schedule next cycle
-          inT = setTimeout(begin, FADE_MS);
+          setVisible(true); // fade back in
+          inT = setTimeout(begin, FADE_MS); // wait for fade-in to finish
         }, FADE_MS);
       }, HOLD_MS);
     };
 
     startT = setTimeout(begin, Math.max(0, delay));
-
-    return () => {
-      [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t));
-    };
+    return () => { [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t)); };
   }, [images, delay]);
 
   const url = images && images.length ? images[idx] : "";
@@ -713,7 +525,7 @@ function FadeToBlackSlot({ images, delay = 0 }) {
         borderRadius: 12,
         border: "1px solid #27272a",
         overflow: "hidden",
-        background: "#000", // true black backdrop for fade-to-black
+        background: "#000",
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -749,20 +561,16 @@ export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
-  // Reset-mode detection: route, hash, and Supabase event
+  // Reset-mode detection
   const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
   const [resetMode, setResetMode] = useState(isResetPath);
 
-  useEffect(() => {
-    if (isResetPath) setResetMode(true);
-  }, [isResetPath]);
+  useEffect(() => { if (isResetPath) setResetMode(true); }, [isResetPath]);
 
   useEffect(() => {
     if (!supabase) return;
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setResetMode(true);
-      }
+      if (event === "PASSWORD_RECOVERY") setResetMode(true);
     });
     return () => sub?.subscription?.unsubscribe?.();
   }, []);
@@ -771,16 +579,11 @@ export default function MyApp({ Component, pageProps }) {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
     const q = window.location.search || "";
-    if (hash.includes("type=recovery") || q.includes("type=recovery")) {
-      setResetMode(true);
-    }
+    if (hash.includes("type=recovery") || q.includes("type=recovery")) setResetMode(true);
   }, []);
 
-  if (checking) {
-    return <BuildBadge />;
-  }
+  if (checking) return <BuildBadge />;
 
-  // If in reset mode, always show Create-new-password screen
   if (resetMode) {
     return (
       <>
@@ -790,10 +593,7 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
-  // ROUTING (logged out):
-  // - "/" => LandingScreen
-  // - "/signin" => AuthScreen
-  // Signed-in: render requested page.
+  // Logged out routing
   const path = router?.pathname || "/";
   const loggedOut = !signedIn;
 
@@ -806,7 +606,6 @@ export default function MyApp({ Component, pageProps }) {
         </>
       );
     }
-    // Default logged-out route = Landing
     return (
       <>
         <LandingScreen />
@@ -815,7 +614,7 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
-  // Signed in: render app pages
+  // Signed in
   return (
     <>
       <Component {...pageProps} />
@@ -823,5 +622,6 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
