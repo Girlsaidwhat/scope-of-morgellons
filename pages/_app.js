@@ -1,8 +1,7 @@
 ﻿// pages/_app.js
-// Single source of truth for sign-in UI, global build badge, and behavior.
-// Explore panel is ALWAYS visible above the (hidden by default) sign-in form when logged out.
-// Left hamburger menu (About/News/Resources). Top-right button: "Sign Up / Sign In".
-// Title centered and larger. Menu does not overlay images. Extra space above tiles.
+// Sign-in lives here. Explore landing for logged-out users.
+// Changes: global Arial preview, top spacing fix, bigger centered title,
+// more space before tiles, and a fixed left sidebar menu (no dropdown).
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -59,10 +58,10 @@ export default function MyApp({ Component, pageProps }) {
     typeof window === "undefined" ? router.pathname : window.location.pathname;
 
   if (!session) {
-    // Logged out: allow public pages; otherwise show the Explore + (hidden) auth shell at "/"
     if (publicPaths.has(path)) {
       return (
         <>
+          <GlobalStyles />
           <Component {...pageProps} />
           <BuildBadge />
         </>
@@ -70,18 +69,30 @@ export default function MyApp({ Component, pageProps }) {
     }
     return (
       <>
+        <GlobalStyles />
         <AuthScreen onSignedIn={() => router.push("/")} />
         <BuildBadge />
       </>
     );
   }
 
-  // Signed in: render requested page
   return (
     <>
+      <GlobalStyles />
       <Component {...pageProps} />
       <BuildBadge />
     </>
+  );
+}
+
+// Preview Arial globally (easy to revert)
+function GlobalStyles() {
+  return (
+    <style jsx global>{`
+      html, body {
+        font-family: Arial, Helvetica, sans-serif;
+      }
+    `}</style>
   );
 }
 
@@ -92,7 +103,7 @@ function AuthScreen({ onSignedIn }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [showAuth, setShowAuth] = useState(false); // hide sign-in area by default
+  const [showAuth, setShowAuth] = useState(false); // hidden until CTA
 
   async function doSignIn(e) {
     e.preventDefault();
@@ -146,7 +157,6 @@ function AuthScreen({ onSignedIn }) {
 
   function revealAuthAndFocus() {
     setShowAuth(true);
-    // allow DOM to paint
     setTimeout(() => {
       const el = document.getElementById("email");
       if (el) el.focus();
@@ -158,10 +168,10 @@ function AuthScreen({ onSignedIn }) {
       id="main"
       tabIndex={-1}
       style={{
+        // Fix: start near top instead of deep vertical centering
         minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
+        display: "block",
+        padding: "32px 24px",
         background: "#f8fafc",
       }}
     >
@@ -182,7 +192,8 @@ function AuthScreen({ onSignedIn }) {
       <div
         style={{
           width: "100%",
-          maxWidth: 860,
+          maxWidth: 980, // a bit wider to accommodate sidebar + content
+          margin: "0 auto",
           padding: 20,
           background: "white",
           border: "1px solid #e5e7eb",
@@ -190,7 +201,7 @@ function AuthScreen({ onSignedIn }) {
           boxShadow: "0 6px 16px rgba(0,0,0,0.05)",
         }}
       >
-        {/* Explore panel: ALWAYS visible (anonymized, with hamburger menu) */}
+        {/* Explore with fixed left sidebar */}
         <ExplorePanel onSignIn={revealAuthAndFocus} />
 
         {/* Auth card(s) — hidden until CTA is pressed */}
@@ -333,25 +344,13 @@ function AuthScreen({ onSignedIn }) {
   );
 }
 
-// ---- Anonymized Explore panel with left hamburger menu ----
+// ---- Explore landing with fixed left sidebar ----
 function ExplorePanel({ onSignIn }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  // Close on Escape
-  useEffect(() => {
-    function onKey(e) {
-      if (e.key === "Escape") setMenuOpen(false);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   return (
     <section
       id="explore-panel"
       aria-label="Project overview"
       style={{
-        position: "relative",
         border: "1px solid #e5e7eb",
         borderRadius: 12,
         padding: 12,
@@ -359,50 +358,21 @@ function ExplorePanel({ onSignIn }) {
         background: "#fff",
       }}
     >
-      {/* Top bar: grid centers title; menu left; CTA right */}
+      {/* Top row: title centered, CTA right */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "auto 1fr auto",
+          gridTemplateColumns: "1fr auto",
           alignItems: "center",
-          gap: 8,
           marginBottom: 8,
+          gap: 8,
         }}
       >
-        {/* Hamburger (left) */}
+        <h2 style={{ margin: 0, fontSize: 36, textAlign: "center" }}>
+          The Scope of Morgellons
+        </h2>
+
         <div>
-          <button
-            type="button"
-            aria-label="Open menu"
-            aria-controls="explore-menu"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen ? "true" : "false"}
-            onClick={() => setMenuOpen((v) => !v)}
-            title="Menu"
-            style={{
-              width: 36,
-              height: 32,
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-              background: "#f8fafc",
-              display: "grid",
-              placeItems: "center",
-              cursor: "pointer",
-            }}
-          >
-            <div style={{ display: "grid", gap: 3 }}>
-              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
-              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
-              <span style={{ display: "block", width: 16, height: 2, background: "#0f172a" }} />
-            </div>
-          </button>
-        </div>
-
-        {/* Center title (bigger) */}
-        <h2 style={{ margin: 0, fontSize: 36, textAlign: "center" }}>The Scope of Morgellons</h2>
-
-        {/* CTA (right) */}
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             onClick={onSignIn}
             style={{
@@ -423,59 +393,81 @@ function ExplorePanel({ onSignIn }) {
         </div>
       </div>
 
-      {/* Dropdown menu (About / News / Resources) — inline, not overlay */}
-      {menuOpen ? (
-        <div
-          id="explore-menu"
-          role="menu"
+      {/* Fixed sidebar layout: left nav + right content */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "180px 1fr",
+          gap: 12,
+          alignItems: "start",
+        }}
+      >
+        {/* Sidebar menu (no dropdown, no jump) */}
+        <aside
           aria-label="Explore menu"
           style={{
-            width: 160,
-            background: "white",
             border: "1px solid #e5e7eb",
             borderRadius: 10,
-            boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
-            marginBottom: 12,
+            padding: 10,
+            background: "#ffffff",
           }}
         >
-          <a role="menuitem" href="/about" style={menuLinkStyle}>About</a>
-          <a role="menuitem" href="/news" style={menuLinkStyle}>News</a>
-          <a role="menuitem" href="/resources" style={menuLinkStyle}>Resources</a>
-        </div>
-      ) : null}
+          <nav>
+            <a href="/about" style={menuLinkStyle}>About</a>
+            <a href="/news" style={menuLinkStyle}>News</a>
+            <a href="/resources" style={menuLinkStyle}>Resources</a>
+          </nav>
+        </aside>
 
-      {/* Supporting line with more space before tiles */}
-      <header style={{ textAlign: "center", margin: "10px 0 18px" }}>
-        <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
-          An anonymized visual overview to help researchers and the curious understand patterns and categories.
-        </p>
-      </header>
+        {/* Main column */}
+        <div>
+          {/* Byline with extra space below */}
+          <header style={{ textAlign: "center", margin: "6px 0 28px" }}>
+            <p style={{ margin: "6px 0 0", opacity: 0.9, fontSize: 14 }}>
+              An anonymized visual overview to help researchers and the curious
+              understand patterns and categories.
+            </p>
+          </header>
 
-      {/* Anonymized category tiles (no photos; soft gradients) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-        {["Blebs (clear to brown)", "Fibers", "Fiber Bundles", "Crystals / Particles"].map((label) => (
+          {/* Tiles */}
           <div
-            key={label}
-            role="img"
-            aria-label={`Category ${label}`}
             style={{
-              height: 120,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 600,
-              fontSize: 13,
-              textAlign: "center",
-              padding: "0 6px",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+              gap: 10,
             }}
-            title={label}
           >
-            {label}
+            {[
+              "Blebs (clear to brown)",
+              "Fibers",
+              "Fiber Bundles",
+              "Crystals / Particles",
+            ].map((label) => (
+              <div
+                key={label}
+                role="img"
+                aria-label={`Category ${label}`}
+                style={{
+                  height: 120,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  background:
+                    "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  textAlign: "center",
+                  padding: "0 6px",
+                }}
+                title={label}
+              >
+                {label}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </section>
   );
@@ -486,6 +478,9 @@ const menuLinkStyle = {
   padding: "10px 12px",
   textDecoration: "none",
   color: "#0f172a",
-  borderBottom: "1px solid #eef2f7",
+  border: "1px solid #eef2f7",
+  borderRadius: 8,
+  marginBottom: 8,
+  background: "#f8fafc",
 };
 
