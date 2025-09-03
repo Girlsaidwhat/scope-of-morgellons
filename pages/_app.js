@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.158_2025-09-02
-import React, { useEffect, useRef, useMemo, useState } from "react";
+// Build 36.145r_2025-09-02  (rollback to stable baseline)
 import "../styles/globals.css";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.158_2025-09-02";
+export const BUILD_VERSION = "Build 36.145r_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -16,41 +16,11 @@ const supabase =
       )
     : null;
 
-/* ---------- Error Boundary (prevents blank-page crash) ---------- */
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  componentDidCatch(error, info) {
-    // Non-fatal: keep page usable
-    // eslint-disable-next-line no-console
-    console.error("Landing error:", error, info);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <main id="main" style={{ minHeight: "100vh", background: "#000", color: "#f4f4f5", display: "grid", placeItems: "center", padding: 24 }}>
-          <div style={{ maxWidth: 720, textAlign: "center", border: "1px solid #27272a", borderRadius: 12, padding: 16, background: "#0a0a0a" }}>
-            <h2 style={{ marginTop: 0 }}>The Scope of Morgellons</h2>
-            <p style={{ opacity: 0.9 }}>Something hiccuped. Reload to try again, or browse the menu above.</p>
-          </div>
-        </main>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-/* ---------- Build badge (kept low) ---------- */
 function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 0,
+    bottom: 48, // above Windows taskbar
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -95,7 +65,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen */
+/** Canonical sign-in screen (unchanged UI) */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -167,7 +137,7 @@ function AuthScreen() {
   async function handleForgot(e) {
     e.preventDefault?.();
     setErr("");
-    setMsg("Sending reset email…");
+  setMsg("Sending reset email…");
     try {
       if (!supabase) throw new Error("Client not ready");
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -237,7 +207,7 @@ function AuthScreen() {
   );
 }
 
-/** Minimal reset screen shown after recovery */
+/** Create-new-password screen shown after clicking the reset link */
 function ResetPasswordScreen({ onDone }) {
   const router = useRouter();
   const [p1, setP1] = useState("");
@@ -312,63 +282,56 @@ function ResetPasswordScreen({ onDone }) {
 /* ---------- Landing (logged-out default) ---------- */
 function LandingScreen() {
   return (
-    <ErrorBoundary>
-      <main
-        id="main"
-        tabIndex={-1}
-        style={{
-          minHeight: "100vh",
-          background: "#000",
-          color: "#f4f4f5",
-          fontFamily: "Arial, Helvetica, sans-serif",
-          boxSizing: "border-box",
-          paddingBottom: 360, // bottom safe-zone so badge never crowds images
-        }}
-      >
-        <div style={{ padding: "8px 24px" }}>
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 980,
-              margin: "0 auto",
-              padding: 16,
-              background: "#0a0a0a",
-              border: "1px solid #27272a",
-              borderRadius: 12,
-              boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-              position: "relative",
-              boxSizing: "border-box",
-            }}
-          >
-            <ExplorePanel />
-          </div>
+    <main
+      id="main"
+      tabIndex={-1}
+      style={{
+        minHeight: "100vh",
+        background: "#000",
+        color: "#f4f4f5",
+        fontFamily: "Arial, Helvetica, sans-serif",
+        boxSizing: "border-box",
+        paddingBottom: 360, // real space so the fixed badge never hugs content
+      }}
+    >
+      <div style={{ padding: "8px 24px" }}>
+        <div
+          style={{
+            width: "100%",
+            maxWidth: 980,
+            margin: "0 auto",
+            padding: 16,
+            background: "#0a0a0a",
+            border: "1px solid #27272a",
+            borderRadius: 12,
+            boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+            position: "relative",
+            boxSizing: "border-box",
+          }}
+        >
+          <ExplorePanel />
         </div>
-      </main>
-    </ErrorBoundary>
+      </div>
+    </main>
   );
 }
 
-/* ---- Explore landing: top bar aligns hamburger and CTA; header+carousel centered together ---- */
+// ---- Explore landing: slim left rail; shared wrapper width; left-aligned
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Header width caps carousel width
-  const CONTENT_MAX = 540;
+  // Shared wrapper so header and carousel use the exact same width.
+  const MAX_CONTENT_WIDTH = 500; // hard cap
+  const MENU_RAIL_WIDTH = 64;
 
-  const titleSpanRef = useRef(null); // exact title text width
-  const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
-
-  // Top chrome metrics
-  const CHROME_HEIGHT = 28;
-  const TOPBAR_TOP = 10;
-  const SIDE_PAD = 10;
-
+  // Measure the wrapper width so the carousel never exceeds the header container.
+  const contentRef = useRef(null);
+  const [measuredWidth, setMeasuredWidth] = useState(MAX_CONTENT_WIDTH);
   useEffect(() => {
-    const sync = () => {
-      const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
-      const cap = Math.min(spanW, CONTENT_MAX);
-      setMeasuredWidth(Math.max(0, Math.ceil(cap)));
-    };
+    function sync() {
+      const w = contentRef.current?.offsetWidth || MAX_CONTENT_WIDTH;
+      setMeasuredWidth(Math.min(w, MAX_CONTENT_WIDTH));
+    }
     sync();
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
@@ -381,34 +344,53 @@ function ExplorePanel() {
       style={{
         border: "1px solid #27272a",
         borderRadius: 12,
-        padding: 20,
+        padding: 12,
         marginBottom: 12,
         background: "#0a0a0a",
         color: "#f4f4f5",
         position: "relative",
-        overflow: "visible",
       }}
     >
-      {/* Absolute top bar: both controls inside the same flex row */}
-      <div
+      {/* CTA pinned to the far right of the panel */}
+      <a
+        href="/signin"
         style={{
           position: "absolute",
-          top: TOPBAR_TOP,
-          left: SIDE_PAD,
-          right: SIDE_PAD,
-          height: CHROME_HEIGHT,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          zIndex: 5,
-          pointerEvents: "none",
+          top: 8,
+          right: 10,
+          padding: "4px 8px",
+          borderRadius: 6,
+          border: "1px solid transparent",
+          background: "transparent",
+          color: "#cbd5e1",
+          textDecoration: "none",
+          fontWeight: 500,
+          fontSize: 12,
+        }}
+        aria-label="Sign up or sign in"
+        title="Sign up / Sign in"
+      >
+        Sign Up / Sign In
+      </a>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `${MENU_RAIL_WIDTH}px 1fr`,
+          gap: 12,
+          alignItems: "start",
         }}
       >
-        {/* Left: hover group with transparent hamburger */}
-        <div
-          onMouseEnter={() => setMenuOpen(true)}
-          onMouseLeave={() => setMenuOpen(false)}
-          style={{ position: "relative", pointerEvents: "auto", display: "flex", alignItems: "center" }}
+        {/* Left rail */}
+        <aside
+          aria-label="Explore menu rail"
+          style={{
+            border: "1px solid #27272a",
+            borderRadius: 10,
+            padding: 6,
+            background: "#0b0b0b",
+            minHeight: 48,
+          }}
         >
           <button
             type="button"
@@ -419,218 +401,144 @@ function ExplorePanel() {
             onClick={() => setMenuOpen((v) => !v)}
             title="Menu"
             style={{
-              width: 34,
-              height: CHROME_HEIGHT,
-              borderRadius: 10,
-              border: "1px solid rgba(148,163,184,0.35)",
-              background: "rgba(17,24,39,0.6)",
+              width: 28,
+              height: 24,
+              borderRadius: 8,
+              border: "1px solid #374151",
+              background: "#111827",
               display: "grid",
               placeItems: "center",
               cursor: "pointer",
-              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
-              backdropFilter: "saturate(140%) blur(4px)",
-              WebkitBackdropFilter: "saturate(140%) blur(4px)",
-              transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease",
+              marginBottom: 6,
             }}
           >
-            <div style={{ display: "grid", gap: 4 }}>
-              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
-              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
-              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+            <div style={{ display: "grid", gap: 3 }}>
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
             </div>
           </button>
 
-          {/* Dropdown menu below the button */}
           {menuOpen ? (
-            <nav
-              id="explore-menu"
-              role="menu"
-              aria-label="Explore menu"
-              style={{
-                position: "absolute",
-                top: CHROME_HEIGHT + 6,
-                left: 0,
-                border: "1px solid #374151",
-                borderRadius: 12,
-                background: "rgba(15,23,42,0.92)",
-                padding: "12px 14px",
-                boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
-                backdropFilter: "saturate(140%) blur(4px)",
-                WebkitBackdropFilter: "saturate(140%) blur(4px)",
-              }}
-            >
+            <nav id="explore-menu" role="menu" aria-label="Explore menu">
               <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
               <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
               <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
             </nav>
           ) : null}
+        </aside>
+
+        {/* Right main area — shared wrapper governs both header and carousel widths */}
+        <div>
+          <div
+            ref={contentRef}
+            style={{
+              width: "100%",
+              maxWidth: MAX_CONTENT_WIDTH,
+              boxSizing: "border-box",
+            }}
+          >
+            <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "left" }}>
+              The Scope of Morgellons
+            </h2>
+
+            {/* Spacer before images */}
+            <div style={{ height: 72 }} />
+
+            {/* One-row, three-slot carousel constrained by the measured header wrapper width */}
+            <CarouselRow maxWidth={measuredWidth} />
+
+            {/* Big spacer to separate from the fixed badge */}
+            <div style={{ height: 260 }} />
+          </div>
         </div>
-
-        {/* Right: CTA aligned on the same row */}
-        <a
-          href="/signin"
-          style={{
-            height: CHROME_HEIGHT,
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "0 10px",
-            borderRadius: 8,
-            border: "1px solid transparent",
-            background: "transparent",
-            color: "#cbd5e1",
-            textDecoration: "none",
-            fontWeight: 600,
-            fontSize: 13,
-            lineHeight: `${CHROME_HEIGHT}px`,
-            pointerEvents: "auto",
-          }}
-          aria-label="Sign up or sign in"
-          title="Sign up / Sign in"
-        >
-          Sign Up / Sign In
-        </a>
-      </div>
-
-      {/* Centered content: header + carousel share width */}
-      <div
-        style={{
-          width: "100%",
-          maxWidth: CONTENT_MAX,
-          margin: "0 auto",
-          textAlign: "center",
-          boxSizing: "border-box",
-        }}
-      >
-        <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
-          <span ref={titleSpanRef} style={{ display: "inline-block" }}>
-            The Scope of Morgellons
-          </span>
-        </h2>
-
-        {/* Spacer before images */}
-        <div style={{ height: 48 }} />
-
-        {/* Carousel centered under header and constrained by measured title text width */}
-        <CarouselRow maxWidth={measuredWidth} />
-
-        {/* Spacer to separate from the fixed badge */}
-        <div style={{ height: 220 }} />
       </div>
     </section>
   );
 }
 
-/** --------- CarouselRow: one row, 3 columns, centrally scheduled & guarded --------- **/
-function CarouselRow({ maxWidth = 540 }) {
+/** --------- CarouselRow: exactly 3 slots, anonymized, fade-to-black --------- **/
+function CarouselRow({ maxWidth = 500 }) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!supabase) {
-        if (!cancelled) setUrls([]);
+      const { data, error } = await supabase
+        ?.from("public_gallery")
+        .select("public_path, created_at")
+        .order("created_at", { ascending: false })
+        .limit(60);
+
+      if (cancelled || error || !Array.isArray(data)) {
+        setUrls([]);
         return;
       }
-      try {
-        const { data, error } = await supabase
-          .from("public_gallery")
-          .select("public_path, created_at")
-          .order("created_at", { ascending: false })
-          .limit(60);
 
-        if (error) throw error;
+      const bucket = "public-thumbs";
+      const list = data
+        .map((r) => {
+          const { data: pu } = supabase.storage.from(bucket).getPublicUrl(r.public_path);
+          return pu?.publicUrl || "";
+        })
+        .filter(Boolean);
 
-        const bucket = "public-thumbs";
-        const list = (data || [])
-          .map((r) => {
-            try {
-              const res = supabase.storage.from(bucket).getPublicUrl(r.public_path);
-              return res?.data?.publicUrl || res?.data?.publicURL || "";
-            } catch {
-              return "";
-            }
-          })
-          .filter(Boolean);
-
-        if (!cancelled) setUrls(list);
-      } catch {
-        if (!cancelled) setUrls([]);
-      }
+      setUrls(list);
     })();
     return () => { cancelled = true; };
   }, []);
 
-  // Split into 3 columns; if any column has <2 images, duplicate one so it can rotate.
-  const cols = useMemo(() => {
-    const base = [[], [], []];
-    urls.forEach((u, i) => base[i % 3].push(u));
-    if (urls.length >= 2) {
-      for (let c = 0; c < 3; c++) {
-        if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
-      }
-    }
-    return base;
-  }, [urls]);
-
   if (!urls.length) return null;
 
-  // Central scheduler: one active column per beat; wrap-around equal spacing
-  const FADE_MS = 3000; // fade duration (out then in)
-  const BEAT_MS = 6500; // time between column starts (no overlaps; short idle)
+  const cols = [[], [], []];
+  urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  const [activeCol, setActiveCol] = useState(0);
-
-  useEffect(() => {
-    let step = 0;
-    setActiveCol(0); // start immediately with col 0
-    const id = setInterval(() => {
-      step = (step + 1) % 3; // 1,2,0,1,2,0...
-      setActiveCol(step);
-    }, BEAT_MS);
-    return () => clearInterval(id);
-  }, []);
+  // Even stagger: slot 0 now, slot 1 +4.0s, slot 2 +8.0s
+  const delays = [0, 4000, 8000];
 
   return (
     <div
       style={{
         width: maxWidth,
-        margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 16, // slightly more spacing
+        gap: 10,
+        margin: 0,
         boxSizing: "border-box",
       }}
     >
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} isTurn={activeCol === idx} fadeMs={FADE_MS} />
+        <FadeToBlackSlot key={idx} images={images} delay={delays[idx] || 0} />
       ))}
     </div>
   );
 }
 
-/** Slot that animates only on its turn (externally scheduled) */
-function FadeToBlackSlot({ images, isTurn = false, fadeMs = 3000 }) {
+/** Single-img fade-to-black: HOLD → fade out 4s → swap → fade in 4s (no wrap lag) **/
+function FadeToBlackSlot({ images, delay = 0 }) {
+  const FADE_MS = 4000;
+  const HOLD_MS = 8000;
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
-  const len = images?.length || 0;
 
-  // Reset when list changes
   useEffect(() => {
-    setIdx(0);
-    setVisible(true);
-  }, [len]);
+    if (!images || images.length === 0) return;
+    let holdT, outT, inT, startT;
 
-  // Animate when it's this column's turn
-  useEffect(() => {
-    if (!isTurn || len < 2) return;
-    let timer;
-    setVisible(false); // fade to black
-    timer = setTimeout(() => {
-      setIdx((p) => (p + 1) % len); // swap image
-      setVisible(true); // fade back in
-    }, fadeMs);
-    return () => clearTimeout(timer);
-  }, [isTurn, len, fadeMs]);
+    const cycle = () => {
+      holdT = setTimeout(() => {
+        setVisible(false); // fade to black
+        outT = setTimeout(() => {
+          setIdx((p) => (p + 1) % images.length); // swap
+          setVisible(true); // fade in
+          inT = setTimeout(cycle, 0); // start next hold immediately after fade-in
+        }, FADE_MS);
+      }, HOLD_MS);
+    };
+
+    startT = setTimeout(cycle, Math.max(0, delay));
+    return () => { [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t)); };
+  }, [images, delay]);
 
   const url = images && images.length ? images[idx] : "";
 
@@ -658,8 +566,7 @@ function FadeToBlackSlot({ images, isTurn = false, fadeMs = 3000 }) {
           objectFit: "cover",
           display: "block",
           opacity: visible ? 1 : 0,
-          transition: `opacity ${fadeMs}ms ease-in-out`,
-          willChange: "opacity",
+          transition: `opacity ${FADE_MS}ms ease-in-out`,
           pointerEvents: "none",
         }}
       />
@@ -667,20 +574,14 @@ function FadeToBlackSlot({ images, isTurn = false, fadeMs = 3000 }) {
   );
 }
 
-/* Bigger, spaced dropdown links */
 const menuLinkStyleTextDark = {
   display: "block",
-  padding: "6px 2px",
-  fontSize: 14,
-  lineHeight: 1.5,
+  padding: "2px 0",
+  fontSize: 12,
   textDecoration: "underline",
   color: "#f4f4f5",
-  marginBottom: 10,
+  marginBottom: 4,
 };
-
-const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
-const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
 
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
@@ -747,5 +648,3 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
-
