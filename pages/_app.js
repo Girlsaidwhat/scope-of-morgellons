@@ -96,7 +96,7 @@ function AuthScreen() {
   const pageWrap = { maxWidth: 980, margin: "20px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
-  const input = { width: 300, padding: "10px 12px", border: "1px solid "#ccc", borderRadius: 8, fontSize: 14 };
+  const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSignIn(e) {
@@ -442,3 +442,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
