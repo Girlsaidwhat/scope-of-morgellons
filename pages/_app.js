@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.172_2025-09-02
+// Build 36.173_2025-09-02
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.172_2025-09-02";
+export const BUILD_VERSION = "Build 36.173_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -96,7 +96,7 @@ function AuthScreen() {
   const pageWrap = { maxWidth: 980, margin: "20px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
-  const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  const input = { width: 300, padding: "10px 12px", border: "1px solid "#ccc", borderRadius: 8, fontSize: 14 };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSignIn(e) {
@@ -282,7 +282,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel: global one-by-one sequencer with true (shorter) pauses ---------- */
+/* ---------- Carousel: global one-by-one sequencer with 1.4s pauses ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -313,7 +313,6 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Build 3 columns, stable hooks
   const cols = useMemo(() => {
     const base = [[], [], []];
     urls.forEach((u, i) => base[i % 3].push(u));
@@ -327,10 +326,9 @@ function CarouselRow({ maxWidth = 560 }) {
   }, [urls]);
 
   const FADE_MS = 2800;   // fade-out then fade-in handled via CSS transition
-  const PAUSE_MS = 1600;  // slightly shorter true pause between columns
+  const PAUSE_MS = 1400;  // shorter true pause between columns
   const [kicks, setKicks] = useState([0, 0, 0]);
 
-  // Single timer chain: kick → wait fade out + in → pause → next column
   useEffect(() => {
     let alive = true;
     let idx = 0;
