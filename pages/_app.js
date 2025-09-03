@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.165_2025-09-02
+// Build 36.166_2025-09-02
 import React, { useEffect, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.165_2025-09-02";
+export const BUILD_VERSION = "Build 36.166_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -19,12 +19,9 @@ const supabase =
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     : null;
 
-/* ---------- Error boundary (diagnostic) ---------- */
+/* ---------- Error boundary (diagnostic stays for now) ---------- */
 class ErrorBoundary extends React.Component {
-  constructor(p) {
-    super(p);
-    this.state = { hasError: false, msg: "", stackTop: "" };
-  }
+  constructor(p) { super(p); this.state = { hasError: false, msg: "", stackTop: "" }; }
   static getDerivedStateFromError(error) {
     const rawMsg = error?.message || String(error || "");
     let stackTop = "";
@@ -65,7 +62,7 @@ function BuildBadge() {
   );
 }
 
-/* ---------- Auth presence (safe cleanup) ---------- */
+/* ---------- Auth presence ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -80,16 +77,14 @@ function useAuthPresence() {
         unsubscribe = data?.subscription?.unsubscribe || (() => {});
       } catch (e) {
         console.error("Auth presence init error:", e);
-      } finally {
-        setChecking(false);
-      }
+      } finally { setChecking(false); }
     })();
     return () => { try { unsubscribe(); } catch {} };
   }, []);
   return { signedIn, checking };
 }
 
-/* ---------- Canonical sign-in ---------- */
+/* ---------- Sign-in ---------- */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -288,7 +283,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel (staggered, even wrap; no conditional hooks) ---------- */
+/* ---------- Carousel (even wrap; delays = T/3) ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -297,7 +292,11 @@ function CarouselRow({ maxWidth = 560 }) {
     (async () => {
       if (!supabase) { if (!cancelled) setUrls([]); return; }
       try {
-        const { data, error } = await supabase.from("public_gallery").select("public_path, created_at").order("created_at", { ascending: false }).limit(60);
+        const { data, error } = await supabase
+          .from("public_gallery")
+          .select("public_path, created_at")
+          .order("created_at", { ascending: false })
+          .limit(60);
         if (error) throw error;
         const bucket = "public-thumbs";
         const list = (data || []).map((r) => {
@@ -315,19 +314,20 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Always compute columns (no extra hooks after returns)
+  // Build columns (no conditional hooks)
   const cols = [[], [], []];
   urls.forEach((u, i) => cols[i % 3].push(u));
   if (urls.length >= 2) {
     for (let c = 0; c < 3; c++) if (cols[c].length < 2) cols[c] = [...cols[c], urls[(c + 1) % urls.length]];
   }
 
-  // If empty, render nothing (safe: no hooks added/removed)
   if (!urls.length) return null;
 
-  const FADE_MS = 3000;   // fade
-  const HOLD_MS = 5200;   // brief pause before next column
-  const delays = [0, HOLD_MS, HOLD_MS * 2];
+  // Gentle fade with brief pause; perfectly even wrap
+  const FADE_MS = 3200;
+  const HOLD_MS = 7600;
+  const T = FADE_MS + HOLD_MS;
+  const delays = [0, Math.round(T / 3), Math.round((2 * T) / 3)]; // 0ms, 3600ms, 7200ms
 
   return (
     <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, boxSizing: "border-box" }}>
@@ -339,7 +339,7 @@ function CarouselRow({ maxWidth = 560 }) {
 }
 
 /* Column cycle: HOLD → fade out → swap → fade in → repeat */
-function FadeToBlackSlot({ images, fadeMs = 3000, holdMs = 5200, startDelay = 0 }) {
+function FadeToBlackSlot({ images, fadeMs = 3200, holdMs = 7600, startDelay = 0 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
   const len = images?.length || 0;
