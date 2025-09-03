@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.148_2025-09-02
+// Build 36.150_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.148_2025-09-02";
+export const BUILD_VERSION = "Build 36.150_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -90,7 +90,7 @@ function AuthScreen() {
   const input = {
     width: 300,
     padding: "10px 12px",
-    border: "1px solid #ccc",
+    border: "1px solid "#ccc",
     borderRadius: 8,
     fontSize: 14,
   };
@@ -179,7 +179,7 @@ function AuthScreen() {
           </label>
 
           {showTips ? (
-            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
+            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid "#ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
               <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 <li>Use a long passphrase (3–5 random words, 16–24+ characters). <em>Spaces are OK</em> and encouraged between words.</li>
@@ -519,8 +519,8 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  // Evenly spaced column offsets (total cycle 21s -> 7s offsets)
-  const delays = [0, 7000, 14000];
+  // Stronger stagger: larger base offsets
+  const delays = [0, 8000, 16000];
 
   return (
     <div
@@ -534,23 +534,25 @@ function CarouselRow({ maxWidth = 540 }) {
       }}
     >
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} delay={delays[idx] || 0} />
+        <FadeToBlackSlot key={idx} images={images} delay={delays[idx] || 0} seed={idx} />
       ))}
     </div>
   );
 }
 
-/** Single-img fade-to-black: simple interval loop; needs ≥2 images to rotate */
-function FadeToBlackSlot({ images, delay = 0 }) {
+/** Single-img fade-to-black with per-column hold variants to prevent sync */
+function FadeToBlackSlot({ images, delay = 0, seed = 0 }) {
   const FADE_MS = 5000;
-  const HOLD_MS = 16000;
+  const BASE_HOLD_MS = 16000;
+  const HOLD_VARIANT = 1100 * seed;           // 0ms, 1100ms, 2200ms
+  const HOLD_MS = BASE_HOLD_MS + HOLD_VARIANT;
 
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
   const len = images?.length || 0;
 
-  // Reset index when image list changes size
+  // Reset index when list size changes
   useEffect(() => {
     setIdx(0);
     setVisible(true);
@@ -569,18 +571,18 @@ function FadeToBlackSlot({ images, delay = 0 }) {
       }, FADE_MS);
     };
 
-    // Start after initial hold + per-column delay
+    // Start after per-column delay + per-column hold, then repeat at (hold + fade)
     startTimer = setTimeout(() => {
       tick();
       intervalTimer = setInterval(tick, HOLD_MS + FADE_MS);
-    }, Math.max(0, HOLD_MS + delay));
+    }, Math.max(0, delay + HOLD_MS));
 
     return () => {
       clearTimeout(startTimer);
       clearInterval(intervalTimer);
       clearTimeout(fadeTimer);
     };
-  }, [len, delay]);
+  }, [len, delay, HOLD_MS]);
 
   const url = images && images.length ? images[idx] : "";
 
