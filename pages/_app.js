@@ -20,7 +20,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 48, // above Windows taskbar
+    bottom: 8, // LOWER so it sits out of the way
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -291,7 +291,7 @@ function LandingScreen() {
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
-        paddingBottom: 360, // real space so the fixed badge never hugs content
+        paddingBottom: 360, // plenty of real space; badge sits even lower now
       }}
     >
       <div style={{ padding: "8px 24px" }}>
@@ -316,7 +316,7 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slim left rail; shared wrapper width; left-aligned
+// ---- Explore landing: slim left rail; shared wrapper width; slight right nudge
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -429,13 +429,19 @@ function ExplorePanel() {
         </aside>
 
         {/* Right main area — shared wrapper governs both header and carousel widths */}
-        <div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
           <div
             ref={contentRef}
             style={{
               width: "100%",
               maxWidth: MAX_CONTENT_WIDTH,
               boxSizing: "border-box",
+              transform: "translateX(12px)", // slight nudge to the right (just left of center)
             }}
           >
             <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "left" }}>
@@ -448,8 +454,8 @@ function ExplorePanel() {
             {/* One-row, three-slot carousel constrained by the measured header wrapper width */}
             <CarouselRow maxWidth={measuredWidth} />
 
-            {/* Big spacer to separate from the fixed badge */}
-            <div style={{ height: 260 }} />
+            {/* Spacer to separate from the fixed badge */}
+            <div style={{ height: 220 }} />
           </div>
         </div>
       </div>
