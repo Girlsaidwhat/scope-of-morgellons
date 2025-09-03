@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.150_2025-09-02
+// Build 36.151_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.150_2025-09-02";
+export const BUILD_VERSION = "Build 36.151_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -90,7 +90,7 @@ function AuthScreen() {
   const input = {
     width: 300,
     padding: "10px 12px",
-    border: "1px solid "#ccc",
+    border: "1px solid #ccc",
     borderRadius: 8,
     fontSize: 14,
   };
@@ -179,7 +179,7 @@ function AuthScreen() {
           </label>
 
           {showTips ? (
-            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid "#ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
+            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
               <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 <li>Use a long passphrase (3–5 random words, 16–24+ characters). <em>Spaces are OK</em> and encouraged between words.</li>
@@ -328,6 +328,12 @@ function ExplorePanel() {
   const titleSpanRef = useRef(null); // exact title text width
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
 
+  // Shared chrome metrics so hamburger and CTA sit on the same level
+  const CHROME_TOP = 10;
+  const CHROME_HEIGHT = 28;
+  const CHROME_LEFT = 10;
+  const CHROME_RIGHT = 10;
+
   useEffect(() => {
     const sync = () => {
       const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
@@ -360,7 +366,7 @@ function ExplorePanel() {
         onMouseLeave={() => setMenuOpen(false)}
         style={{ position: "relative", zIndex: 4 }}
       >
-        {/* Cooler, slightly transparent hamburger */}
+        {/* Cooler, slightly transparent hamburger (aligned) */}
         <button
           type="button"
           aria-label="Open menu"
@@ -371,10 +377,10 @@ function ExplorePanel() {
           title="Menu"
           style={{
             position: "absolute",
-            top: 8,
-            left: 10,
+            top: CHROME_TOP,
+            left: CHROME_LEFT,
             width: 34,
-            height: 28,
+            height: CHROME_HEIGHT,
             borderRadius: 10,
             border: "1px solid rgba(148,163,184,0.35)",
             background: "rgba(17,24,39,0.6)", // transparent
@@ -403,8 +409,8 @@ function ExplorePanel() {
             aria-label="Explore menu"
             style={{
               position: "absolute",
-              top: 44,
-              left: 10,
+              top: CHROME_TOP + CHROME_HEIGHT + 6,
+              left: CHROME_LEFT,
               border: "1px solid #374151",
               borderRadius: 12,
               background: "rgba(15,23,42,0.92)",
@@ -421,14 +427,17 @@ function ExplorePanel() {
         ) : null}
       </div>
 
-      {/* CTA pinned top-right, same level */}
+      {/* CTA pinned top-right, same level + same height */}
       <a
         href="/signin"
         style={{
           position: "absolute",
-          top: 8,
-          right: 10,
-          padding: "6px 10px",
+          top: CHROME_TOP,
+          right: CHROME_RIGHT,
+          height: CHROME_HEIGHT,
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "0 10px",
           borderRadius: 8,
           border: "1px solid transparent",
           background: "transparent",
@@ -436,7 +445,9 @@ function ExplorePanel() {
           textDecoration: "none",
           fontWeight: 600,
           fontSize: 13,
+          lineHeight: `${CHROME_HEIGHT}px`,
           zIndex: 3,
+          boxSizing: "border-box",
         }}
         aria-label="Sign up or sign in"
         title="Sign up / Sign in"
@@ -519,7 +530,7 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  // Stronger stagger: larger base offsets
+  // Strong stagger
   const delays = [0, 8000, 16000];
 
   return (
