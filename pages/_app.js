@@ -1,7 +1,7 @@
 ﻿// pages/_app.js
 // Build 36.146_2025-09-02
 import "../styles/globals.css";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
@@ -16,7 +16,7 @@ const supabase =
       )
     : null;
 
-/* ---------- Build badge (kept low, global single source) ---------- */
+/* ---------- Build badge (kept low) ---------- */
 function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
@@ -507,11 +507,14 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  const cols = [[], [], []];
-  urls.forEach((u, i) => { cols[i % 3].push(u); });
+  // Memoize column arrays so their identity doesn't change on every render.
+  const cols = useMemo(() => {
+    const c = [[], [], []];
+    urls.forEach((u, i) => c[i % 3].push(u));
+    return c;
+  }, [urls]);
 
-  // Calm rhythm with evenly spaced column offsets
-  // Cycle = HOLD_MS + FADE_MS = 16000 + 5000 = 21000 -> spacing = 7000ms
+  // Calm rhythm with evenly spaced column offsets (total cycle 21s -> 7s offsets)
   const delays = [0, 7000, 14000];
 
   return (
@@ -532,33 +535,47 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: calmer timing */
+/** Single-img fade-to-black: calmer timing; resistant to re-renders */
 function FadeToBlackSlot({ images, delay = 0 }) {
   const FADE_MS = 5000;
   const HOLD_MS = 16000;
+
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
-  useEffect(() => {
-    if (!images || images.length === 0) return;
-    let holdT, outT, inT, startT;
+  // Keep the latest array in a ref; effect depends only on its length.
+  const imgsRef = useRef(images);
+  useEffect(() => { imgsRef.current = images; }, [images]);
 
+  useEffect(() => {
+    const n = imgsRef.current?.length || 0;
+    if (n === 0) return;
+
+    let holdT, outT, startT;
     const cycle = () => {
       holdT = setTimeout(() => {
         setVisible(false); // fade to black
         outT = setTimeout(() => {
-          setIdx((p) => (p + 1) % images.length); // swap
-          setVisible(true); // fade in
-          inT = setTimeout(cycle, 0);
+          setIdx((p) => {
+            const len = imgsRef.current?.length || 1;
+            return len > 0 ? (p + 1) % len : 0;
+          });
+          setVisible(true); // fade in, then hold again
+          cycle();
         }, FADE_MS);
       }, HOLD_MS);
     };
 
     startT = setTimeout(cycle, Math.max(0, delay));
-    return () => { [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t)); };
-  }, [images, delay]);
+    return () => {
+      clearTimeout(startT);
+      clearTimeout(holdT);
+      clearTimeout(outT);
+    };
+    // Only reset when the number of images changes, or the per-column delay changes
+  }, [images?.length, delay]);
 
-  const url = images && images.length ? images[idx] : "";
+  const url = imgsRef.current && imgsRef.current.length ? imgsRef.current[idx] : "";
 
   return (
     <div
@@ -585,6 +602,7 @@ function FadeToBlackSlot({ images, delay = 0 }) {
           display: "block",
           opacity: visible ? 1 : 0,
           transition: `opacity ${FADE_MS}ms ease-in-out`,
+          willChange: "opacity",
           pointerEvents: "none",
         }}
       />
