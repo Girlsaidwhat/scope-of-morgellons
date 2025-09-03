@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.152_2025-09-02
+// Build 36.153_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.152_2025-09-02";
+export const BUILD_VERSION = "Build 36.153_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -334,6 +334,9 @@ function ExplorePanel() {
   const CHROME_LEFT = 10;
   const CHROME_RIGHT = 10;
 
+  // Optical nudge: move hamburger up a bit for visual alignment with the CTA text
+  const HAMBURGER_NUDGE_Y = -3; // tweakable: -2 to -4px depending on display
+
   useEffect(() => {
     const sync = () => {
       const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
@@ -366,7 +369,7 @@ function ExplorePanel() {
         onMouseLeave={() => setMenuOpen(false)}
         style={{ position: "relative", zIndex: 4 }}
       >
-        {/* Cooler, slightly transparent hamburger (aligned) */}
+        {/* Cooler, slightly transparent hamburger (aligned with nudge) */}
         <button
           type="button"
           aria-label="Open menu"
@@ -377,7 +380,7 @@ function ExplorePanel() {
           title="Menu"
           style={{
             position: "absolute",
-            top: CHROME_TOP,
+            top: CHROME_TOP + HAMBURGER_NUDGE_Y,
             left: CHROME_LEFT,
             width: 34,
             height: CHROME_HEIGHT,
@@ -409,7 +412,7 @@ function ExplorePanel() {
             aria-label="Explore menu"
             style={{
               position: "absolute",
-              top: CHROME_TOP + CHROME_HEIGHT + 6,
+              top: CHROME_TOP + HAMBURGER_NUDGE_Y + CHROME_HEIGHT + 6,
               left: CHROME_LEFT,
               border: "1px solid #374151",
               borderRadius: 12,
