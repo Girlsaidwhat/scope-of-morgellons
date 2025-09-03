@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.168_2025-09-02
+// Build 36.169_2025-09-02
 import React, { useEffect, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.168_2025-09-02";
+export const BUILD_VERSION = "Build 36.169_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -282,7 +282,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel (even wrap; ~1.4s pause between columns) ---------- */
+/* ---------- Carousel: global sequencer (real pauses between columns) ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -291,11 +291,7 @@ function CarouselRow({ maxWidth = 560 }) {
     (async () => {
       if (!supabase) { if (!cancelled) setUrls([]); return; }
       try {
-        const { data, error } = await supabase
-          .from("public_gallery")
-          .select("public_path, created_at")
-          .order("created_at", { ascending: false })
-          .limit(60);
+        const { data, error } = await supabase.from("public_gallery").select("public_path, created_at").order("created_at", { ascending: false }).limit(60);
         if (error) throw error;
         const bucket = "public-thumbs";
         const list = (data || []).map((r) => {
@@ -313,54 +309,58 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Build columns (no conditional hooks)
+  // Build 3 columns, guarantee at least 2 images per column if we have >=2 total
   const cols = [[], [], []];
   urls.forEach((u, i) => cols[i % 3].push(u));
   if (urls.length >= 2) {
     for (let c = 0; c < 3; c++) if (cols[c].length < 2) cols[c] = [...cols[c], urls[(c + 1) % urls.length]];
   }
-
   if (!urls.length) return null;
 
-  // Fade 2.8s; Hold 9.8s ⇒ T=12.6s; offsets 0/4.2/8.4s; gap = offset - fade = ~1.4s
-  const FADE_MS = 2800;
-  const HOLD_MS = 9800;
-  const T = FADE_MS + HOLD_MS; // 12600
-  const delays = [0, Math.round(T / 3), Math.round((2 * T) / 3)]; // 0, 4200, 8400
+  // Timing: one column at a time, with a real pause between columns
+  const FADE_MS = 2800;      // out then in (CSS handles the in)
+  const PAUSE_MS = 2000;     // real breather between columns
+  const SEG_MS = 2 * FADE_MS + PAUSE_MS; // total between starts
+
+  // Global sequencer: bump the "kick" for next column every SEG_MS
+  const [kicks, setKicks] = useState([0, 0, 0]);
+  useEffect(() => {
+    let idx = 0;
+    const fire = () => setKicks((k) => { const a = [...k]; a[idx] += 1; return a; });
+    fire(); // start with column 0 now
+    const id = setInterval(() => { idx = (idx + 1) % 3; fire(); }, SEG_MS);
+    return () => clearInterval(id);
+  }, [SEG_MS]);
 
   return (
     <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, boxSizing: "border-box" }}>
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} fadeMs={FADE_MS} holdMs={HOLD_MS} startDelay={delays[idx]} />
+        <SequencedSlot key={idx} images={images} fadeMs={FADE_MS} kick={kicks[idx]} />
       ))}
     </div>
   );
 }
 
-/* Column cycle: HOLD → fade out → swap → fade in → repeat */
-function FadeToBlackSlot({ images, fadeMs = 2800, holdMs = 9800, startDelay = 0 }) {
+/* One-shot animation triggered by "kick": fade out → swap → fade in */
+function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
+  const len = images?.length || 0;
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
-  const len = images?.length || 0;
 
+  // Reset if images change
   useEffect(() => { setIdx(0); setVisible(true); }, [len]);
 
+  // Run one fade cycle whenever "kick" increments
   useEffect(() => {
     if (!len) return;
-    let tStart, tHold, tOut, tIn;
-    const run = () => {
-      tHold = setTimeout(() => {
-        setVisible(false);
-        tOut = setTimeout(() => {
-          setIdx((p) => (p + 1) % len);
-          setVisible(true);
-          tIn = setTimeout(run, 0);
-        }, fadeMs);
-      }, holdMs);
-    };
-    tStart = setTimeout(run, Math.max(0, startDelay));
-    return () => { [tStart, tHold, tOut, tIn].forEach((id) => id && clearTimeout(id)); };
-  }, [len, fadeMs, holdMs, startDelay]);
+    let tOut;
+    setVisible(false); // start fade out
+    tOut = setTimeout(() => {
+      setIdx((p) => (p + 1) % len); // swap image
+      setVisible(true);             // fade in (CSS transition)
+    }, fadeMs);
+    return () => { if (tOut) clearTimeout(tOut); };
+  }, [kick, len, fadeMs]);
 
   const url = images && images.length ? images[idx] : "";
 
