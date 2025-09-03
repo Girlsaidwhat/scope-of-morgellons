@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.156_2025-09-02
+// Build 36.157_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.156_2025-09-02";
+export const BUILD_VERSION = "Build 36.157_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -489,7 +489,7 @@ function ExplorePanel() {
   );
 }
 
-/** --------- CarouselRow: one row, 3 columns, constrained by header width, centrally scheduled --------- **/
+/** --------- CarouselRow: one row, 3 columns, centrally scheduled & guarded --------- **/
 function CarouselRow({ maxWidth = 540 }) {
   const [urls, setUrls] = useState([]);
 
@@ -522,16 +522,14 @@ function CarouselRow({ maxWidth = 540 }) {
           .filter(Boolean);
 
         if (!cancelled) setUrls(list);
-      } catch (_e) {
+      } catch {
         if (!cancelled) setUrls([]);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  // Build 3 sequences; if a column has <2 images, borrow one so it rotates.
+  // Split into 3 columns; if any column has <2 images, duplicate one so it can rotate.
   const cols = useMemo(() => {
     const base = [[], [], []];
     urls.forEach((u, i) => base[i % 3].push(u));
@@ -545,40 +543,32 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  // Central scheduler: exactly one column fades per beat, wrap-around equal
-  const FADE_MS = 4000; // duration of fade to black and swap before fade-in completes
-  const BEAT_MS = 6000; // start of next column's fade (shorter idle than before)
+  // Central scheduler: exactly one column fades per beat; wrap-around equal
+  const FADE_MS = 4000; // fade duration
+  const BEAT_MS = 6500; // time between column starts (even spacing including wrap)
 
   const [triggers, setTriggers] = useState([0, 0, 0]);
 
   useEffect(() => {
-    // Kick with column 0 shortly after mount, then round-robin every BEAT_MS
-    let step = 1; // next column index will be 1
-    let startTimer = setTimeout(() => {
+    let step = 0;
+    let intervalId = null;
+    // start immediately with column 0
+    setTriggers((t) => {
+      const n = [...t];
+      n[0] = t[0] + 1;
+      return n;
+    });
+    intervalId = setInterval(() => {
+      step = (step + 1) % 3; // 1,2,0,1,2,0...
       setTriggers((t) => {
         const n = [...t];
-        n[0] = t[0] + 1;
+        n[step] = t[step] + 1;
         return n;
       });
-      var intervalId = setInterval(() => {
-        const col = step % 3; // 1,2,0,1,2,0...
-        step += 1;
-        setTriggers((t) => {
-          const n = [...t];
-          n[col] = t[col] + 1;
-          return n;
-        });
-      }, BEAT_MS);
-      // store on function scope for cleanup
-      (startTimer).__iv = intervalId;
-    }, 200);
+    }, BEAT_MS);
 
     return () => {
-      if (startTimer) {
-        clearTimeout(startTimer);
-        // @ts-ignore
-        if (startTimer.__iv) clearInterval(startTimer.__iv);
-      }
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 
@@ -589,7 +579,7 @@ function CarouselRow({ maxWidth = 540 }) {
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 16,
+        gap: 16, // slightly more spacing between images
         boxSizing: "border-box",
       }}
     >
@@ -615,13 +605,12 @@ function FadeToBlackSlot({ images, trigger = 0, fadeMs = 4000 }) {
   // Animate on trigger tick
   useEffect(() => {
     if (!trigger || len < 2) return;
-    let timer;
-    setVisible(false); // fade to black
-    timer = setTimeout(() => {
-      setIdx((p) => (p + 1) % len); // swap image
+    const outTimer = setTimeout(() => {
+      setIdx((p) => (p + 1) % len); // swap image at end of fade-out
       setVisible(true); // fade back in
     }, fadeMs);
-    return () => clearTimeout(timer);
+    setVisible(false); // start fade to black now
+    return () => clearTimeout(outTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trigger]);
 
