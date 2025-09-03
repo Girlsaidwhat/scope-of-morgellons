@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.146_2025-09-02
+// Build 36.148_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.146_2025-09-02";
+export const BUILD_VERSION = "Build 36.148_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -505,26 +505,31 @@ function CarouselRow({ maxWidth = 540 }) {
     return () => { cancelled = true; };
   }, []);
 
-  if (!urls.length) return null;
-
-  // Memoize column arrays so their identity doesn't change on every render.
+  // Build 3 sequences; if a column has <2 images, borrow one so it rotates.
   const cols = useMemo(() => {
-    const c = [[], [], []];
-    urls.forEach((u, i) => c[i % 3].push(u));
-    return c;
+    const base = [[], [], []];
+    urls.forEach((u, i) => base[i % 3].push(u));
+    if (urls.length >= 2) {
+      for (let c = 0; c < 3; c++) {
+        if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
+      }
+    }
+    return base;
   }, [urls]);
 
-  // Calm rhythm with evenly spaced column offsets (total cycle 21s -> 7s offsets)
+  if (!urls.length) return null;
+
+  // Evenly spaced column offsets (total cycle 21s -> 7s offsets)
   const delays = [0, 7000, 14000];
 
   return (
     <div
       style={{
-        width: maxWidth,     // never exceed measured header text width
+        width: maxWidth,
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 14,             // slightly more visual space between images
+        gap: 14,
         boxSizing: "border-box",
       }}
     >
@@ -535,7 +540,7 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: calmer timing; resistant to re-renders */
+/** Single-img fade-to-black: simple interval loop; needs ≥2 images to rotate */
 function FadeToBlackSlot({ images, delay = 0 }) {
   const FADE_MS = 5000;
   const HOLD_MS = 16000;
@@ -543,39 +548,41 @@ function FadeToBlackSlot({ images, delay = 0 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
-  // Keep the latest array in a ref; effect depends only on its length.
-  const imgsRef = useRef(images);
-  useEffect(() => { imgsRef.current = images; }, [images]);
+  const len = images?.length || 0;
+
+  // Reset index when image list changes size
+  useEffect(() => {
+    setIdx(0);
+    setVisible(true);
+  }, [len]);
 
   useEffect(() => {
-    const n = imgsRef.current?.length || 0;
-    if (n === 0) return;
+    if (len < 2) return; // static if only one image
 
-    let holdT, outT, startT;
-    const cycle = () => {
-      holdT = setTimeout(() => {
-        setVisible(false); // fade to black
-        outT = setTimeout(() => {
-          setIdx((p) => {
-            const len = imgsRef.current?.length || 1;
-            return len > 0 ? (p + 1) % len : 0;
-          });
-          setVisible(true); // fade in, then hold again
-          cycle();
-        }, FADE_MS);
-      }, HOLD_MS);
+    let startTimer, intervalTimer, fadeTimer;
+
+    const tick = () => {
+      setVisible(false); // fade to black
+      fadeTimer = setTimeout(() => {
+        setIdx((p) => (p + 1) % len); // swap
+        setVisible(true); // fade in then hold
+      }, FADE_MS);
     };
 
-    startT = setTimeout(cycle, Math.max(0, delay));
+    // Start after initial hold + per-column delay
+    startTimer = setTimeout(() => {
+      tick();
+      intervalTimer = setInterval(tick, HOLD_MS + FADE_MS);
+    }, Math.max(0, HOLD_MS + delay));
+
     return () => {
-      clearTimeout(startT);
-      clearTimeout(holdT);
-      clearTimeout(outT);
+      clearTimeout(startTimer);
+      clearInterval(intervalTimer);
+      clearTimeout(fadeTimer);
     };
-    // Only reset when the number of images changes, or the per-column delay changes
-  }, [images?.length, delay]);
+  }, [len, delay]);
 
-  const url = imgsRef.current && imgsRef.current.length ? imgsRef.current[idx] : "";
+  const url = images && images.length ? images[idx] : "";
 
   return (
     <div
@@ -686,5 +693,6 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
