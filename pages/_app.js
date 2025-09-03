@@ -325,15 +325,18 @@ function ExplorePanel() {
   const CONTENT_MAX = 540;
 
   const contentRef = useRef(null);
-  const titleRef = useRef(null);
+  const titleRef = useRef(null);      // measure the inline text, not full block
+  const titleSpanRef = useRef(null);  // exact span width
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
 
   useEffect(() => {
     const sync = () => {
-      // Constrain carousel to the actual rendered header text width
-      const titleW = titleRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
-      const cap = Math.min(titleW, CONTENT_MAX);
-      setMeasuredWidth(Math.max(0, Math.floor(cap)));
+      // Use the inline span's rendered width so images never exceed the visual title width.
+      const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
+      // Clamp to container max
+      const cap = Math.min(spanW, CONTENT_MAX);
+      // Ensure non-negative integer
+      setMeasuredWidth(Math.max(0, Math.ceil(cap)));
     };
     sync();
     window.addEventListener("resize", sync);
@@ -378,7 +381,7 @@ function ExplorePanel() {
             height: 28,
             borderRadius: 10,
             border: "1px solid rgba(148,163,184,0.35)",
-            background: "rgba(17,24,39,0.6)", // more transparent
+            background: "rgba(17,24,39,0.6)", // transparency
             display: "grid",
             placeItems: "center",
             cursor: "pointer",
@@ -456,14 +459,19 @@ function ExplorePanel() {
           boxSizing: "border-box",
         }}
       >
-        <h2 ref={titleRef} style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
-          The Scope of Morgellons
+        <h2
+          ref={titleRef}
+          style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}
+        >
+          <span ref={titleSpanRef} style={{ display: "inline-block" }}>
+            The Scope of Morgellons
+          </span>
         </h2>
 
         {/* Spacer before images */}
         <div style={{ height: 48 }} />
 
-        {/* Carousel centered under header and constrained by header width */}
+        {/* Carousel centered under header and constrained by measured title text width */}
         <CarouselRow maxWidth={measuredWidth} />
 
         {/* Spacer to separate from the fixed badge */}
@@ -517,7 +525,7 @@ function CarouselRow({ maxWidth = 540 }) {
   return (
     <div
       style={{
-        width: maxWidth,     // never exceed header width
+        width: maxWidth,     // never exceed measured header text width
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -624,7 +632,7 @@ export default function MyApp({ Component, pageProps }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
-    aconst q = window.location.search || "";
+    const q = window.location.search || "";
     if (hash.includes("type=recovery") || q.includes("type=recovery")) setResetMode(true);
   }, []);
 
@@ -668,4 +676,5 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
