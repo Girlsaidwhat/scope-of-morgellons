@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.154_2025-09-02
+// Build 36.155_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.154_2025-09-02";
+export const BUILD_VERSION = "Build 36.155_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -370,7 +370,7 @@ function ExplorePanel() {
           alignItems: "center",
           justifyContent: "space-between",
           zIndex: 5,
-          pointerEvents: "none", // prevent blocking below; children will re-enable
+          pointerEvents: "none",
         }}
       >
         {/* Left: hover group with transparent hamburger */}
@@ -385,7 +385,7 @@ function ExplorePanel() {
             aria-controls="explore-menu"
             aria-haspopup="menu"
             aria-expanded={menuOpen ? "true" : "false"}
-            onClick={() => setMenuOpen((v) => !v)} // touch support
+            onClick={() => setMenuOpen((v) => !v)}
             title="Menu"
             style={{
               width: 34,
@@ -400,7 +400,6 @@ function ExplorePanel() {
               backdropFilter: "saturate(140%) blur(4px)",
               WebkitBackdropFilter: "saturate(140%) blur(4px)",
               transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease",
-              transform: menuOpen ? "scale(1.03)" : "scale(1.0)",
             }}
           >
             <div style={{ display: "grid", gap: 4 }}>
@@ -490,7 +489,7 @@ function ExplorePanel() {
   );
 }
 
-/** --------- CarouselRow: one row, 3 columns, constrained by header width --------- **/
+/** --------- CarouselRow: one row, 3 columns, constrained by header width, centrally scheduled --------- **/
 function CarouselRow({ maxWidth = 540 }) {
   const [urls, setUrls] = useState([]);
 
@@ -535,8 +534,30 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  // Strong stagger
-  const delays = [0, 8000, 16000];
+  // Central scheduler: one column fades per "beat"
+  const FADE_MS = 4000;        // fade out then swap then fade in completion
+  const BEAT_MS = 7000;        // start of next column's fade (shorter idle)
+  const [triggers, setTriggers] = useState([0, 0, 0]);
+
+  useEffect(() => {
+    let step = 0;
+    const id = setInterval(() => {
+      step += 1;
+      const activeCol = step % 3; // 0 → 1 → 2 → 0 …
+      setTriggers((t) => {
+        const next = [...t];
+        next[activeCol] = t[activeCol] + 1; // bump trigger for that column
+        return next;
+      });
+    }, BEAT_MS);
+    // kick off immediately so first column starts without waiting a full beat
+    setTriggers((t) => {
+      const next = [...t];
+      next[0] = t[0] + 1;
+      return next;
+    });
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <div
@@ -545,60 +566,41 @@ function CarouselRow({ maxWidth = 540 }) {
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 14,
+        gap: 16, // slightly more space
         boxSizing: "border-box",
       }}
     >
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} delay={delays[idx] || 0} seed={idx} />
+        <FadeToBlackSlot key={idx} images={images} trigger={triggers[idx]} fadeMs={FADE_MS} />
       ))}
     </div>
   );
 }
 
-/** Single-img fade-to-black with per-column hold variants to prevent sync */
-function FadeToBlackSlot({ images, delay = 0, seed = 0 }) {
-  const FADE_MS = 5000;
-  const BASE_HOLD_MS = 16000;
-  const HOLD_VARIANT = 1100 * seed; // 0ms, 1100ms, 2200ms
-  const HOLD_MS = BASE_HOLD_MS + HOLD_VARIANT;
-
+/** Slot that animates only when its trigger increments (externally scheduled) */
+function FadeToBlackSlot({ images, trigger = 0, fadeMs = 4000 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
-
   const len = images?.length || 0;
 
-  // Reset index when list size changes
+  // Reset when list changes
   useEffect(() => {
     setIdx(0);
     setVisible(true);
   }, [len]);
 
+  // Animate on trigger tick
   useEffect(() => {
-    if (len < 2) return; // static if only one image
-
-    let startTimer, intervalTimer, fadeTimer;
-
-    const tick = () => {
-      setVisible(false); // fade to black
-      fadeTimer = setTimeout(() => {
-        setIdx((p) => (p + 1) % len); // swap
-        setVisible(true); // fade in then hold
-      }, FADE_MS);
-    };
-
-    // Start after per-column delay + per-column hold, then repeat at (hold + fade)
-    startTimer = setTimeout(() => {
-      tick();
-      intervalTimer = setInterval(tick, HOLD_MS + FADE_MS);
-    }, Math.max(0, delay + HOLD_MS));
-
-    return () => {
-      clearTimeout(startTimer);
-      clearInterval(intervalTimer);
-      clearTimeout(fadeTimer);
-    };
-  }, [len, delay, HOLD_MS]);
+    if (!trigger || len < 2) return;
+    let timer;
+    setVisible(false); // fade to black
+    timer = setTimeout(() => {
+      setIdx((p) => (p + 1) % len); // swap image
+      setVisible(true); // fade back in
+    }, fadeMs);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trigger]);
 
   const url = images && images.length ? images[idx] : "";
 
@@ -626,7 +628,7 @@ function FadeToBlackSlot({ images, delay = 0, seed = 0 }) {
           objectFit: "cover",
           display: "block",
           opacity: visible ? 1 : 0,
-          transition: `opacity ${FADE_MS}ms ease-in-out`,
+          transition: `opacity ${fadeMs}ms ease-in-out`,
           willChange: "opacity",
           pointerEvents: "none",
         }}
@@ -711,7 +713,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
-
-
 
