@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.169_2025-09-02
+// Build 36.170_2025-09-02
 import React, { useEffect, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.169_2025-09-02";
+export const BUILD_VERSION = "Build 36.170_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -144,7 +144,7 @@ function AuthScreen() {
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "sign_in" ? "current-password" : "new-password"} required style={input} />
           </label>
           {showTips ? (
-            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "#fff", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
+            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
               <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 <li>Use a long passphrase of 3–5 words.</li>
@@ -282,7 +282,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel: global sequencer (real pauses between columns) ---------- */
+/* ---------- Carousel: global one-by-one sequencer with true pauses ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -291,7 +291,11 @@ function CarouselRow({ maxWidth = 560 }) {
     (async () => {
       if (!supabase) { if (!cancelled) setUrls([]); return; }
       try {
-        const { data, error } = await supabase.from("public_gallery").select("public_path, created_at").order("created_at", { ascending: false }).limit(60);
+        const { data, error } = await supabase
+          .from("public_gallery")
+          .select("public_path, created_at")
+          .order("created_at", { ascending: false })
+          .limit(60);
         if (error) throw error;
         const bucket = "public-thumbs";
         const list = (data || []).map((r) => {
@@ -309,7 +313,7 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Build 3 columns, guarantee at least 2 images per column if we have >=2 total
+  // Build 3 columns; ensure at least 2 images per column if we have >=2 total
   const cols = [[], [], []];
   urls.forEach((u, i) => cols[i % 3].push(u));
   if (urls.length >= 2) {
@@ -317,23 +321,33 @@ function CarouselRow({ maxWidth = 560 }) {
   }
   if (!urls.length) return null;
 
-  // Timing: one column at a time, with a real pause between columns
-  const FADE_MS = 2800;      // out then in (CSS handles the in)
-  const PAUSE_MS = 2000;     // real breather between columns
-  const SEG_MS = 2 * FADE_MS + PAUSE_MS; // total between starts
+  const FADE_MS = 2800;   // fade-out duration, also used for fade-in CSS
+  const PAUSE_MS = 2000;  // real breather between columns
+  const SEG_MS = 2 * FADE_MS + PAUSE_MS; // out + in + pause
 
-  // Global sequencer: bump the "kick" for next column every SEG_MS
+  // Global sequencer: increments a "kick" per column in a chain of timeouts
   const [kicks, setKicks] = useState([0, 0, 0]);
   useEffect(() => {
+    let alive = true;
     let idx = 0;
-    const fire = () => setKicks((k) => { const a = [...k]; a[idx] += 1; return a; });
-    fire(); // start with column 0 now
-    const id = setInterval(() => { idx = (idx + 1) % 3; fire(); }, SEG_MS);
-    return () => clearInterval(id);
-  }, [SEG_MS]);
+
+    const step = () => {
+      if (!alive) return;
+      setKicks((k) => {
+        const a = k.slice();
+        a[idx] = a[idx] + 1; // trigger this column
+        return a;
+      });
+      setTimeout(() => { idx = (idx + 1) % 3; step(); }, SEG_MS);
+    };
+
+    // Start chain immediately with column 0
+    step();
+    return () => { alive = false; };
+  }, []); // run once
 
   return (
-    <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 18, boxSizing: "border-box" }}>
+    <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20, boxSizing: "border-box" }}>
       {cols.map((images, idx) => (
         <SequencedSlot key={idx} images={images} fadeMs={FADE_MS} kick={kicks[idx]} />
       ))}
@@ -341,7 +355,7 @@ function CarouselRow({ maxWidth = 560 }) {
   );
 }
 
-/* One-shot animation triggered by "kick": fade out → swap → fade in */
+/* A column runs only when its "kick" increments: fade out → swap → fade in */
 function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   const len = images?.length || 0;
   const [idx, setIdx] = useState(0);
@@ -350,14 +364,14 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   // Reset if images change
   useEffect(() => { setIdx(0); setVisible(true); }, [len]);
 
-  // Run one fade cycle whenever "kick" increments
+  // One-shot animation for each kick
   useEffect(() => {
     if (!len) return;
     let tOut;
-    setVisible(false); // start fade out
+    setVisible(false); // fade out
     tOut = setTimeout(() => {
-      setIdx((p) => (p + 1) % len); // swap image
-      setVisible(true);             // fade in (CSS transition)
+      setIdx((p) => (p + 1) % len); // swap
+      setVisible(true); // fade in
     }, fadeMs);
     return () => { if (tOut) clearTimeout(tOut); };
   }, [kick, len, fadeMs]);
@@ -432,3 +446,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
