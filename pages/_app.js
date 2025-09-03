@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.173_2025-09-02
+// Build 36.174_2025-09-02
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.173_2025-09-02";
+export const BUILD_VERSION = "Build 36.174_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -369,7 +369,7 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
       setIdx((p) => (p + 1) % len); // swap
       setVisible(true);             // fade in
     }, fadeMs);
-    return () => { if (tOut) clearTimeout(tOut); };
+  return () => { if (tOut) clearTimeout(tOut); };
   }, [kick, len, fadeMs]);
 
   const url = len ? images[idx] : "";
