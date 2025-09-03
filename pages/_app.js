@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.153_2025-09-02
+// Build 36.154_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.153_2025-09-02";
+export const BUILD_VERSION = "Build 36.154_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -317,25 +317,20 @@ function LandingScreen() {
   );
 }
 
-/* ---- Explore landing: hamburger overlays left; CTA right; header+carousel centered together ---- */
+/* ---- Explore landing: top bar aligns hamburger and CTA; header+carousel centered together ---- */
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   // Header width caps carousel width
   const CONTENT_MAX = 540;
 
-  const contentRef = useRef(null);
   const titleSpanRef = useRef(null); // exact title text width
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
 
-  // Shared chrome metrics so hamburger and CTA sit on the same level
-  const CHROME_TOP = 10;
+  // Top chrome metrics
   const CHROME_HEIGHT = 28;
-  const CHROME_LEFT = 10;
-  const CHROME_RIGHT = 10;
-
-  // Optical nudge: move hamburger up a bit for visual alignment with the CTA text
-  const HAMBURGER_NUDGE_Y = -3; // tweakable: -2 to -4px depending on display
+  const TOPBAR_TOP = 10;
+  const SIDE_PAD = 10;
 
   useEffect(() => {
     const sync = () => {
@@ -363,104 +358,111 @@ function ExplorePanel() {
         overflow: "visible",
       }}
     >
-      {/* Hover group keeps menu open across button and menu */}
+      {/* Absolute top bar: both controls inside the same flex row */}
       <div
-        onMouseEnter={() => setMenuOpen(true)}
-        onMouseLeave={() => setMenuOpen(false)}
-        style={{ position: "relative", zIndex: 4 }}
-      >
-        {/* Cooler, slightly transparent hamburger (aligned with nudge) */}
-        <button
-          type="button"
-          aria-label="Open menu"
-          aria-controls="explore-menu"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen ? "true" : "false"}
-          onClick={() => setMenuOpen((v) => !v)} // also supports touch
-          title="Menu"
-          style={{
-            position: "absolute",
-            top: CHROME_TOP + HAMBURGER_NUDGE_Y,
-            left: CHROME_LEFT,
-            width: 34,
-            height: CHROME_HEIGHT,
-            borderRadius: 10,
-            border: "1px solid rgba(148,163,184,0.35)",
-            background: "rgba(17,24,39,0.6)", // transparent
-            display: "grid",
-            placeItems: "center",
-            cursor: "pointer",
-            boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
-            backdropFilter: "saturate(140%) blur(4px)",
-            WebkitBackdropFilter: "saturate(140%) blur(4px)",
-            transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease",
-            transform: menuOpen ? "scale(1.03)" : "scale(1.0)",
-          }}
-        >
-          <div style={{ display: "grid", gap: 4 }}>
-            <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
-            <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
-            <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
-          </div>
-        </button>
-
-        {/* Dropdown menu (bigger text + more spacing) */}
-        {menuOpen ? (
-          <nav
-            id="explore-menu"
-            role="menu"
-            aria-label="Explore menu"
-            style={{
-              position: "absolute",
-              top: CHROME_TOP + HAMBURGER_NUDGE_Y + CHROME_HEIGHT + 6,
-              left: CHROME_LEFT,
-              border: "1px solid #374151",
-              borderRadius: 12,
-              background: "rgba(15,23,42,0.92)",
-              padding: "12px 14px",
-              boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
-              backdropFilter: "saturate(140%) blur(4px)",
-              WebkitBackdropFilter: "saturate(140%) blur(4px)",
-            }}
-          >
-            <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
-            <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
-            <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
-          </nav>
-        ) : null}
-      </div>
-
-      {/* CTA pinned top-right, same level + same height */}
-      <a
-        href="/signin"
         style={{
           position: "absolute",
-          top: CHROME_TOP,
-          right: CHROME_RIGHT,
+          top: TOPBAR_TOP,
+          left: SIDE_PAD,
+          right: SIDE_PAD,
           height: CHROME_HEIGHT,
-          display: "inline-flex",
+          display: "flex",
           alignItems: "center",
-          padding: "0 10px",
-          borderRadius: 8,
-          border: "1px solid transparent",
-          background: "transparent",
-          color: "#cbd5e1",
-          textDecoration: "none",
-          fontWeight: 600,
-          fontSize: 13,
-          lineHeight: `${CHROME_HEIGHT}px`,
-          zIndex: 3,
-          boxSizing: "border-box",
+          justifyContent: "space-between",
+          zIndex: 5,
+          pointerEvents: "none", // prevent blocking below; children will re-enable
         }}
-        aria-label="Sign up or sign in"
-        title="Sign up / Sign in"
       >
-        Sign Up / Sign In
-      </a>
+        {/* Left: hover group with transparent hamburger */}
+        <div
+          onMouseEnter={() => setMenuOpen(true)}
+          onMouseLeave={() => setMenuOpen(false)}
+          style={{ position: "relative", pointerEvents: "auto", display: "flex", alignItems: "center" }}
+        >
+          <button
+            type="button"
+            aria-label="Open menu"
+            aria-controls="explore-menu"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen ? "true" : "false"}
+            onClick={() => setMenuOpen((v) => !v)} // touch support
+            title="Menu"
+            style={{
+              width: 34,
+              height: CHROME_HEIGHT,
+              borderRadius: 10,
+              border: "1px solid rgba(148,163,184,0.35)",
+              background: "rgba(17,24,39,0.6)",
+              display: "grid",
+              placeItems: "center",
+              cursor: "pointer",
+              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+              backdropFilter: "saturate(140%) blur(4px)",
+              WebkitBackdropFilter: "saturate(140%) blur(4px)",
+              transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease",
+              transform: menuOpen ? "scale(1.03)" : "scale(1.0)",
+            }}
+          >
+            <div style={{ display: "grid", gap: 4 }}>
+              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+            </div>
+          </button>
 
-      {/* Centered content: header and carousel share the same wrapper width */}
+          {/* Dropdown menu below the button */}
+          {menuOpen ? (
+            <nav
+              id="explore-menu"
+              role="menu"
+              aria-label="Explore menu"
+              style={{
+                position: "absolute",
+                top: CHROME_HEIGHT + 6,
+                left: 0,
+                border: "1px solid #374151",
+                borderRadius: 12,
+                background: "rgba(15,23,42,0.92)",
+                padding: "12px 14px",
+                boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
+                backdropFilter: "saturate(140%) blur(4px)",
+                WebkitBackdropFilter: "saturate(140%) blur(4px)",
+              }}
+            >
+              <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
+              <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
+              <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
+            </nav>
+          ) : null}
+        </div>
+
+        {/* Right: CTA aligned on the same row */}
+        <a
+          href="/signin"
+          style={{
+            height: CHROME_HEIGHT,
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "0 10px",
+            borderRadius: 8,
+            border: "1px solid transparent",
+            background: "transparent",
+            color: "#cbd5e1",
+            textDecoration: "none",
+            fontWeight: 600,
+            fontSize: 13,
+            lineHeight: `${CHROME_HEIGHT}px`,
+            pointerEvents: "auto",
+          }}
+          aria-label="Sign up or sign in"
+          title="Sign up / Sign in"
+        >
+          Sign Up / Sign In
+        </a>
+      </div>
+
+      {/* Centered content: header + carousel share width */}
       <div
-        ref={contentRef}
         style={{
           width: "100%",
           maxWidth: CONTENT_MAX,
@@ -558,7 +560,7 @@ function CarouselRow({ maxWidth = 540 }) {
 function FadeToBlackSlot({ images, delay = 0, seed = 0 }) {
   const FADE_MS = 5000;
   const BASE_HOLD_MS = 16000;
-  const HOLD_VARIANT = 1100 * seed;           // 0ms, 1100ms, 2200ms
+  const HOLD_VARIANT = 1100 * seed; // 0ms, 1100ms, 2200ms
   const HOLD_MS = BASE_HOLD_MS + HOLD_VARIANT;
 
   const [idx, setIdx] = useState(0);
@@ -709,6 +711,7 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
 
 
