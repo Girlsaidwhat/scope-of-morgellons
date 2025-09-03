@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.171_2025-09-02
+// Build 36.172_2025-09-02
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.171_2025-09-02";
+export const BUILD_VERSION = "Build 36.172_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -26,7 +26,7 @@ class ErrorBoundary extends React.Component {
     const rawMsg = error?.message || String(error || "");
     let stackTop = "";
     try {
-      const s = error && error.stack ? String(error.stack) : "";
+      const s = (error && error.stack) ? String(error.stack) : "";
       const lines = s.split("\n").map((l) => l.trim()).filter(Boolean);
       stackTop = lines.length > 1 ? lines[1] : "";
     } catch {}
@@ -282,7 +282,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel: global one-by-one sequencer with true pauses ---------- */
+/* ---------- Carousel: global one-by-one sequencer with true (shorter) pauses ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -313,26 +313,24 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Build 3 columns, ALWAYS render 3 slots to keep hooks stable across renders.
+  // Build 3 columns, stable hooks
   const cols = useMemo(() => {
     const base = [[], [], []];
     urls.forEach((u, i) => base[i % 3].push(u));
-    // Ensure each column has at least 2 images once we have >=2 total
     if (urls.length >= 2) {
       for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
     }
-    // With 0 or 1 image, leave empty or duplicate silently; slots render but don’t animate visibly.
     if (urls.length === 1) {
       for (let c = 0; c < 3; c++) base[c] = [urls[0], urls[0]];
     }
     return base;
   }, [urls]);
 
-  const FADE_MS = 2800;   // fade-out and fade-in duration each
-  const PAUSE_MS = 2000;  // true pause between columns
+  const FADE_MS = 2800;   // fade-out then fade-in handled via CSS transition
+  const PAUSE_MS = 1600;  // slightly shorter true pause between columns
   const [kicks, setKicks] = useState([0, 0, 0]);
 
-  // Single timer chain: kick one column, wait fade out + in, then pause, then next column.
+  // Single timer chain: kick → wait fade out + in → pause → next column
   useEffect(() => {
     let alive = true;
     let idx = 0;
@@ -341,10 +339,10 @@ function CarouselRow({ maxWidth = 560 }) {
       setKicks((k) => { const a = k.slice(); a[idx] = a[idx] + 1; return a; });
       setTimeout(() => {
         if (!alive) return;
-        setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS); // pause after fade cycle
+        setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS);
       }, FADE_MS * 2);
     };
-    const start = setTimeout(run, 200); // small initial delay
+    const start = setTimeout(run, 200);
     return () => { alive = false; clearTimeout(start); };
   }, []); // run once
 
@@ -363,10 +361,8 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
-  // Keep hooks stable; on image set change, reset index once.
   useEffect(() => { setIdx(0); setVisible(true); }, [len]);
 
-  // One-shot animation for each kick
   useEffect(() => {
     if (!len) return;
     let tOut;
@@ -448,4 +444,3 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
