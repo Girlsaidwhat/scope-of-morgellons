@@ -1,13 +1,27 @@
 ﻿// pages/_app.js
-// Build 36.145r_2025-09-02  (rollback to stable baseline)
+// Build 36.160_2025-09-02
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../styles/globals.css";
-import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.145r_2025-09-02";
+export const BUILD_VERSION = "Build 36.160_2025-09-02";
 
-// Browser-safe Supabase client (public keys only)
+/* ---------- Shared styles (kept simple and defined before use) ---------- */
+const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
+const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
+const menuLinkStyleTextDark = {
+  display: "block",
+  padding: "8px 2px",
+  fontSize: 15,
+  lineHeight: 1.55,
+  textDecoration: "underline",
+  color: "#f4f4f5",
+  marginBottom: 10,
+};
+
+/* ---------- Browser-safe Supabase client ---------- */
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -16,11 +30,12 @@ const supabase =
       )
     : null;
 
+/* ---------- Build badge (kept very low) ---------- */
 function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 48, // above Windows taskbar
+    bottom: 0, // lowest possible
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -31,13 +46,10 @@ function BuildBadge() {
     boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
     pointerEvents: "none",
   };
-  return (
-    <div aria-label="Build version" style={badgeStyle}>
-      {BUILD_VERSION}
-    </div>
-  );
+  return <div aria-label="Build version" style={badgeStyle}>{BUILD_VERSION}</div>;
 }
 
+/* ---------- Auth presence ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -49,14 +61,10 @@ function useAuthPresence() {
     }
     let unsub = () => {};
     (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
       setSignedIn(!!session);
       setChecking(false);
-      const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => {
-        setSignedIn(!!s);
-      });
+      const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => setSignedIn(!!s));
       unsub = sub.subscription?.unsubscribe || (() => {});
     })();
     return () => unsub();
@@ -65,7 +73,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (unchanged UI) */
+/* ---------- Sign-in screen (canonical) ---------- */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -75,91 +83,50 @@ function AuthScreen() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  const pageWrap = {
-    maxWidth: 980,
-    margin: "20px auto",
-    padding: "0 12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    textAlign: "center",
-  };
+  const pageWrap = { maxWidth: 980, margin: "20px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
-  const input = {
-    width: 300,
-    padding: "10px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 8,
-    fontSize: 14,
-  };
-  const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
-  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-  const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
+  const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSignIn(e) {
     e.preventDefault?.();
-    setErr("");
-    setMsg("Signing in…");
+    setErr(""); setMsg("Signing in…");
     try {
-      const sb =
-        supabase ||
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
+      const sb = supabase || createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      setMsg("Signed in.");
-      router.replace("/");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not sign in.");
-    }
+      setMsg("Signed in."); router.replace("/");
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not sign in."); }
   }
 
   async function handleSignUp(e) {
     e.preventDefault?.();
-    setErr("");
-    setMsg("Creating account…");
+    setErr(""); setMsg("Creating account…");
     try {
       if (!supabase) throw new Error("Client not ready");
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       setMsg("Account created. Check your email to confirm, then sign in.");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not sign up.");
-    }
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not sign up."); }
   }
 
   async function handleForgot(e) {
     e.preventDefault?.();
-    setErr("");
-  setMsg("Sending reset email…");
+    setErr(""); setMsg("Sending reset email…");
     try {
       if (!supabase) throw new Error("Client not ready");
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset`,
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/reset` });
       if (error) throw error;
       setMsg("Check your email for the reset link.");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not send reset email.");
-    }
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not send reset email."); }
   }
 
   return (
     <main id="main" style={pageWrap}>
       <header style={{ width: "100%", paddingTop: 28 }}>
-        <div style={{ fontSize: 18, fontWeight: 600, color: "#333", textAlign: "center", marginLeft: 0, marginBottom: 0, letterSpacing: 0.2, lineHeight: 1.0 }}>
-          Welcome to
-        </div>
-        <h1 style={{ margin: "0 0 6px", textAlign: "center", lineHeight: 1.12 }}>
-          The Scope of Morgellons
-        </h1>
+        <div style={{ fontSize: 18, fontWeight: 600, color: "#333", textAlign: "center", marginBottom: 0, letterSpacing: 0.2, lineHeight: 1 }}>Welcome to</div>
+        <h1 style={{ margin: "0 0 6px", textAlign: "center", lineHeight: 1.12 }}>The Scope of Morgellons</h1>
       </header>
 
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
@@ -168,7 +135,6 @@ function AuthScreen() {
             <span>Email</span>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} />
           </label>
-
           <label style={inputWrap}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 300 }}>
               <span>Password</span>
@@ -178,16 +144,13 @@ function AuthScreen() {
           </label>
 
           {showTips ? (
-            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
+            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "#fff", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
               <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use a long passphrase (3–5 random words, 16–24+ characters). <em>Spaces are OK</em> and encouraged between words.</li>
-                <li>Make it unique for every site; never reuse passwords.</li>
-                <li>Use a password manager to generate and store passwords.</li>
-                <li>Avoid predictable substitutions or patterns (e.g., P@ssw0rd123!).</li>
-                <li>Change it only if you suspect compromise, not on a schedule.</li>
+                <li>Use a long passphrase (3–5 random words, 16–24+ characters). <em>Spaces are OK</em>.</li>
+                <li>Make it unique for every site.</li>
+                <li>Use a password manager.</li>
               </ul>
-              <div style={{ fontSize: 11, color: "#666", marginTop: 6 }}>Enable two-factor authentication (authenticator app) whenever available.</div>
             </div>
           ) : null}
 
@@ -199,7 +162,7 @@ function AuthScreen() {
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
           </div>
 
-          <p aria-live="polite" style={statusStyle}>{msg}</p>
+          <p aria-live="polite" style={{ fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 }}>{msg}</p>
           {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
         </form>
       </section>
@@ -207,71 +170,39 @@ function AuthScreen() {
   );
 }
 
-/** Create-new-password screen shown after clicking the reset link */
+/* ---------- Reset screen ---------- */
 function ResetPasswordScreen({ onDone }) {
   const router = useRouter();
-  const [p1, setP1] = useState("");
-  const [p2, setP2] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
+  const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
   const passRef = useRef(null);
-
-  useEffect(() => {
-    passRef.current?.focus();
-  }, []);
-
-  const pageWrap = {
-    maxWidth: 980,
-    margin: "24px auto",
-    padding: "0 12px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  };
+  useEffect(() => { passRef.current?.focus(); }, []);
+  const pageWrap = { maxWidth: 980, margin: "24px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
-  const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
+  const btnLocal = btn; const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSubmit(e) {
-    e.preventDefault?.();
-    setErr("");
+    e.preventDefault?.(); setErr("");
     if (!p1 || !p2) return setErr("Enter your new password in both fields.");
     if (p1 !== p2) return setErr("Passwords do not match.");
     if (p1.length < 8) return setErr("Password must be at least 8 characters.");
     setMsg("Updating password…");
     try {
-      const sb =
-        supabase ||
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        );
+      const sb = supabase || createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       const { error } = await sb.auth.updateUser({ password: p1 });
       if (error) throw error;
-      setMsg("Password updated.");
-      await sb.auth.signOut();
-      onDone?.();
-      router.replace("/");
-    } catch (e) {
-      setMsg("");
-      setErr(e?.message || "Could not update password.");
-    }
+      setMsg("Password updated."); await sb.auth.signOut(); onDone?.(); router.replace("/");
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not update password."); }
   }
 
   return (
     <main id="main" aria-label="Create new password" style={pageWrap}>
       <h1 style={{ margin: "0 0 12px" }}>Create new password</h1>
-      <form onSubmit={handleSubmit} style={formStyle} aria-labelledby="reset-heading">
-        <label>
-          <span style={{ display: "block", marginBottom: 6 }}>New password</span>
-          <input ref={passRef} type="password" value={p1} onChange={(e) => setP1(e.target.value)} autoComplete="new-password" required style={input} />
-        </label>
-        <label>
-          <span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span>
-          <input type="password" value={p2} onChange={(e) => setP2(e.target.value)} autoComplete="new-password" required style={input} />
-        </label>
-        <button type="submit" style={btn} aria-label="Update password">Update password</button>
+      <form onSubmit={handleSubmit} style={formStyle}>
+        <label><span style={{ display: "block", marginBottom: 6 }}>New password</span><input ref={passRef} type="password" value={p1} onChange={(e) => setP1(e.target.value)} autoComplete="new-password" required style={input} /></label>
+        <label><span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span><input type="password" value={p2} onChange={(e) => setP2(e.target.value)} autoComplete="new-password" required style={input} /></label>
+        <button type="submit" style={btnLocal} aria-label="Update password">Update password</button>
         <p aria-live="polite" style={statusStyle}>{msg}</p>
         {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
       </form>
@@ -279,7 +210,7 @@ function ResetPasswordScreen({ onDone }) {
   );
 }
 
-/* ---------- Landing (logged-out default) ---------- */
+/* ---------- Landing ---------- */
 function LandingScreen() {
   return (
     <main
@@ -291,7 +222,7 @@ function LandingScreen() {
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
-        paddingBottom: 360, // real space so the fixed badge never hugs content
+        paddingBottom: 420, // big safe-zone so the fixed badge never crowds images
       }}
     >
       <div style={{ padding: "8px 24px" }}>
@@ -316,22 +247,26 @@ function LandingScreen() {
   );
 }
 
-// ---- Explore landing: slim left rail; shared wrapper width; left-aligned
+/* ---- Explore: floating hamburger + centered header+carousel constrained by header width ---- */
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Shared wrapper so header and carousel use the exact same width.
-  const MAX_CONTENT_WIDTH = 500; // hard cap
-  const MENU_RAIL_WIDTH = 64;
+  // Measure exact title text width to cap the carousel
+  const CONTENT_MAX = 560;
+  const titleSpanRef = useRef(null);
+  const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
 
-  // Measure the wrapper width so the carousel never exceeds the header container.
-  const contentRef = useRef(null);
-  const [measuredWidth, setMeasuredWidth] = useState(MAX_CONTENT_WIDTH);
+  // Top bar metrics so hamburger and CTA share the same row level
+  const CHROME_HEIGHT = 28;
+  const TOPBAR_TOP = 10;
+  const SIDE_PAD = 10;
+
   useEffect(() => {
-    function sync() {
-      const w = contentRef.current?.offsetWidth || MAX_CONTENT_WIDTH;
-      setMeasuredWidth(Math.min(w, MAX_CONTENT_WIDTH));
-    }
+    const sync = () => {
+      const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
+      const cap = Math.min(Math.ceil(spanW), CONTENT_MAX);
+      setMeasuredWidth(cap);
+    };
     sync();
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
@@ -344,53 +279,34 @@ function ExplorePanel() {
       style={{
         border: "1px solid #27272a",
         borderRadius: 12,
-        padding: 12,
+        padding: 20,
         marginBottom: 12,
         background: "#0a0a0a",
         color: "#f4f4f5",
         position: "relative",
+        overflow: "visible",
       }}
     >
-      {/* CTA pinned to the far right of the panel */}
-      <a
-        href="/signin"
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 10,
-          padding: "4px 8px",
-          borderRadius: 6,
-          border: "1px solid transparent",
-          background: "transparent",
-          color: "#cbd5e1",
-          textDecoration: "none",
-          fontWeight: 500,
-          fontSize: 12,
-        }}
-        aria-label="Sign up or sign in"
-        title="Sign up / Sign in"
-      >
-        Sign Up / Sign In
-      </a>
-
+      {/* Absolute top bar: hamburger and CTA on the same visual level */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: `${MENU_RAIL_WIDTH}px 1fr`,
-          gap: 12,
-          alignItems: "start",
+          position: "absolute",
+          top: TOPBAR_TOP,
+          left: SIDE_PAD,
+          right: SIDE_PAD,
+          height: CHROME_HEIGHT,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          zIndex: 5,
+          pointerEvents: "none",
         }}
       >
-        {/* Left rail */}
-        <aside
-          aria-label="Explore menu rail"
-          style={{
-            border: "1px solid #27272a",
-            borderRadius: 10,
-            padding: 6,
-            background: "#0b0b0b",
-            minHeight: 48,
-          }}
+        {/* Hoverable hamburger (slightly transparent) */}
+        <div
+          onMouseEnter={() => setMenuOpen(true)}
+          onMouseLeave={() => setMenuOpen(false)}
+          style={{ position: "relative", pointerEvents: "auto", display: "flex", alignItems: "center" }}
         >
           <button
             type="button"
@@ -401,144 +317,192 @@ function ExplorePanel() {
             onClick={() => setMenuOpen((v) => !v)}
             title="Menu"
             style={{
-              width: 28,
-              height: 24,
-              borderRadius: 8,
-              border: "1px solid #374151",
-              background: "#111827",
+              width: 34,
+              height: CHROME_HEIGHT,
+              borderRadius: 10,
+              border: "1px solid rgba(148,163,184,0.35)",
+              background: "rgba(17,24,39,0.6)",
               display: "grid",
               placeItems: "center",
               cursor: "pointer",
-              marginBottom: 6,
+              boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+              backdropFilter: "saturate(140%) blur(4px)",
+              WebkitBackdropFilter: "saturate(140%) blur(4px)",
+              transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease",
             }}
           >
-            <div style={{ display: "grid", gap: 3 }}>
-              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
-              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
-              <span style={{ display: "block", width: 14, height: 2, background: "#e5e7eb" }} />
+            <div style={{ display: "grid", gap: 4 }}>
+              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+              <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
             </div>
           </button>
 
           {menuOpen ? (
-            <nav id="explore-menu" role="menu" aria-label="Explore menu">
+            <nav
+              id="explore-menu"
+              role="menu"
+              aria-label="Explore menu"
+              style={{
+                position: "absolute",
+                top: CHROME_HEIGHT + 6,
+                left: 0,
+                border: "1px solid #374151",
+                borderRadius: 12,
+                background: "rgba(15,23,42,0.92)",
+                padding: "12px 16px",
+                boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
+                backdropFilter: "saturate(140%) blur(4px)",
+                WebkitBackdropFilter: "saturate(140%) blur(4px)",
+              }}
+            >
               <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
               <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
               <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
             </nav>
           ) : null}
-        </aside>
-
-        {/* Right main area — shared wrapper governs both header and carousel widths */}
-        <div>
-          <div
-            ref={contentRef}
-            style={{
-              width: "100%",
-              maxWidth: MAX_CONTENT_WIDTH,
-              boxSizing: "border-box",
-            }}
-          >
-            <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "left" }}>
-              The Scope of Morgellons
-            </h2>
-
-            {/* Spacer before images */}
-            <div style={{ height: 72 }} />
-
-            {/* One-row, three-slot carousel constrained by the measured header wrapper width */}
-            <CarouselRow maxWidth={measuredWidth} />
-
-            {/* Big spacer to separate from the fixed badge */}
-            <div style={{ height: 260 }} />
-          </div>
         </div>
+
+        {/* CTA on the same row level */}
+        <a
+          href="/signin"
+          style={{
+            height: CHROME_HEIGHT,
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "0 10px",
+            borderRadius: 8,
+            border: "1px solid transparent",
+            background: "transparent",
+            color: "#cbd5e1",
+            textDecoration: "none",
+            fontWeight: 600,
+            fontSize: 13,
+            lineHeight: `${CHROME_HEIGHT}px`,
+            pointerEvents: "auto",
+          }}
+          aria-label="Sign up or sign in"
+          title="Sign up / Sign in"
+        >
+          Sign Up / Sign In
+        </a>
+      </div>
+
+      {/* Centered content: header + carousel share width and center together */}
+      <div style={{ width: "100%", maxWidth: CONTENT_MAX, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
+        <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
+          <span ref={titleSpanRef} style={{ display: "inline-block" }}>
+            The Scope of Morgellons
+          </span>
+        </h2>
+
+        {/* Spacer before images */}
+        <div style={{ height: 48 }} />
+
+        {/* Carousel width is clamped to the measured title width */}
+        <CarouselRow maxWidth={measuredWidth} />
+
+        {/* Spacer to ensure plenty of distance above the badge */}
+        <div style={{ height: 260 }} />
       </div>
     </section>
   );
 }
 
-/** --------- CarouselRow: exactly 3 slots, anonymized, fade-to-black --------- **/
-function CarouselRow({ maxWidth = 500 }) {
+/* ---------- Carousel: one row, 3 columns, staggered with brief pause and even wrap ---------- */
+function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        ?.from("public_gallery")
-        .select("public_path, created_at")
-        .order("created_at", { ascending: false })
-        .limit(60);
-
-      if (cancelled || error || !Array.isArray(data)) {
-        setUrls([]);
-        return;
-      }
-
-      const bucket = "public-thumbs";
-      const list = data
-        .map((r) => {
-          const { data: pu } = supabase.storage.from(bucket).getPublicUrl(r.public_path);
-          return pu?.publicUrl || "";
-        })
-        .filter(Boolean);
-
-      setUrls(list);
+      if (!supabase) { if (!cancelled) setUrls([]); return; }
+      try {
+        const { data, error } = await supabase
+          .from("public_gallery")
+          .select("public_path, created_at")
+          .order("created_at", { ascending: false })
+          .limit(60);
+        if (error) throw error;
+        const bucket = "public-thumbs";
+        const list = (data || [])
+          .map((r) => {
+            try {
+              const res = supabase.storage.from(bucket).getPublicUrl(r.public_path);
+              return res?.data?.publicUrl || res?.data?.publicURL || "";
+            } catch { return ""; }
+          })
+          .filter(Boolean);
+        if (!cancelled) setUrls(list);
+      } catch { if (!cancelled) setUrls([]); }
     })();
     return () => { cancelled = true; };
   }, []);
 
   if (!urls.length) return null;
 
-  const cols = [[], [], []];
-  urls.forEach((u, i) => { cols[i % 3].push(u); });
+  // Split into 3 columns
+  const cols = useMemo(() => {
+    const base = [[], [], []];
+    urls.forEach((u, i) => base[i % 3].push(u));
+    // Ensure each column has at least 2 images so it can rotate
+    if (urls.length >= 2) {
+      for (let c = 0; c < 3; c++) {
+        if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
+      }
+    }
+    return base;
+  }, [urls]);
 
-  // Even stagger: slot 0 now, slot 1 +4.0s, slot 2 +8.0s
-  const delays = [0, 4000, 8000];
+  // Central scheduler: exactly one column fades at a time
+  const FADE_MS = 3000; // fade duration
+  const BEAT_MS = 5200; // time between column starts (brief pause; even wrap)
+  const [triggers, setTriggers] = useState([0, 0, 0]);
+
+  useEffect(() => {
+    // start with col 0
+    setTriggers((t) => { const n = [...t]; n[0] = t[0] + 1; return n; });
+    let step = 1;
+    const iv = setInterval(() => {
+      const col = step % 3; step += 1;
+      setTriggers((t) => { const n = [...t]; n[col] = t[col] + 1; return n; });
+    }, BEAT_MS);
+    return () => clearInterval(iv);
+  }, []);
 
   return (
     <div
       style={{
         width: maxWidth,
+        margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 10,
-        margin: 0,
+        gap: 18, // slightly more space between images
         boxSizing: "border-box",
       }}
     >
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} delay={delays[idx] || 0} />
+        <FadeToBlackSlot key={idx} images={images} trigger={triggers[idx]} fadeMs={FADE_MS} />
       ))}
     </div>
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 4s → swap → fade in 4s (no wrap lag) **/
-function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 4000;
-  const HOLD_MS = 8000;
+function FadeToBlackSlot({ images, trigger = 0, fadeMs = 3000 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
+  const len = images?.length || 0;
 
+  // Reset on image list changes
+  useEffect(() => { setIdx(0); setVisible(true); }, [len]);
+
+  // Animate when the trigger increments
   useEffect(() => {
-    if (!images || images.length === 0) return;
-    let holdT, outT, inT, startT;
-
-    const cycle = () => {
-      holdT = setTimeout(() => {
-        setVisible(false); // fade to black
-        outT = setTimeout(() => {
-          setIdx((p) => (p + 1) % images.length); // swap
-          setVisible(true); // fade in
-          inT = setTimeout(cycle, 0); // start next hold immediately after fade-in
-        }, FADE_MS);
-      }, HOLD_MS);
-    };
-
-    startT = setTimeout(cycle, Math.max(0, delay));
-    return () => { [holdT, outT, inT, startT].forEach((t) => t && clearTimeout(t)); };
-  }, [images, delay]);
+    if (!trigger || len < 2) return;
+    const out = setTimeout(() => { setIdx((p) => (p + 1) % len); setVisible(true); }, fadeMs);
+    setVisible(false); // start fade to black now
+    return () => clearTimeout(out);
+  }, [trigger, len, fadeMs]);
 
   const url = images && images.length ? images[idx] : "";
 
@@ -566,7 +530,8 @@ function FadeToBlackSlot({ images, delay = 0 }) {
           objectFit: "cover",
           display: "block",
           opacity: visible ? 1 : 0,
-          transition: `opacity ${FADE_MS}ms ease-in-out`,
+          transition: `opacity ${fadeMs}ms ease-in-out`,
+          willChange: "opacity",
           pointerEvents: "none",
         }}
       />
@@ -574,23 +539,12 @@ function FadeToBlackSlot({ images, delay = 0 }) {
   );
 }
 
-const menuLinkStyleTextDark = {
-  display: "block",
-  padding: "2px 0",
-  fontSize: 12,
-  textDecoration: "underline",
-  color: "#f4f4f5",
-  marginBottom: 4,
-};
-
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
-  // Reset-mode detection
   const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
   const [resetMode, setResetMode] = useState(isResetPath);
-
   useEffect(() => { if (isResetPath) setResetMode(true); }, [isResetPath]);
 
   useEffect(() => {
@@ -619,7 +573,6 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
-  // Logged out routing
   const path = router?.pathname || "/";
   const loggedOut = !signedIn;
 
@@ -640,7 +593,6 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
-  // Signed in
   return (
     <>
       <Component {...pageProps} />
