@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.174_2025-09-02
+// Build 36.175_2025-09-02
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.174_2025-09-02";
+export const BUILD_VERSION = "Build 36.175_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -266,7 +266,7 @@ function ExplorePanel() {
         </div>
 
         {/* CTA same row */}
-        <a href="/signin" style={{ height: CHROME_HEIGHT, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "#cbd5e1", textDecoration: "none", fontWeight: 600, fontSize: 13, lineHeight: `${CHROME_HEIGHT}px`, pointerEvents: "auto" }} aria-label="Sign up or sign in" title="Sign up / Sign in">Sign Up / Sign In</a>
+        <a href="/signin" style={{ height: CHROME_HEIGHT, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "#cbd5e1", textDecoration: "none", fontWeight: 600, fontSize: 13, lineHeight: `${CHROME_HEIGHT}px`, pointerEvents: "auto" }} aria-label="Sign up or sign in" title="Sign up / Sign In">Sign Up / Sign In</a>
       </div>
 
       {/* Centered content */}
@@ -325,8 +325,8 @@ function CarouselRow({ maxWidth = 560 }) {
     return base;
   }, [urls]);
 
-  const FADE_MS = 2800;   // fade-out then fade-in handled via CSS transition
-  const PAUSE_MS = 1400;  // shorter true pause between columns
+  const FADE_MS = 2800;
+  const PAUSE_MS = 1400; // <- desired pause
   const [kicks, setKicks] = useState([0, 0, 0]);
 
   useEffect(() => {
@@ -342,7 +342,7 @@ function CarouselRow({ maxWidth = 560 }) {
     };
     const start = setTimeout(run, 200);
     return () => { alive = false; clearTimeout(start); };
-  }, []); // run once
+  }, []);
 
   return (
     <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20, boxSizing: "border-box" }}>
@@ -353,7 +353,6 @@ function CarouselRow({ maxWidth = 560 }) {
   );
 }
 
-/* A column runs only when its "kick" increments: fade out → swap → fade in */
 function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   const len = images?.length || 0;
   const [idx, setIdx] = useState(0);
@@ -364,12 +363,12 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   useEffect(() => {
     if (!len) return;
     let tOut;
-    setVisible(false); // fade out
+    setVisible(false);
     tOut = setTimeout(() => {
-      setIdx((p) => (p + 1) % len); // swap
-      setVisible(true);             // fade in
+      setIdx((p) => (p + 1) % len);
+      setVisible(true);
     }, fadeMs);
-  return () => { if (tOut) clearTimeout(tOut); };
+    return () => { if (tOut) clearTimeout(tOut); };
   }, [kick, len, fadeMs]);
 
   const url = len ? images[idx] : "";
