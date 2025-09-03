@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.170_2025-09-02
-import React, { useEffect, useRef, useState } from "react";
+// Build 36.171_2025-09-02
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.170_2025-09-02";
+export const BUILD_VERSION = "Build 36.171_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -26,7 +26,7 @@ class ErrorBoundary extends React.Component {
     const rawMsg = error?.message || String(error || "");
     let stackTop = "";
     try {
-      const s = (error && error.stack) ? String(error.stack) : "";
+      const s = error && error.stack ? String(error.stack) : "";
       const lines = s.split("\n").map((l) => l.trim()).filter(Boolean);
       stackTop = lines.length > 1 ? lines[1] : "";
     } catch {}
@@ -313,37 +313,39 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  // Build 3 columns; ensure at least 2 images per column if we have >=2 total
-  const cols = [[], [], []];
-  urls.forEach((u, i) => cols[i % 3].push(u));
-  if (urls.length >= 2) {
-    for (let c = 0; c < 3; c++) if (cols[c].length < 2) cols[c] = [...cols[c], urls[(c + 1) % urls.length]];
-  }
-  if (!urls.length) return null;
+  // Build 3 columns, ALWAYS render 3 slots to keep hooks stable across renders.
+  const cols = useMemo(() => {
+    const base = [[], [], []];
+    urls.forEach((u, i) => base[i % 3].push(u));
+    // Ensure each column has at least 2 images once we have >=2 total
+    if (urls.length >= 2) {
+      for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
+    }
+    // With 0 or 1 image, leave empty or duplicate silently; slots render but don’t animate visibly.
+    if (urls.length === 1) {
+      for (let c = 0; c < 3; c++) base[c] = [urls[0], urls[0]];
+    }
+    return base;
+  }, [urls]);
 
-  const FADE_MS = 2800;   // fade-out duration, also used for fade-in CSS
-  const PAUSE_MS = 2000;  // real breather between columns
-  const SEG_MS = 2 * FADE_MS + PAUSE_MS; // out + in + pause
-
-  // Global sequencer: increments a "kick" per column in a chain of timeouts
+  const FADE_MS = 2800;   // fade-out and fade-in duration each
+  const PAUSE_MS = 2000;  // true pause between columns
   const [kicks, setKicks] = useState([0, 0, 0]);
+
+  // Single timer chain: kick one column, wait fade out + in, then pause, then next column.
   useEffect(() => {
     let alive = true;
     let idx = 0;
-
-    const step = () => {
+    const run = () => {
       if (!alive) return;
-      setKicks((k) => {
-        const a = k.slice();
-        a[idx] = a[idx] + 1; // trigger this column
-        return a;
-      });
-      setTimeout(() => { idx = (idx + 1) % 3; step(); }, SEG_MS);
+      setKicks((k) => { const a = k.slice(); a[idx] = a[idx] + 1; return a; });
+      setTimeout(() => {
+        if (!alive) return;
+        setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS); // pause after fade cycle
+      }, FADE_MS * 2);
     };
-
-    // Start chain immediately with column 0
-    step();
-    return () => { alive = false; };
+    const start = setTimeout(run, 200); // small initial delay
+    return () => { alive = false; clearTimeout(start); };
   }, []); // run once
 
   return (
@@ -361,7 +363,7 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
-  // Reset if images change
+  // Keep hooks stable; on image set change, reset index once.
   useEffect(() => { setIdx(0); setVisible(true); }, [len]);
 
   // One-shot animation for each kick
@@ -371,12 +373,12 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
     setVisible(false); // fade out
     tOut = setTimeout(() => {
       setIdx((p) => (p + 1) % len); // swap
-      setVisible(true); // fade in
+      setVisible(true);             // fade in
     }, fadeMs);
     return () => { if (tOut) clearTimeout(tOut); };
   }, [kick, len, fadeMs]);
 
-  const url = images && images.length ? images[idx] : "";
+  const url = len ? images[idx] : "";
 
   return (
     <div aria-label="Anonymized image carousel" style={{ position: "relative", height: 140, borderRadius: 12, border: "1px solid #27272a", overflow: "hidden", background: "#000" }}>
