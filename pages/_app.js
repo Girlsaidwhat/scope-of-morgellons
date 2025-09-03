@@ -1,16 +1,13 @@
 ﻿// pages/_app.js
-// Build 36.160_2025-09-02
+// Build 36.161_2025-09-02
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.160_2025-09-02";
+export const BUILD_VERSION = "Build 36.161_2025-09-02";
 
-/* ---------- Shared styles (kept simple and defined before use) ---------- */
-const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
-const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
-const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
+/* ---------- Shared styles (defined before use to avoid TDZ) ---------- */
 const menuLinkStyleTextDark = {
   display: "block",
   padding: "8px 2px",
@@ -20,8 +17,11 @@ const menuLinkStyleTextDark = {
   color: "#f4f4f5",
   marginBottom: 10,
 };
+const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
+const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
 
-/* ---------- Browser-safe Supabase client ---------- */
+/* ---------- Supabase: browser-only client ---------- */
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -30,50 +30,54 @@ const supabase =
       )
     : null;
 
-/* ---------- Build badge (kept very low) ---------- */
+/* ---------- Build badge (lowest position) ---------- */
 function BuildBadge() {
-  const badgeStyle = {
-    position: "fixed",
-    right: 8,
-    bottom: 0, // lowest possible
-    zIndex: 2147483647,
-    fontSize: 12,
-    padding: "4px 10px",
-    borderRadius: 8,
-    color: "#fff",
-    background: "#111",
-    border: "1px solid #000",
-    boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-    pointerEvents: "none",
-  };
-  return <div aria-label="Build version" style={badgeStyle}>{BUILD_VERSION}</div>;
+  return (
+    <div
+      aria-label="Build version"
+      style={{
+        position: "fixed",
+        right: 8,
+        bottom: 0,
+        zIndex: 2147483647,
+        fontSize: 12,
+        padding: "4px 10px",
+        borderRadius: 8,
+        color: "#fff",
+        background: "#111",
+        border: "1px solid #000",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+        pointerEvents: "none",
+      }}
+    >
+      {BUILD_VERSION}
+    </div>
+  );
 }
 
 /* ---------- Auth presence ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
-
   useEffect(() => {
-    if (!supabase) {
-      setChecking(false);
-      return;
-    }
+    if (!supabase) { setChecking(false); return; }
     let unsub = () => {};
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSignedIn(!!session);
-      setChecking(false);
-      const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => setSignedIn(!!s));
-      unsub = sub.subscription?.unsubscribe || (() => {});
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSignedIn(!!session);
+        const { data: sub } = supabase.auth.onAuthStateChange((_evt, s) => setSignedIn(!!s));
+        unsub = sub.subscription?.unsubscribe || (() => {});
+      } finally {
+        setChecking(false);
+      }
     })();
     return () => unsub();
   }, []);
-
   return { signedIn, checking };
 }
 
-/* ---------- Sign-in screen (canonical) ---------- */
+/* ---------- Canonical sign-in ---------- */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -128,13 +132,9 @@ function AuthScreen() {
         <div style={{ fontSize: 18, fontWeight: 600, color: "#333", textAlign: "center", marginBottom: 0, letterSpacing: 0.2, lineHeight: 1 }}>Welcome to</div>
         <h1 style={{ margin: "0 0 6px", textAlign: "center", lineHeight: 1.12 }}>The Scope of Morgellons</h1>
       </header>
-
       <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
         <form onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp} aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"} style={formStyle}>
-          <label style={inputWrap}>
-            <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} />
-          </label>
+          <label style={inputWrap}><span>Email</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} /></label>
           <label style={inputWrap}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 300 }}>
               <span>Password</span>
@@ -142,27 +142,22 @@ function AuthScreen() {
             </div>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "sign_in" ? "current-password" : "new-password"} required style={input} />
           </label>
-
           {showTips ? (
             <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "#fff", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
               <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Use a long passphrase (3–5 random words, 16–24+ characters). <em>Spaces are OK</em>.</li>
+                <li>Use a long passphrase of 3–5 words.</li>
                 <li>Make it unique for every site.</li>
                 <li>Use a password manager.</li>
               </ul>
             </div>
           ) : null}
-
           <div style={row}>
             <button type="submit" style={btn}>{mode === "sign_in" ? "Sign in" : "Sign up"}</button>
-            <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>
-              {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
+            <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>{mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}</button>
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
           </div>
-
-          <p aria-live="polite" style={{ fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 }}>{msg}</p>
+          <p aria-live="polite" style={statusStyle}>{msg}</p>
           {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
         </form>
       </section>
@@ -173,15 +168,14 @@ function AuthScreen() {
 /* ---------- Reset screen ---------- */
 function ResetPasswordScreen({ onDone }) {
   const router = useRouter();
-  const [p1, setP1] = useState(""); const [p2, setP2] = useState("");
-  const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+  const [p1, setP1] = useState(""), [p2, setP2] = useState("");
+  const [msg, setMsg] = useState(""), [err, setErr] = useState("");
   const passRef = useRef(null);
   useEffect(() => { passRef.current?.focus(); }, []);
   const pageWrap = { maxWidth: 980, margin: "24px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
-  const btnLocal = btn; const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
-
+  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
   async function handleSubmit(e) {
     e.preventDefault?.(); setErr("");
     if (!p1 || !p2) return setErr("Enter your new password in both fields.");
@@ -195,14 +189,13 @@ function ResetPasswordScreen({ onDone }) {
       setMsg("Password updated."); await sb.auth.signOut(); onDone?.(); router.replace("/");
     } catch (e) { setMsg(""); setErr(e?.message || "Could not update password."); }
   }
-
   return (
     <main id="main" aria-label="Create new password" style={pageWrap}>
       <h1 style={{ margin: "0 0 12px" }}>Create new password</h1>
       <form onSubmit={handleSubmit} style={formStyle}>
         <label><span style={{ display: "block", marginBottom: 6 }}>New password</span><input ref={passRef} type="password" value={p1} onChange={(e) => setP1(e.target.value)} autoComplete="new-password" required style={input} /></label>
         <label><span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span><input type="password" value={p2} onChange={(e) => setP2(e.target.value)} autoComplete="new-password" required style={input} /></label>
-        <button type="submit" style={btnLocal} aria-label="Update password">Update password</button>
+        <button type="submit" style={btn} aria-label="Update password">Update password</button>
         <p aria-live="polite" style={statusStyle}>{msg}</p>
         {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
       </form>
@@ -210,7 +203,7 @@ function ResetPasswordScreen({ onDone }) {
   );
 }
 
-/* ---------- Landing ---------- */
+/* ---------- Landing (logged out) ---------- */
 function LandingScreen() {
   return (
     <main
@@ -222,7 +215,7 @@ function LandingScreen() {
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
-        paddingBottom: 420, // big safe-zone so the fixed badge never crowds images
+        paddingBottom: 440, // plenty of space so badge never crowds
       }}
     >
       <div style={{ padding: "8px 24px" }}>
@@ -247,25 +240,22 @@ function LandingScreen() {
   );
 }
 
-/* ---- Explore: floating hamburger + centered header+carousel constrained by header width ---- */
+/* ---- Explore: floating hamburger; centered header+carousel; width clamped to header ---- */
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Measure exact title text width to cap the carousel
+  // Measure exact title text width to cap the carousel width
   const CONTENT_MAX = 560;
   const titleSpanRef = useRef(null);
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
 
-  // Top bar metrics so hamburger and CTA share the same row level
-  const CHROME_HEIGHT = 28;
-  const TOPBAR_TOP = 10;
-  const SIDE_PAD = 10;
+  // Top bar metrics so hamburger and CTA share the same visual row
+  const CHROME_HEIGHT = 28, TOPBAR_TOP = 10, SIDE_PAD = 10;
 
   useEffect(() => {
     const sync = () => {
       const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
-      const cap = Math.min(Math.ceil(spanW), CONTENT_MAX);
-      setMeasuredWidth(cap);
+      setMeasuredWidth(Math.min(Math.ceil(spanW), CONTENT_MAX));
     };
     sync();
     window.addEventListener("resize", sync);
@@ -287,7 +277,7 @@ function ExplorePanel() {
         overflow: "visible",
       }}
     >
-      {/* Absolute top bar: hamburger and CTA on the same visual level */}
+      {/* Absolute top bar: hamburger and CTA on same level */}
       <div
         style={{
           position: "absolute",
@@ -337,7 +327,6 @@ function ExplorePanel() {
               <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
             </div>
           </button>
-
           {menuOpen ? (
             <nav
               id="explore-menu"
@@ -363,7 +352,7 @@ function ExplorePanel() {
           ) : null}
         </div>
 
-        {/* CTA on the same row level */}
+        {/* CTA on same row */}
         <a
           href="/signin"
           style={{
@@ -388,28 +377,20 @@ function ExplorePanel() {
         </a>
       </div>
 
-      {/* Centered content: header + carousel share width and center together */}
+      {/* Centered content: header + carousel share width */}
       <div style={{ width: "100%", maxWidth: CONTENT_MAX, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
         <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
-          <span ref={titleSpanRef} style={{ display: "inline-block" }}>
-            The Scope of Morgellons
-          </span>
+          <span ref={titleSpanRef} style={{ display: "inline-block" }}>The Scope of Morgellons</span>
         </h2>
-
-        {/* Spacer before images */}
         <div style={{ height: 48 }} />
-
-        {/* Carousel width is clamped to the measured title width */}
         <CarouselRow maxWidth={measuredWidth} />
-
-        {/* Spacer to ensure plenty of distance above the badge */}
         <div style={{ height: 260 }} />
       </div>
     </section>
   );
 }
 
-/* ---------- Carousel: one row, 3 columns, staggered with brief pause and even wrap ---------- */
+/* ---------- Carousel: 3 columns, staggered fade with brief pause, even wrap ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -441,11 +422,9 @@ function CarouselRow({ maxWidth = 560 }) {
 
   if (!urls.length) return null;
 
-  // Split into 3 columns
   const cols = useMemo(() => {
     const base = [[], [], []];
     urls.forEach((u, i) => base[i % 3].push(u));
-    // Ensure each column has at least 2 images so it can rotate
     if (urls.length >= 2) {
       for (let c = 0; c < 3; c++) {
         if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
@@ -454,13 +433,13 @@ function CarouselRow({ maxWidth = 560 }) {
     return base;
   }, [urls]);
 
-  // Central scheduler: exactly one column fades at a time
+  // Central scheduler: one column per beat
   const FADE_MS = 3000; // fade duration
-  const BEAT_MS = 5200; // time between column starts (brief pause; even wrap)
+  const BEAT_MS = 5200; // time between column starts (brief pause)
   const [triggers, setTriggers] = useState([0, 0, 0]);
 
   useEffect(() => {
-    // start with col 0
+    // start with column 0 immediately
     setTriggers((t) => { const n = [...t]; n[0] = t[0] + 1; return n; });
     let step = 1;
     const iv = setInterval(() => {
@@ -477,7 +456,7 @@ function CarouselRow({ maxWidth = 560 }) {
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 18, // slightly more space between images
+        gap: 18, // extra space between images
         boxSizing: "border-box",
       }}
     >
@@ -493,14 +472,12 @@ function FadeToBlackSlot({ images, trigger = 0, fadeMs = 3000 }) {
   const [visible, setVisible] = useState(true);
   const len = images?.length || 0;
 
-  // Reset on image list changes
   useEffect(() => { setIdx(0); setVisible(true); }, [len]);
 
-  // Animate when the trigger increments
   useEffect(() => {
     if (!trigger || len < 2) return;
     const out = setTimeout(() => { setIdx((p) => (p + 1) % len); setVisible(true); }, fadeMs);
-    setVisible(false); // start fade to black now
+    setVisible(false);
     return () => clearTimeout(out);
   }, [trigger, len, fadeMs]);
 
@@ -539,10 +516,12 @@ function FadeToBlackSlot({ images, trigger = 0, fadeMs = 3000 }) {
   );
 }
 
+/* ---------- App root ---------- */
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
+  // Reset-mode detection
   const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
   const [resetMode, setResetMode] = useState(isResetPath);
   useEffect(() => { if (isResetPath) setResetMode(true); }, [isResetPath]);
@@ -600,3 +579,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
