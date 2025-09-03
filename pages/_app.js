@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.155_2025-09-02
+// Build 36.156_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.155_2025-09-02";
+export const BUILD_VERSION = "Build 36.156_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -496,28 +496,39 @@ function CarouselRow({ maxWidth = 540 }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data, error } = await supabase
-        ?.from("public_gallery")
-        .select("public_path, created_at")
-        .order("created_at", { ascending: false })
-        .limit(60);
-
-      if (cancelled || error || !Array.isArray(data)) {
-        setUrls([]);
+      if (!supabase) {
+        if (!cancelled) setUrls([]);
         return;
       }
+      try {
+        const { data, error } = await supabase
+          .from("public_gallery")
+          .select("public_path, created_at")
+          .order("created_at", { ascending: false })
+          .limit(60);
 
-      const bucket = "public-thumbs";
-      const list = data
-        .map((r) => {
-          const { data: pu } = supabase.storage.from(bucket).getPublicUrl(r.public_path);
-          return pu?.publicUrl || "";
-        })
-        .filter(Boolean);
+        if (error) throw error;
 
-      setUrls(list);
+        const bucket = "public-thumbs";
+        const list = (data || [])
+          .map((r) => {
+            try {
+              const res = supabase.storage.from(bucket).getPublicUrl(r.public_path);
+              return res?.data?.publicUrl || res?.data?.publicURL || "";
+            } catch {
+              return "";
+            }
+          })
+          .filter(Boolean);
+
+        if (!cancelled) setUrls(list);
+      } catch (_e) {
+        if (!cancelled) setUrls([]);
+      }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Build 3 sequences; if a column has <2 images, borrow one so it rotates.
@@ -534,29 +545,41 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  // Central scheduler: one column fades per "beat"
-  const FADE_MS = 4000;        // fade out then swap then fade in completion
-  const BEAT_MS = 7000;        // start of next column's fade (shorter idle)
+  // Central scheduler: exactly one column fades per beat, wrap-around equal
+  const FADE_MS = 4000; // duration of fade to black and swap before fade-in completes
+  const BEAT_MS = 6000; // start of next column's fade (shorter idle than before)
+
   const [triggers, setTriggers] = useState([0, 0, 0]);
 
   useEffect(() => {
-    let step = 0;
-    const id = setInterval(() => {
-      step += 1;
-      const activeCol = step % 3; // 0 → 1 → 2 → 0 …
+    // Kick with column 0 shortly after mount, then round-robin every BEAT_MS
+    let step = 1; // next column index will be 1
+    let startTimer = setTimeout(() => {
       setTriggers((t) => {
-        const next = [...t];
-        next[activeCol] = t[activeCol] + 1; // bump trigger for that column
-        return next;
+        const n = [...t];
+        n[0] = t[0] + 1;
+        return n;
       });
-    }, BEAT_MS);
-    // kick off immediately so first column starts without waiting a full beat
-    setTriggers((t) => {
-      const next = [...t];
-      next[0] = t[0] + 1;
-      return next;
-    });
-    return () => clearInterval(id);
+      var intervalId = setInterval(() => {
+        const col = step % 3; // 1,2,0,1,2,0...
+        step += 1;
+        setTriggers((t) => {
+          const n = [...t];
+          n[col] = t[col] + 1;
+          return n;
+        });
+      }, BEAT_MS);
+      // store on function scope for cleanup
+      (startTimer).__iv = intervalId;
+    }, 200);
+
+    return () => {
+      if (startTimer) {
+        clearTimeout(startTimer);
+        // @ts-ignore
+        if (startTimer.__iv) clearInterval(startTimer.__iv);
+      }
+    };
   }, []);
 
   return (
@@ -566,7 +589,7 @@ function CarouselRow({ maxWidth = 540 }) {
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 16, // slightly more space
+        gap: 16,
         boxSizing: "border-box",
       }}
     >
@@ -713,4 +736,5 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
+
 
