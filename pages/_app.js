@@ -21,7 +21,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 2, // lower than before
+    bottom: 2, // lower
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -292,7 +292,7 @@ function LandingScreen() {
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
-        paddingBottom: 360, // plenty of real space
+        paddingBottom: 360,
       }}
     >
       <div style={{ padding: "8px 24px" }}>
@@ -321,7 +321,6 @@ function LandingScreen() {
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Shared centered container so header width == carousel width.
   const CONTENT_MAX = 540;
 
   const contentRef = useRef(null);
@@ -405,7 +404,7 @@ function ExplorePanel() {
         Sign Up / Sign In
       </a>
 
-      {/* Floating menu overlay (no column) */}
+      {/* Floating menu overlay */}
       {menuOpen ? (
         <nav
           id="explore-menu"
@@ -435,7 +434,7 @@ function ExplorePanel() {
         style={{
           width: "100%",
           maxWidth: CONTENT_MAX,
-          margin: "0 auto", // center on page
+          margin: "0 auto",
           textAlign: "center",
           boxSizing: "border-box",
         }}
@@ -447,7 +446,7 @@ function ExplorePanel() {
         {/* Spacer before images */}
         <div style={{ height: 48 }} />
 
-        {/* Carousel is exactly as wide as the header wrapper */}
+        {/* Carousel centered under header */}
         <CarouselRow maxWidth={measuredWidth} />
 
         {/* Spacer to separate from the fixed badge */}
@@ -493,14 +492,14 @@ function CarouselRow({ maxWidth = 540 }) {
   const cols = [[], [], []];
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  // Even stagger: slot 0 now, slot 1 +4.0s, slot 2 +8.0s
-  const delays = [0, 4000, 8000];
+  // Even stagger for calmer rhythm
+  const delays = [0, 6000, 12000];
 
   return (
     <div
       style={{
-        width: maxWidth,               // never exceed header wrapper
-        margin: "0 auto",              // center under header
+        width: maxWidth,
+        margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
         gap: 10,
@@ -514,10 +513,10 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: HOLD → fade out 4s → swap → fade in 4s **/
+/** Single-img fade-to-black: hold longer, fade a bit slower */
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 4000;
-  const HOLD_MS = 8000;
+  const FADE_MS = 5000;   // was 4000
+  const HOLD_MS = 12000;  // was 8000
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -648,5 +647,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
