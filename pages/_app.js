@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.157_2025-09-02
+// Build 36.158_2025-09-02
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import "../styles/globals.css";
-import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.157_2025-09-02";
+export const BUILD_VERSION = "Build 36.158_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -15,6 +15,35 @@ const supabase =
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       )
     : null;
+
+/* ---------- Error Boundary (prevents blank-page crash) ---------- */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, info) {
+    // Non-fatal: keep page usable
+    // eslint-disable-next-line no-console
+    console.error("Landing error:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main id="main" style={{ minHeight: "100vh", background: "#000", color: "#f4f4f5", display: "grid", placeItems: "center", padding: 24 }}>
+          <div style={{ maxWidth: 720, textAlign: "center", border: "1px solid #27272a", borderRadius: 12, padding: 16, background: "#0a0a0a" }}>
+            <h2 style={{ marginTop: 0 }}>The Scope of Morgellons</h2>
+            <p style={{ opacity: 0.9 }}>Something hiccuped. Reload to try again, or browse the menu above.</p>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ---------- Build badge (kept low) ---------- */
 function BuildBadge() {
@@ -66,7 +95,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (single source of truth) */
+/** Canonical sign-in screen */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -283,37 +312,39 @@ function ResetPasswordScreen({ onDone }) {
 /* ---------- Landing (logged-out default) ---------- */
 function LandingScreen() {
   return (
-    <main
-      id="main"
-      tabIndex={-1}
-      style={{
-        minHeight: "100vh",
-        background: "#000",
-        color: "#f4f4f5",
-        fontFamily: "Arial, Helvetica, sans-serif",
-        boxSizing: "border-box",
-        paddingBottom: 360, // bottom safe-zone so badge never crowds images
-      }}
-    >
-      <div style={{ padding: "8px 24px" }}>
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 980,
-            margin: "0 auto",
-            padding: 16,
-            background: "#0a0a0a",
-            border: "1px solid #27272a",
-            borderRadius: 12,
-            boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-            position: "relative",
-            boxSizing: "border-box",
-          }}
-        >
-          <ExplorePanel />
+    <ErrorBoundary>
+      <main
+        id="main"
+        tabIndex={-1}
+        style={{
+          minHeight: "100vh",
+          background: "#000",
+          color: "#f4f4f5",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          boxSizing: "border-box",
+          paddingBottom: 360, // bottom safe-zone so badge never crowds images
+        }}
+      >
+        <div style={{ padding: "8px 24px" }}>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 980,
+              margin: "0 auto",
+              padding: 16,
+              background: "#0a0a0a",
+              border: "1px solid #27272a",
+              borderRadius: 12,
+              boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+              position: "relative",
+              boxSizing: "border-box",
+            }}
+          >
+            <ExplorePanel />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </ErrorBoundary>
   );
 }
 
@@ -543,33 +574,20 @@ function CarouselRow({ maxWidth = 540 }) {
 
   if (!urls.length) return null;
 
-  // Central scheduler: exactly one column fades per beat; wrap-around equal
-  const FADE_MS = 4000; // fade duration
-  const BEAT_MS = 6500; // time between column starts (even spacing including wrap)
+  // Central scheduler: one active column per beat; wrap-around equal spacing
+  const FADE_MS = 3000; // fade duration (out then in)
+  const BEAT_MS = 6500; // time between column starts (no overlaps; short idle)
 
-  const [triggers, setTriggers] = useState([0, 0, 0]);
+  const [activeCol, setActiveCol] = useState(0);
 
   useEffect(() => {
     let step = 0;
-    let intervalId = null;
-    // start immediately with column 0
-    setTriggers((t) => {
-      const n = [...t];
-      n[0] = t[0] + 1;
-      return n;
-    });
-    intervalId = setInterval(() => {
+    setActiveCol(0); // start immediately with col 0
+    const id = setInterval(() => {
       step = (step + 1) % 3; // 1,2,0,1,2,0...
-      setTriggers((t) => {
-        const n = [...t];
-        n[step] = t[step] + 1;
-        return n;
-      });
+      setActiveCol(step);
     }, BEAT_MS);
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => clearInterval(id);
   }, []);
 
   return (
@@ -579,19 +597,19 @@ function CarouselRow({ maxWidth = 540 }) {
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 16, // slightly more spacing between images
+        gap: 16, // slightly more spacing
         boxSizing: "border-box",
       }}
     >
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} trigger={triggers[idx]} fadeMs={FADE_MS} />
+        <FadeToBlackSlot key={idx} images={images} isTurn={activeCol === idx} fadeMs={FADE_MS} />
       ))}
     </div>
   );
 }
 
-/** Slot that animates only when its trigger increments (externally scheduled) */
-function FadeToBlackSlot({ images, trigger = 0, fadeMs = 4000 }) {
+/** Slot that animates only on its turn (externally scheduled) */
+function FadeToBlackSlot({ images, isTurn = false, fadeMs = 3000 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
   const len = images?.length || 0;
@@ -602,17 +620,17 @@ function FadeToBlackSlot({ images, trigger = 0, fadeMs = 4000 }) {
     setVisible(true);
   }, [len]);
 
-  // Animate on trigger tick
+  // Animate when it's this column's turn
   useEffect(() => {
-    if (!trigger || len < 2) return;
-    const outTimer = setTimeout(() => {
-      setIdx((p) => (p + 1) % len); // swap image at end of fade-out
+    if (!isTurn || len < 2) return;
+    let timer;
+    setVisible(false); // fade to black
+    timer = setTimeout(() => {
+      setIdx((p) => (p + 1) % len); // swap image
       setVisible(true); // fade back in
     }, fadeMs);
-    setVisible(false); // start fade to black now
-    return () => clearTimeout(outTimer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger]);
+    return () => clearTimeout(timer);
+  }, [isTurn, len, fadeMs]);
 
   const url = images && images.length ? images[idx] : "";
 
@@ -659,6 +677,10 @@ const menuLinkStyleTextDark = {
   color: "#f4f4f5",
   marginBottom: 10,
 };
+
+const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 6 };
+const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
+const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
 
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
