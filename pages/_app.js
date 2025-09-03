@@ -16,12 +16,12 @@ const supabase =
       )
     : null;
 
-/* ---------- Build badge (lower) ---------- */
+/* ---------- Build badge (kept low) ---------- */
 function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 0, // sit at bottom edge as requested
+    bottom: 0,
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -355,43 +355,48 @@ function ExplorePanel() {
         overflow: "visible",
       }}
     >
-      {/* Hover wrapper so moving from button to menu keeps it open */}
+      {/* Hover wrapper keeps menu open on hover across button + menu */}
       <div
         onMouseEnter={() => setMenuOpen(true)}
         onMouseLeave={() => setMenuOpen(false)}
         style={{ position: "relative", zIndex: 4 }}
       >
-        {/* Hamburger overlay at top-left (slightly transparent) */}
+        {/* Cooler, slightly transparent hamburger */}
         <button
           type="button"
           aria-label="Open menu"
           aria-controls="explore-menu"
           aria-haspopup="menu"
           aria-expanded={menuOpen ? "true" : "false"}
-          onClick={() => setMenuOpen((v) => !v)} // still clickable for touch
+          onClick={() => setMenuOpen((v) => !v)} // click still works for touch
           title="Menu"
           style={{
             position: "absolute",
             top: 8,
             left: 10,
-            width: 30,
-            height: 26,
-            borderRadius: 8,
-            border: "1px solid #374151",
-            background: "rgba(17,24,39,0.85)", // transparency
+            width: 34,
+            height: 28,
+            borderRadius: 10,
+            border: "1px solid rgba(148,163,184,0.35)",
+            background: "rgba(17,24,39,0.6)", // more transparent
             display: "grid",
             placeItems: "center",
             cursor: "pointer",
+            boxShadow: "0 10px 24px rgba(0,0,0,0.35)",
+            backdropFilter: "saturate(140%) blur(4px)",
+            WebkitBackdropFilter: "saturate(140%) blur(4px)",
+            transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease",
+            transform: menuOpen ? "scale(1.03)" : "scale(1.0)",
           }}
         >
-          <div style={{ display: "grid", gap: 3 }}>
-            <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
-            <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
-            <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
+          <div style={{ display: "grid", gap: 4 }}>
+            <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+            <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
+            <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
           </div>
         </button>
 
-        {/* Floating menu overlay (appears on hover or click) */}
+        {/* Dropdown menu (bigger text + more space between options) */}
         {menuOpen ? (
           <nav
             id="explore-menu"
@@ -399,13 +404,15 @@ function ExplorePanel() {
             aria-label="Explore menu"
             style={{
               position: "absolute",
-              top: 40,
+              top: 44,
               left: 10,
               border: "1px solid #374151",
-              borderRadius: 10,
-              background: "#0b0b0b",
-              padding: 10,
-              boxShadow: "0 8px 18px rgba(0,0,0,0.35)",
+              borderRadius: 12,
+              background: "rgba(15,23,42,0.92)",
+              padding: "10px 12px",
+              boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
+              backdropFilter: "saturate(140%) blur(4px)",
+              WebkitBackdropFilter: "saturate(140%) blur(4px)",
             }}
           >
             <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
@@ -422,14 +429,14 @@ function ExplorePanel() {
           position: "absolute",
           top: 8,
           right: 10,
-          padding: "4px 8px",
-          borderRadius: 6,
+          padding: "6px 10px",
+          borderRadius: 8,
           border: "1px solid transparent",
           background: "transparent",
           color: "#cbd5e1",
           textDecoration: "none",
-          fontWeight: 500,
-          fontSize: 12,
+          fontWeight: 600,
+          fontSize: 13,
           zIndex: 3,
         }}
         aria-label="Sign up or sign in"
@@ -502,19 +509,19 @@ function CarouselRow({ maxWidth = 540 }) {
   const cols = [[], [], []];
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  // Even stagger with *more* time between columns.
-  // Cycle = HOLD_MS + FADE_MS = 16000 + 5000 = 21000 ms
-  // Equal spacing = cycle/3 = 7000 ms
+  // Calm rhythm with evenly spaced column offsets
+  // Cycle = HOLD_MS + FADE_MS = 16000 + 5000 = 21000
+  // Equal spacing = 7000ms
   const delays = [0, 7000, 14000];
 
   return (
     <div
       style={{
-        width: maxWidth,               // never exceed header width
-        margin: "0 auto",              // center under header
+        width: maxWidth,     // never exceed header width
+        margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 14,                       // slightly more visual space between images
+        gap: 14,             // slightly more visual space between images
         boxSizing: "border-box",
       }}
     >
@@ -525,10 +532,10 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: timing tuned for calmer rhythm + wider inter-column spacing */
+/** Single-img fade-to-black: timing tuned for calmer rhythm */
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 5000;   // keep smooth fade
-  const HOLD_MS = 16000;  // increase hold so inter-column spacing can be even at 7s
+  const FADE_MS = 5000;
+  const HOLD_MS = 16000;
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -585,13 +592,15 @@ function FadeToBlackSlot({ images, delay = 0 }) {
   );
 }
 
+/* Bigger, spaced dropdown links */
 const menuLinkStyleTextDark = {
   display: "block",
-  padding: "2px 0",
-  fontSize: 12,
+  padding: "6px 2px",
+  fontSize: 14,
+  lineHeight: 1.5,
   textDecoration: "underline",
   color: "#f4f4f5",
-  marginBottom: 4,
+  marginBottom: 10,
 };
 
 export default function MyApp({ Component, pageProps }) {
@@ -615,7 +624,7 @@ export default function MyApp({ Component, pageProps }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
-    const q = window.location.search || "";
+    aconst q = window.location.search || "";
     if (hash.includes("type=recovery") || q.includes("type=recovery")) setResetMode(true);
   }, []);
 
