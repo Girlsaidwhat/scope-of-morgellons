@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.164_2025-09-02
-import React, { useEffect, useMemo, useRef, useState } from "react";
+// Build 36.165_2025-09-02
+import React, { useEffect, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.164_2025-09-02";
+export const BUILD_VERSION = "Build 36.165_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -26,21 +26,16 @@ class ErrorBoundary extends React.Component {
     this.state = { hasError: false, msg: "", stackTop: "" };
   }
   static getDerivedStateFromError(error) {
-    // Derive minimal, helpful info for display
     const rawMsg = error?.message || String(error || "");
     let stackTop = "";
     try {
       const s = (error && error.stack) ? String(error.stack) : "";
       const lines = s.split("\n").map((l) => l.trim()).filter(Boolean);
-      // Skip first line (the message), show first stack frame if present
       stackTop = lines.length > 1 ? lines[1] : "";
     } catch {}
     return { hasError: true, msg: rawMsg, stackTop };
   }
-  componentDidCatch(err, info) {
-    // Still log full details to the console for deeper debugging
-    console.error("Landing error:", err, info);
-  }
+  componentDidCatch(err, info) { console.error("Landing error:", err, info); }
   render() {
     if (this.state.hasError) {
       return (
@@ -48,8 +43,7 @@ class ErrorBoundary extends React.Component {
           <div style={{ maxWidth: 760, textAlign: "center", border: "1px solid #27272a", borderRadius: 12, padding: 16, background: "#0a0a0a" }}>
             <h2 style={{ marginTop: 0 }}>The Scope of Morgellons</h2>
             <p style={{ opacity: 0.9, marginBottom: 12 }}>Something hiccuped. Reload to try again, or use the menu above.</p>
-            {/* Diagnostic details to unblock us */}
-            <div style={{ textAlign: "left", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, background: "#0b0b0b", border: "1px solid #333", borderRadius: 8, padding: 10, overflowX: "auto" }}>
+            <div style={{ textAlign: "left", fontFamily: "ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace", fontSize: 12, background: "#0b0b0b", border: "1px solid #333", borderRadius: 8, padding: 10, overflowX: "auto" }}>
               <div><strong>Error:</strong> {this.state.msg || "(no message)"} </div>
               {this.state.stackTop ? <div style={{ marginTop: 6 }}><strong>At:</strong> {this.state.stackTop}</div> : null}
             </div>
@@ -294,7 +288,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel (staggered, even wrap) ---------- */
+/* ---------- Carousel (staggered, even wrap; no conditional hooks) ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -321,16 +315,15 @@ function CarouselRow({ maxWidth = 560 }) {
     return () => { cancelled = true; };
   }, []);
 
-  if (!urls.length) return null;
+  // Always compute columns (no extra hooks after returns)
+  const cols = [[], [], []];
+  urls.forEach((u, i) => cols[i % 3].push(u));
+  if (urls.length >= 2) {
+    for (let c = 0; c < 3; c++) if (cols[c].length < 2) cols[c] = [...cols[c], urls[(c + 1) % urls.length]];
+  }
 
-  const cols = useMemo(() => {
-    const base = [[], [], []];
-    urls.forEach((u, i) => base[i % 3].push(u));
-    if (urls.length >= 2) {
-      for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
-    }
-    return base;
-  }, [urls]);
+  // If empty, render nothing (safe: no hooks added/removed)
+  if (!urls.length) return null;
 
   const FADE_MS = 3000;   // fade
   const HOLD_MS = 5200;   // brief pause before next column
