@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.163_2025-09-02
+// Build 36.164_2025-09-02
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.163_2025-09-02";
+export const BUILD_VERSION = "Build 36.164_2025-09-02";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -19,18 +19,41 @@ const supabase =
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
     : null;
 
-/* ---------- Error boundary ---------- */
+/* ---------- Error boundary (diagnostic) ---------- */
 class ErrorBoundary extends React.Component {
-  constructor(p) { super(p); this.state = { hasError: false }; }
-  static getDerivedStateFromError() { return { hasError: true }; }
-  componentDidCatch(err, info) { console.error("Landing error:", err, info); }
+  constructor(p) {
+    super(p);
+    this.state = { hasError: false, msg: "", stackTop: "" };
+  }
+  static getDerivedStateFromError(error) {
+    // Derive minimal, helpful info for display
+    const rawMsg = error?.message || String(error || "");
+    let stackTop = "";
+    try {
+      const s = (error && error.stack) ? String(error.stack) : "";
+      const lines = s.split("\n").map((l) => l.trim()).filter(Boolean);
+      // Skip first line (the message), show first stack frame if present
+      stackTop = lines.length > 1 ? lines[1] : "";
+    } catch {}
+    return { hasError: true, msg: rawMsg, stackTop };
+  }
+  componentDidCatch(err, info) {
+    // Still log full details to the console for deeper debugging
+    console.error("Landing error:", err, info);
+  }
   render() {
     if (this.state.hasError) {
       return (
         <main id="main" style={{ minHeight: "100vh", background: "#000", color: "#f4f4f5", display: "grid", placeItems: "center", padding: 24 }}>
-          <div style={{ maxWidth: 720, textAlign: "center", border: "1px solid #27272a", borderRadius: 12, padding: 16, background: "#0a0a0a" }}>
+          <div style={{ maxWidth: 760, textAlign: "center", border: "1px solid #27272a", borderRadius: 12, padding: 16, background: "#0a0a0a" }}>
             <h2 style={{ marginTop: 0 }}>The Scope of Morgellons</h2>
-            <p style={{ opacity: 0.9 }}>Something hiccuped. Reload to try again, or use the menu above.</p>
+            <p style={{ opacity: 0.9, marginBottom: 12 }}>Something hiccuped. Reload to try again, or use the menu above.</p>
+            {/* Diagnostic details to unblock us */}
+            <div style={{ textAlign: "left", fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, background: "#0b0b0b", border: "1px solid #333", borderRadius: 8, padding: 10, overflowX: "auto" }}>
+              <div><strong>Error:</strong> {this.state.msg || "(no message)"} </div>
+              {this.state.stackTop ? <div style={{ marginTop: 6 }}><strong>At:</strong> {this.state.stackTop}</div> : null}
+            </div>
+            <div style={{ marginTop: 12, opacity: 0.8, fontSize: 12 }}>This diagnostic block is temporary; we’ll remove it after the fix.</div>
           </div>
         </main>
       );
@@ -48,7 +71,7 @@ function BuildBadge() {
   );
 }
 
-/* ---------- Auth presence (fixed cleanup) ---------- */
+/* ---------- Auth presence (safe cleanup) ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -61,6 +84,8 @@ function useAuthPresence() {
         setSignedIn(!!session);
         const { data } = supabase.auth.onAuthStateChange((_evt, s) => setSignedIn(!!s));
         unsubscribe = data?.subscription?.unsubscribe || (() => {});
+      } catch (e) {
+        console.error("Auth presence init error:", e);
       } finally {
         setChecking(false);
       }
@@ -70,7 +95,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/* ---------- Sign-in ---------- */
+/* ---------- Canonical sign-in ---------- */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -251,6 +276,7 @@ function ExplorePanel() {
             </nav>
           ) : null}
         </div>
+
         {/* CTA same row */}
         <a href="/signin" style={{ height: CHROME_HEIGHT, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "#cbd5e1", textDecoration: "none", fontWeight: 600, fontSize: 13, lineHeight: `${CHROME_HEIGHT}px`, pointerEvents: "auto" }} aria-label="Sign up or sign in" title="Sign up / Sign in">Sign Up / Sign In</a>
       </div>
@@ -287,7 +313,10 @@ function CarouselRow({ maxWidth = 560 }) {
           } catch { return ""; }
         }).filter(Boolean);
         if (!cancelled) setUrls(list);
-      } catch { if (!cancelled) setUrls([]); }
+      } catch (e) {
+        console.error("Carousel fetch error:", e);
+        if (!cancelled) setUrls([]);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -362,8 +391,8 @@ export default function MyApp({ Component, pageProps }) {
 
   useEffect(() => {
     if (!supabase) return;
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") setResetMode(true); });
-    return () => sub?.subscription?.unsubscribe?.();
+    const { data } = supabase.auth.onAuthStateChange((event) => { if (event === "PASSWORD_RECOVERY") setResetMode(true); });
+    return () => data?.subscription?.unsubscribe?.();
   }, []);
 
   useEffect(() => {
