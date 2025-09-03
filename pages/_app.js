@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.151_2025-09-02
+// Build 36.152_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.151_2025-09-02";
+export const BUILD_VERSION = "Build 36.152_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
