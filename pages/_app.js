@@ -21,7 +21,7 @@ function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
     right: 8,
-    bottom: 2, // lower
+    bottom: 0, // sit at bottom edge as requested
     zIndex: 2147483647,
     fontSize: 12,
     padding: "4px 10px",
@@ -321,14 +321,19 @@ function LandingScreen() {
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Center container so header width == carousel width.
   const CONTENT_MAX = 540;
 
   const contentRef = useRef(null);
+  const titleRef = useRef(null);
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
+
   useEffect(() => {
     const sync = () => {
-      const w = contentRef.current?.offsetWidth || CONTENT_MAX;
-      setMeasuredWidth(Math.min(w, CONTENT_MAX));
+      // Constrain carousel to the actual rendered header text width
+      const titleW = titleRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
+      const cap = Math.min(titleW, CONTENT_MAX);
+      setMeasuredWidth(Math.max(0, Math.floor(cap)));
     };
     sync();
     window.addEventListener("resize", sync);
@@ -350,36 +355,65 @@ function ExplorePanel() {
         overflow: "visible",
       }}
     >
-      {/* Hamburger overlay at top-left */}
-      <button
-        type="button"
-        aria-label="Open menu"
-        aria-controls="explore-menu"
-        aria-haspopup="menu"
-        aria-expanded={menuOpen ? "true" : "false"}
-        onClick={() => setMenuOpen((v) => !v)}
-        title="Menu"
-        style={{
-          position: "absolute",
-          top: 8,
-          left: 10,
-          width: 30,
-          height: 26,
-          borderRadius: 8,
-          border: "1px solid #374151",
-          background: "#111827",
-          display: "grid",
-          placeItems: "center",
-          cursor: "pointer",
-          zIndex: 3,
-        }}
+      {/* Hover wrapper so moving from button to menu keeps it open */}
+      <div
+        onMouseEnter={() => setMenuOpen(true)}
+        onMouseLeave={() => setMenuOpen(false)}
+        style={{ position: "relative", zIndex: 4 }}
       >
-        <div style={{ display: "grid", gap: 3 }}>
-          <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
-          <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
-          <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
-        </div>
-      </button>
+        {/* Hamburger overlay at top-left (slightly transparent) */}
+        <button
+          type="button"
+          aria-label="Open menu"
+          aria-controls="explore-menu"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen ? "true" : "false"}
+          onClick={() => setMenuOpen((v) => !v)} // still clickable for touch
+          title="Menu"
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 10,
+            width: 30,
+            height: 26,
+            borderRadius: 8,
+            border: "1px solid #374151",
+            background: "rgba(17,24,39,0.85)", // transparency
+            display: "grid",
+            placeItems: "center",
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ display: "grid", gap: 3 }}>
+            <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
+            <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
+            <span style={{ display: "block", width: 16, height: 2, background: "#e5e7eb" }} />
+          </div>
+        </button>
+
+        {/* Floating menu overlay (appears on hover or click) */}
+        {menuOpen ? (
+          <nav
+            id="explore-menu"
+            role="menu"
+            aria-label="Explore menu"
+            style={{
+              position: "absolute",
+              top: 40,
+              left: 10,
+              border: "1px solid #374151",
+              borderRadius: 10,
+              background: "#0b0b0b",
+              padding: 10,
+              boxShadow: "0 8px 18px rgba(0,0,0,0.35)",
+            }}
+          >
+            <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
+            <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
+            <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
+          </nav>
+        ) : null}
+      </div>
 
       {/* CTA pinned top-right, same level as hamburger */}
       <a
@@ -404,30 +438,6 @@ function ExplorePanel() {
         Sign Up / Sign In
       </a>
 
-      {/* Floating menu overlay */}
-      {menuOpen ? (
-        <nav
-          id="explore-menu"
-          role="menu"
-          aria-label="Explore menu"
-          style={{
-            position: "absolute",
-            top: 40,
-            left: 10,
-            border: "1px solid #374151",
-            borderRadius: 10,
-            background: "#0b0b0b",
-            padding: 10,
-            zIndex: 4,
-            boxShadow: "0 8px 18px rgba(0,0,0,0.35)",
-          }}
-        >
-          <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
-          <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
-          <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
-        </nav>
-      ) : null}
-
       {/* Centered content: header and carousel share the same wrapper width */}
       <div
         ref={contentRef}
@@ -439,14 +449,14 @@ function ExplorePanel() {
           boxSizing: "border-box",
         }}
       >
-        <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
+        <h2 ref={titleRef} style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
           The Scope of Morgellons
         </h2>
 
         {/* Spacer before images */}
         <div style={{ height: 48 }} />
 
-        {/* Carousel centered under header */}
+        {/* Carousel centered under header and constrained by header width */}
         <CarouselRow maxWidth={measuredWidth} />
 
         {/* Spacer to separate from the fixed badge */}
@@ -492,17 +502,19 @@ function CarouselRow({ maxWidth = 540 }) {
   const cols = [[], [], []];
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
-  // Even stagger for calmer rhythm
-  const delays = [0, 6000, 12000];
+  // Even stagger with *more* time between columns.
+  // Cycle = HOLD_MS + FADE_MS = 16000 + 5000 = 21000 ms
+  // Equal spacing = cycle/3 = 7000 ms
+  const delays = [0, 7000, 14000];
 
   return (
     <div
       style={{
-        width: maxWidth,
-        margin: "0 auto",
+        width: maxWidth,               // never exceed header width
+        margin: "0 auto",              // center under header
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 10,
+        gap: 14,                       // slightly more visual space between images
         boxSizing: "border-box",
       }}
     >
@@ -513,10 +525,10 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: hold longer, fade a bit slower */
+/** Single-img fade-to-black: timing tuned for calmer rhythm + wider inter-column spacing */
 function FadeToBlackSlot({ images, delay = 0 }) {
-  const FADE_MS = 5000;   // was 4000
-  const HOLD_MS = 12000;  // was 8000
+  const FADE_MS = 5000;   // keep smooth fade
+  const HOLD_MS = 16000;  // increase hold so inter-column spacing can be even at 7s
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
