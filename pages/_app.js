@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.146_2025-09-02
+// Build 36.147_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.146_2025-09-02";
+export const BUILD_VERSION = "Build 36.147_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -505,14 +505,22 @@ function CarouselRow({ maxWidth = 540 }) {
     return () => { cancelled = true; };
   }, []);
 
-  if (!urls.length) return null;
-
-  // Memoize column arrays so their identity doesn't change on every render.
+  // Build 3 sequences; ensure each has at least 2 images if possible
   const cols = useMemo(() => {
-    const c = [[], [], []];
-    urls.forEach((u, i) => c[i % 3].push(u));
-    return c;
+    const base = [[], [], []];
+    urls.forEach((u, i) => base[i % 3].push(u));
+    if (urls.length >= 2) {
+      for (let c = 0; c < 3; c++) {
+        if (base[c].length < 2) {
+          // borrow from global list to ensure rotation
+          base[c] = [...base[c], urls[(c + base[c].length) % urls.length]];
+        }
+      }
+    }
+    return base;
   }, [urls]);
+
+  if (!urls.length) return null;
 
   // Calm rhythm with evenly spaced column offsets (total cycle 21s -> 7s offsets)
   const delays = [0, 7000, 14000];
@@ -535,7 +543,7 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: calmer timing; resistant to re-renders */
+/** Single-img fade-to-black: simple interval loop; needs ≥2 images to rotate */
 function FadeToBlackSlot({ images, delay = 0 }) {
   const FADE_MS = 5000;
   const HOLD_MS = 16000;
@@ -543,39 +551,40 @@ function FadeToBlackSlot({ images, delay = 0 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
 
-  // Keep the latest array in a ref; effect depends only on its length.
-  const imgsRef = useRef(images);
-  useEffect(() => { imgsRef.current = images; }, [images]);
+  const len = images?.length || 0;
 
   useEffect(() => {
-    const n = imgsRef.current?.length || 0;
-    if (n === 0) return;
+    if (len === 0) return;
+    // If only one image, just hold (no rotation)
+    if (len < 2) {
+      setVisible(true);
+      return;
+    }
 
-    let holdT, outT, startT;
-    const cycle = () => {
-      holdT = setTimeout(() => {
-        setVisible(false); // fade to black
-        outT = setTimeout(() => {
-          setIdx((p) => {
-            const len = imgsRef.current?.length || 1;
-            return len > 0 ? (p + 1) % len : 0;
-          });
-          setVisible(true); // fade in, then hold again
-          cycle();
-        }, FADE_MS);
-      }, HOLD_MS);
+    let startTimer, intervalTimer, fadeTimer;
+
+    const tick = () => {
+      setVisible(false); // fade to black
+      fadeTimer = setTimeout(() => {
+        setIdx((p) => (p + 1) % len); // swap
+        setVisible(true); // fade in then hold
+      }, FADE_MS);
     };
 
-    startT = setTimeout(cycle, Math.max(0, delay));
+    // Initial start: after delay + first hold
+    startTimer = setTimeout(() => {
+      tick();
+      intervalTimer = setInterval(tick, HOLD_MS + FADE_MS);
+    }, Math.max(0, delay + HOLD_MS));
+
     return () => {
-      clearTimeout(startT);
-      clearTimeout(holdT);
-      clearTimeout(outT);
+      clearTimeout(startTimer);
+      clearInterval(intervalTimer);
+      clearTimeout(fadeTimer);
     };
-    // Only reset when the number of images changes, or the per-column delay changes
-  }, [images?.length, delay]);
+  }, [len, delay]);
 
-  const url = imgsRef.current && imgsRef.current.length ? imgsRef.current[idx] : "";
+  const url = images && images.length ? images[idx] : "";
 
   return (
     <div
@@ -686,5 +695,4 @@ export default function MyApp({ Component, pageProps }) {
     </>
   );
 }
-
 
