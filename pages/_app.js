@@ -1,14 +1,14 @@
 ﻿// pages/_app.js
-// Build 36.161_2025-09-02
+// Build 36.162_2025-09-02
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.161_2025-09-02";
+export const BUILD_VERSION = "Build 36.162_2025-09-02";
 
-/* ---------- Shared styles (defined before use to avoid TDZ) ---------- */
-const menuLinkStyleTextDark = {
+/* ---------- Shared styles defined first ---------- */
+const linkMenu = {
   display: "block",
   padding: "8px 2px",
   fontSize: 15,
@@ -21,7 +21,7 @@ const row = { display: "flex", gap: 10, alignItems: "center", justifyContent: "c
 const btn = { padding: "10px 14px", border: "1px solid #111", borderRadius: 8, background: "#111", color: "#fff", cursor: "pointer", fontSize: 14 };
 const linkBtn = { padding: "6px 10px", border: "1px solid #ddd", borderRadius: 6, background: "#fff", color: "#111", fontSize: 12, cursor: "pointer" };
 
-/* ---------- Supabase: browser-only client ---------- */
+/* ---------- Supabase client (browser only) ---------- */
 const supabase =
   typeof window !== "undefined"
     ? createClient(
@@ -30,7 +30,27 @@ const supabase =
       )
     : null;
 
-/* ---------- Build badge (lowest position) ---------- */
+/* ---------- Error boundary so we never blank ---------- */
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err, info) { console.error("Landing error:", err, info); }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <main id="main" style={{ minHeight: "100vh", background: "#000", color: "#f4f4f5", display: "grid", placeItems: "center", padding: 24 }}>
+          <div style={{ maxWidth: 720, textAlign: "center", border: "1px solid #27272a", borderRadius: 12, padding: 16, background: "#0a0a0a" }}>
+            <h2 style={{ marginTop: 0 }}>The Scope of Morgellons</h2>
+            <p style={{ opacity: 0.9 }}>Something hiccuped. Reload to try again, or use the menu above.</p>
+          </div>
+        </main>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* ---------- Build badge (lowest) ---------- */
 function BuildBadge() {
   return (
     <div
@@ -94,8 +114,7 @@ function AuthScreen() {
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSignIn(e) {
-    e.preventDefault?.();
-    setErr(""); setMsg("Signing in…");
+    e.preventDefault?.(); setErr(""); setMsg("Signing in…");
     try {
       const sb = supabase || createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
       const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -105,8 +124,7 @@ function AuthScreen() {
   }
 
   async function handleSignUp(e) {
-    e.preventDefault?.();
-    setErr(""); setMsg("Creating account…");
+    e.preventDefault?.(); setErr(""); setMsg("Creating account…");
     try {
       if (!supabase) throw new Error("Client not ready");
       const { error } = await supabase.auth.signUp({ email, password });
@@ -116,8 +134,7 @@ function AuthScreen() {
   }
 
   async function handleForgot(e) {
-    e.preventDefault?.();
-    setErr(""); setMsg("Sending reset email…");
+    e.preventDefault?.(); setErr(""); setMsg("Sending reset email…");
     try {
       if (!supabase) throw new Error("Client not ready");
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/reset` });
@@ -154,7 +171,9 @@ function AuthScreen() {
           ) : null}
           <div style={row}>
             <button type="submit" style={btn}>{mode === "sign_in" ? "Sign in" : "Sign up"}</button>
-            <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>{mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}</button>
+            <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>
+              {mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}
+            </button>
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
           </div>
           <p aria-live="polite" style={statusStyle}>{msg}</p>
@@ -168,14 +187,18 @@ function AuthScreen() {
 /* ---------- Reset screen ---------- */
 function ResetPasswordScreen({ onDone }) {
   const router = useRouter();
-  const [p1, setP1] = useState(""), [p2, setP2] = useState("");
-  const [msg, setMsg] = useState(""), [err, setErr] = useState("");
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
   const passRef = useRef(null);
   useEffect(() => { passRef.current?.focus(); }, []);
   const pageWrap = { maxWidth: 980, margin: "24px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  const btnLocal = btn;
   const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
+
   async function handleSubmit(e) {
     e.preventDefault?.(); setErr("");
     if (!p1 || !p2) return setErr("Enter your new password in both fields.");
@@ -189,13 +212,14 @@ function ResetPasswordScreen({ onDone }) {
       setMsg("Password updated."); await sb.auth.signOut(); onDone?.(); router.replace("/");
     } catch (e) { setMsg(""); setErr(e?.message || "Could not update password."); }
   }
+
   return (
     <main id="main" aria-label="Create new password" style={pageWrap}>
       <h1 style={{ margin: "0 0 12px" }}>Create new password</h1>
       <form onSubmit={handleSubmit} style={formStyle}>
         <label><span style={{ display: "block", marginBottom: 6 }}>New password</span><input ref={passRef} type="password" value={p1} onChange={(e) => setP1(e.target.value)} autoComplete="new-password" required style={input} /></label>
         <label><span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span><input type="password" value={p2} onChange={(e) => setP2(e.target.value)} autoComplete="new-password" required style={input} /></label>
-        <button type="submit" style={btn} aria-label="Update password">Update password</button>
+        <button type="submit" style={btnLocal} aria-label="Update password">Update password</button>
         <p aria-live="polite" style={statusStyle}>{msg}</p>
         {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
       </form>
@@ -206,45 +230,47 @@ function ResetPasswordScreen({ onDone }) {
 /* ---------- Landing (logged out) ---------- */
 function LandingScreen() {
   return (
-    <main
-      id="main"
-      tabIndex={-1}
-      style={{
-        minHeight: "100vh",
-        background: "#000",
-        color: "#f4f4f5",
-        fontFamily: "Arial, Helvetica, sans-serif",
-        boxSizing: "border-box",
-        paddingBottom: 440, // plenty of space so badge never crowds
-      }}
-    >
-      <div style={{ padding: "8px 24px" }}>
-        <div
-          style={{
-            width: "100%",
-            maxWidth: 980,
-            margin: "0 auto",
-            padding: 16,
-            background: "#0a0a0a",
-            border: "1px solid #27272a",
-            borderRadius: 12,
-            boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
-            position: "relative",
-            boxSizing: "border-box",
-          }}
-        >
-          <ExplorePanel />
+    <ErrorBoundary>
+      <main
+        id="main"
+        tabIndex={-1}
+        style={{
+          minHeight: "100vh",
+          background: "#000",
+          color: "#f4f4f5",
+          fontFamily: "Arial, Helvetica, sans-serif",
+          boxSizing: "border-box",
+          paddingBottom: 460, // generous space so badge never crowds
+        }}
+      >
+        <div style={{ padding: "8px 24px" }}>
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 980,
+              margin: "0 auto",
+              padding: 16,
+              background: "#0a0a0a",
+              border: "1px solid #27272a",
+              borderRadius: 12,
+              boxShadow: "0 6px 16px rgba(0,0,0,0.25)",
+              position: "relative",
+              boxSizing: "border-box",
+            }}
+          >
+            <ExplorePanel />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </ErrorBoundary>
   );
 }
 
-/* ---- Explore: floating hamburger; centered header+carousel; width clamped to header ---- */
+/* ---- Explore: floating hamburger + centered header+carousel constrained to header ---- */
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Measure exact title text width to cap the carousel width
+  // Measure exact title text width to cap the carousel
   const CONTENT_MAX = 560;
   const titleSpanRef = useRef(null);
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
@@ -277,7 +303,7 @@ function ExplorePanel() {
         overflow: "visible",
       }}
     >
-      {/* Absolute top bar: hamburger and CTA on same level */}
+      {/* Absolute top bar: hamburger + CTA same level */}
       <div
         style={{
           position: "absolute",
@@ -327,6 +353,7 @@ function ExplorePanel() {
               <span style={{ display: "block", width: 18, height: 2, background: "#e5e7eb", opacity: 0.95 }} />
             </div>
           </button>
+
           {menuOpen ? (
             <nav
               id="explore-menu"
@@ -345,9 +372,9 @@ function ExplorePanel() {
                 WebkitBackdropFilter: "saturate(140%) blur(4px)",
               }}
             >
-              <a role="menuitem" href="/about" style={menuLinkStyleTextDark}>About</a>
-              <a role="menuitem" href="/news" style={menuLinkStyleTextDark}>News</a>
-              <a role="menuitem" href="/resources" style={menuLinkStyleTextDark}>Resources</a>
+              <a role="menuitem" href="/about" style={linkMenu}>About</a>
+              <a role="menuitem" href="/news" style={linkMenu}>News</a>
+              <a role="menuitem" href="/resources" style={linkMenu}>Resources</a>
             </nav>
           ) : null}
         </div>
@@ -384,13 +411,13 @@ function ExplorePanel() {
         </h2>
         <div style={{ height: 48 }} />
         <CarouselRow maxWidth={measuredWidth} />
-        <div style={{ height: 260 }} />
+        <div style={{ height: 280 }} />
       </div>
     </section>
   );
 }
 
-/* ---------- Carousel: 3 columns, staggered fade with brief pause, even wrap ---------- */
+/* ---------- Carousel: proven per-column timers with even wrap ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -422,9 +449,11 @@ function CarouselRow({ maxWidth = 560 }) {
 
   if (!urls.length) return null;
 
+  // Split into 3 columns
   const cols = useMemo(() => {
     const base = [[], [], []];
     urls.forEach((u, i) => base[i % 3].push(u));
+    // Ensure each column can rotate
     if (urls.length >= 2) {
       for (let c = 0; c < 3; c++) {
         if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
@@ -433,21 +462,10 @@ function CarouselRow({ maxWidth = 560 }) {
     return base;
   }, [urls]);
 
-  // Central scheduler: one column per beat
-  const FADE_MS = 3000; // fade duration
-  const BEAT_MS = 5200; // time between column starts (brief pause)
-  const [triggers, setTriggers] = useState([0, 0, 0]);
-
-  useEffect(() => {
-    // start with column 0 immediately
-    setTriggers((t) => { const n = [...t]; n[0] = t[0] + 1; return n; });
-    let step = 1;
-    const iv = setInterval(() => {
-      const col = step % 3; step += 1;
-      setTriggers((t) => { const n = [...t]; n[col] = t[col] + 1; return n; });
-    }, BEAT_MS);
-    return () => clearInterval(iv);
-  }, []);
+  // Delays enforce even staggering with a brief pause
+  const FADE_MS = 3000;   // fade duration
+  const HOLD_MS = 5200;   // hold before starting the next fade
+  const delays = [0, HOLD_MS, HOLD_MS * 2]; // 0s, 5.2s, 10.4s
 
   return (
     <div
@@ -456,18 +474,19 @@ function CarouselRow({ maxWidth = 560 }) {
         margin: "0 auto",
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-        gap: 18, // extra space between images
+        gap: 18, // a little more space
         boxSizing: "border-box",
       }}
     >
       {cols.map((images, idx) => (
-        <FadeToBlackSlot key={idx} images={images} trigger={triggers[idx]} fadeMs={FADE_MS} />
+        <FadeToBlackSlot key={idx} images={images} fadeMs={FADE_MS} holdMs={HOLD_MS} startDelay={delays[idx]} />
       ))}
     </div>
   );
 }
 
-function FadeToBlackSlot({ images, trigger = 0, fadeMs = 3000 }) {
+/** Column slot with its own steady cycle: HOLD → fade out → swap → fade in → repeat */
+function FadeToBlackSlot({ images, fadeMs = 3000, holdMs = 5200, startDelay = 0 }) {
   const [idx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
   const len = images?.length || 0;
@@ -475,11 +494,24 @@ function FadeToBlackSlot({ images, trigger = 0, fadeMs = 3000 }) {
   useEffect(() => { setIdx(0); setVisible(true); }, [len]);
 
   useEffect(() => {
-    if (!trigger || len < 2) return;
-    const out = setTimeout(() => { setIdx((p) => (p + 1) % len); setVisible(true); }, fadeMs);
-    setVisible(false);
-    return () => clearTimeout(out);
-  }, [trigger, len, fadeMs]);
+    if (!len) return;
+    let tStart, tHold, tOut, tIn;
+    const run = () => {
+      tHold = setTimeout(() => {
+        setVisible(false); // fade to black
+        tOut = setTimeout(() => {
+          setIdx((p) => (p + 1) % len); // swap frame
+          setVisible(true); // fade in
+          // Immediately schedule the next full cycle
+          tIn = setTimeout(run, 0);
+        }, fadeMs);
+      }, holdMs);
+    };
+    tStart = setTimeout(run, Math.max(0, startDelay));
+    return () => {
+      [tStart, tHold, tOut, tIn].forEach((id) => id && clearTimeout(id));
+    };
+  }, [len, fadeMs, holdMs, startDelay]);
 
   const url = images && images.length ? images[idx] : "";
 
@@ -521,11 +553,10 @@ export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
   const { signedIn, checking } = useAuthPresence();
 
-  // Reset-mode detection
+  // Password recovery route handling
   const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
   const [resetMode, setResetMode] = useState(isResetPath);
   useEffect(() => { if (isResetPath) setResetMode(true); }, [isResetPath]);
-
   useEffect(() => {
     if (!supabase) return;
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
@@ -533,7 +564,6 @@ export default function MyApp({ Component, pageProps }) {
     });
     return () => sub?.subscription?.unsubscribe?.();
   }, []);
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash || "";
