@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.145_2025-08-29
+// Build 36.146_2025-09-02
 import "../styles/globals.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.145_2025-08-29";
+export const BUILD_VERSION = "Build 36.146_2025-09-02";
 
 // Browser-safe Supabase client (public keys only)
 const supabase =
@@ -16,7 +16,7 @@ const supabase =
       )
     : null;
 
-/* ---------- Build badge (kept low) ---------- */
+/* ---------- Build badge (kept low, global single source) ---------- */
 function BuildBadge() {
   const badgeStyle = {
     position: "fixed",
@@ -66,7 +66,7 @@ function useAuthPresence() {
   return { signedIn, checking };
 }
 
-/** Canonical sign-in screen (unchanged UI) */
+/** Canonical sign-in screen (single source of truth) */
 function AuthScreen() {
   const router = useRouter();
   const [mode, setMode] = useState("sign_in");
@@ -208,7 +208,7 @@ function AuthScreen() {
   );
 }
 
-/** Create-new-password screen shown after clicking the reset link */
+/** Minimal reset screen shown after recovery */
 function ResetPasswordScreen({ onDone }) {
   const router = useRouter();
   const [p1, setP1] = useState("");
@@ -292,7 +292,7 @@ function LandingScreen() {
         color: "#f4f4f5",
         fontFamily: "Arial, Helvetica, sans-serif",
         boxSizing: "border-box",
-        paddingBottom: 360,
+        paddingBottom: 360, // bottom safe-zone so badge never crowds images
       }}
     >
       <div style={{ padding: "8px 24px" }}>
@@ -321,21 +321,17 @@ function LandingScreen() {
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Center container so header width == carousel width.
+  // Header width caps carousel width
   const CONTENT_MAX = 540;
 
   const contentRef = useRef(null);
-  const titleRef = useRef(null);      // measure the inline text, not full block
-  const titleSpanRef = useRef(null);  // exact span width
+  const titleSpanRef = useRef(null); // exact title text width
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
 
   useEffect(() => {
     const sync = () => {
-      // Use the inline span's rendered width so images never exceed the visual title width.
       const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
-      // Clamp to container max
       const cap = Math.min(spanW, CONTENT_MAX);
-      // Ensure non-negative integer
       setMeasuredWidth(Math.max(0, Math.ceil(cap)));
     };
     sync();
@@ -358,7 +354,7 @@ function ExplorePanel() {
         overflow: "visible",
       }}
     >
-      {/* Hover wrapper keeps menu open on hover across button + menu */}
+      {/* Hover group keeps menu open across button and menu */}
       <div
         onMouseEnter={() => setMenuOpen(true)}
         onMouseLeave={() => setMenuOpen(false)}
@@ -371,7 +367,7 @@ function ExplorePanel() {
           aria-controls="explore-menu"
           aria-haspopup="menu"
           aria-expanded={menuOpen ? "true" : "false"}
-          onClick={() => setMenuOpen((v) => !v)} // click still works for touch
+          onClick={() => setMenuOpen((v) => !v)} // also supports touch
           title="Menu"
           style={{
             position: "absolute",
@@ -381,7 +377,7 @@ function ExplorePanel() {
             height: 28,
             borderRadius: 10,
             border: "1px solid rgba(148,163,184,0.35)",
-            background: "rgba(17,24,39,0.6)", // transparency
+            background: "rgba(17,24,39,0.6)", // transparent
             display: "grid",
             placeItems: "center",
             cursor: "pointer",
@@ -399,7 +395,7 @@ function ExplorePanel() {
           </div>
         </button>
 
-        {/* Dropdown menu (bigger text + more space between options) */}
+        {/* Dropdown menu (bigger text + more spacing) */}
         {menuOpen ? (
           <nav
             id="explore-menu"
@@ -412,7 +408,7 @@ function ExplorePanel() {
               border: "1px solid #374151",
               borderRadius: 12,
               background: "rgba(15,23,42,0.92)",
-              padding: "10px 12px",
+              padding: "12px 14px",
               boxShadow: "0 18px 36px rgba(0,0,0,0.45)",
               backdropFilter: "saturate(140%) blur(4px)",
               WebkitBackdropFilter: "saturate(140%) blur(4px)",
@@ -425,7 +421,7 @@ function ExplorePanel() {
         ) : null}
       </div>
 
-      {/* CTA pinned top-right, same level as hamburger */}
+      {/* CTA pinned top-right, same level */}
       <a
         href="/signin"
         style={{
@@ -459,10 +455,7 @@ function ExplorePanel() {
           boxSizing: "border-box",
         }}
       >
-        <h2
-          ref={titleRef}
-          style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}
-        >
+        <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
           <span ref={titleSpanRef} style={{ display: "inline-block" }}>
             The Scope of Morgellons
           </span>
@@ -481,7 +474,7 @@ function ExplorePanel() {
   );
 }
 
-/** --------- CarouselRow: exactly 3 slots, anonymized, fade-to-black --------- **/
+/** --------- CarouselRow: one row, 3 columns, constrained by header width --------- **/
 function CarouselRow({ maxWidth = 540 }) {
   const [urls, setUrls] = useState([]);
 
@@ -518,8 +511,7 @@ function CarouselRow({ maxWidth = 540 }) {
   urls.forEach((u, i) => { cols[i % 3].push(u); });
 
   // Calm rhythm with evenly spaced column offsets
-  // Cycle = HOLD_MS + FADE_MS = 16000 + 5000 = 21000
-  // Equal spacing = 7000ms
+  // Cycle = HOLD_MS + FADE_MS = 16000 + 5000 = 21000 -> spacing = 7000ms
   const delays = [0, 7000, 14000];
 
   return (
@@ -540,7 +532,7 @@ function CarouselRow({ maxWidth = 540 }) {
   );
 }
 
-/** Single-img fade-to-black: timing tuned for calmer rhythm */
+/** Single-img fade-to-black: calmer timing */
 function FadeToBlackSlot({ images, delay = 0 }) {
   const FADE_MS = 5000;
   const HOLD_MS = 16000;
