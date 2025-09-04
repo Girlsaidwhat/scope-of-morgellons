@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.161";
+const INDEX_BUILD = "idx-36.162";
 
 function prettyDate(s) {
   try {
@@ -464,6 +464,37 @@ export default function HomePage() {
     return () => { canceled = true; };
   }, [user?.id]);
 
+  // --- Focus ring helpers for inputs (inline, no CSS files) ---
+  function onFocusRing(e) {
+    try {
+      e.target.style.outline = "2px solid #0ea5e9";
+      e.target.style.outlineOffset = "2px";
+      e.target.style.boxShadow = "0 0 0 2px rgba(14,165,233,0.15)";
+    } catch {}
+  }
+  function onBlurRing(e) {
+    try {
+      e.target.style.outline = "";
+      e.target.style.outlineOffset = "";
+      e.target.style.boxShadow = "";
+    } catch {}
+  }
+
+  // --- Initials auto-population from first + last ---
+  const initialsTouchedRef = useRef(false);
+  function computeInitials(fn, ln) {
+    const f = (fn || "").trim();
+    const l = (ln || "").trim();
+    const fi = f ? f[0].toUpperCase() : "";
+    const li = l ? l[0].toUpperCase() : "";
+    return (fi + li) || "";
+  }
+  useEffect(() => {
+    if (!initialsTouchedRef.current) {
+      setInitials(computeInitials(firstNameField, lastNameField));
+    }
+  }, [firstNameField, lastNameField]);
+
   // Fetch total count
   useEffect(() => {
     if (!user?.id) return;
@@ -631,22 +662,6 @@ export default function HomePage() {
     }
   }
 
-  // --- Focus ring helpers for inputs (inline, no CSS files) ---
-  function onFocusRing(e) {
-    try {
-      e.target.style.outline = "2px solid #0ea5e9";
-      e.target.style.outlineOffset = "2px";
-      e.target.style.boxShadow = "0 0 0 2px rgba(14,165,233,0.15)";
-    } catch {}
-  }
-  function onBlurRing(e) {
-    try {
-      e.target.style.outline = "";
-      e.target.style.outlineOffset = "";
-      e.target.style.boxShadow = "";
-    } catch {}
-  }
-
   // ---------- Logged-out renders Landing ----------
   if (!user) {
     return <Landing />;
@@ -745,7 +760,7 @@ export default function HomePage() {
       {/* Light divider separating actions from profile */}
       <div aria-hidden="true" style={{ borderTop: "1px solid #e5e7eb", margin: "4px 0 12px" }} />
 
-      {/* Profile form (polish only: max-width wrapper, labels, spacing, focus ring) */}
+      {/* Profile form (reordered fields; initials auto; age narrow) */}
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <form
           onSubmit={async (e) => {
@@ -848,26 +863,6 @@ export default function HomePage() {
             Profile
           </h2>
 
-          {/*
-            Shared label/input base styles for consistency
-          */}
-          {(() => null)()}
-
-          {/* Initials */}
-          <div>
-            <label htmlFor="initials" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Initials
-            </label>
-            <input
-              id="initials"
-              value={initials}
-              onChange={(e) => setInitials(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
           {/* First name */}
           <div>
             <label htmlFor="first_name" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
@@ -898,7 +893,28 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Age */}
+          {/* Initials (auto-populated from first + last; still editable if needed) */}
+          <div>
+            <label htmlFor="initials" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Initials
+            </label>
+            <input
+              id="initials"
+              value={initials}
+              onChange={(e) => {
+                initialsTouchedRef.current = true;
+                setInitials(e.target.value);
+              }}
+              onFocus={(e) => {
+                initialsTouchedRef.current = true;
+                onFocusRing(e);
+              }}
+              onBlur={onBlurRing}
+              style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* Age (narrow like initials) */}
           <div>
             <label htmlFor="age" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
               Age
@@ -910,7 +926,7 @@ export default function HomePage() {
               onChange={(e) => setAge(e.target.value)}
               onFocus={onFocusRing}
               onBlur={onBlurRing}
-              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+              style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
             />
           </div>
 
