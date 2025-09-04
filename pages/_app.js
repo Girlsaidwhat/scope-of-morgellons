@@ -1,12 +1,12 @@
 ﻿// pages/_app.js
-// Build 36.177_2025-09-03
+// Build 36.178_2025-09-03
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import Head from "next/head";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.177_2025-09-03";
+export const BUILD_VERSION = "Build 36.178_2025-09-03";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -63,7 +63,7 @@ function BuildBadge() {
   );
 }
 
-/* ---------- Head (font) ---------- */
+/* ---------- Head (Roboto everywhere) ---------- */
 function RootHead() {
   return (
     <Head>
@@ -308,7 +308,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel: global one-by-one sequencer with 1.2s pauses ---------- */
+/* ---------- Carousel: global one-by-one sequencer with 1.1s pauses ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -352,7 +352,7 @@ function CarouselRow({ maxWidth = 560 }) {
   }, [urls]);
 
   const FADE_MS = 2800;
-  const PAUSE_MS = 1200; // slightly tighter inter-column gap, even wrap-around
+  const PAUSE_MS = 1100; // was 1200; -100ms tighter, even wrap-around
   const [kicks, setKicks] = useState([0, 0, 0]);
 
   useEffect(() => {
@@ -394,7 +394,7 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
       setIdx((p) => (p + 1) % len);
       setVisible(true);
     }, fadeMs);
-  return () => { if (tOut) clearTimeout(tOut); };
+    return () => { if (tOut) clearTimeout(tOut); };
   }, [kick, len, fadeMs]);
 
   const url = len ? images[idx] : "";
