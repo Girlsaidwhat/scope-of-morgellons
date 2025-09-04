@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.175_2025-09-02
+// Build 36.176_2025-09-03
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.175_2025-09-02";
+export const BUILD_VERSION = "Build 36.176_2025-09-03";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -282,7 +282,7 @@ function ExplorePanel() {
   );
 }
 
-/* ---------- Carousel: global one-by-one sequencer with 1.4s pauses ---------- */
+/* ---------- Carousel: global one-by-one sequencer with 1.2s pauses ---------- */
 function CarouselRow({ maxWidth = 560 }) {
   const [urls, setUrls] = useState([]);
 
@@ -326,7 +326,7 @@ function CarouselRow({ maxWidth = 560 }) {
   }, [urls]);
 
   const FADE_MS = 2800;
-  const PAUSE_MS = 1400; // <- desired pause
+  const PAUSE_MS = 1200; // was 1400; slightly tighter inter-column gap, even wrap-around
   const [kicks, setKicks] = useState([0, 0, 0]);
 
   useEffect(() => {
