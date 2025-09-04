@@ -1,3 +1,11 @@
+/* Roboto global font (400/500/700) */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap");
+
+/* Apply everywhere, including form controls; override any inline fallback */
+:root, html, body, #__next, main, nav, header, section, footer, a, p, h1, h2, h3, h4, h5, h6,
+button, input, select, textarea, label, small, strong, span, div {
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif !important;
+}
 /* styles/globals.css */
 
 /* Keep layout predictable */
