@@ -94,7 +94,7 @@ export default function UploadPage() {
       const { data, error } = await supabase
         .from("user_profile")
         .select("initials, age, location, contact_opt_in")
-        .eq("id", user.id)
+        .eq("id", user.id) // keeping your existing key usage
         .maybeSingle();
       if (canceled) return;
       if (!error) setProfileSnap(data || null);
