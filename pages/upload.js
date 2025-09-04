@@ -66,7 +66,7 @@ export default function UploadPage() {
   const [rows, setRows] = useState([]); // per-file status rows
   const [isUploading, setIsUploading] = useState(false);
 
-  // NEW: simple overall status + “stuck” hint
+  // Overall status + “stuck” hint
   const [overallMsg, setOverallMsg] = useState("");
   const [hint, setHint] = useState("");
   const stuckTimerRef = useRef(null);
@@ -94,7 +94,7 @@ export default function UploadPage() {
       const { data, error } = await supabase
         .from("user_profile")
         .select("initials, age, location, contact_opt_in")
-        .eq("id", user.id) // keeping your existing key usage
+        .eq("id", user.id)
         .maybeSingle();
       if (canceled) return;
       if (!error) setProfileSnap(data || null);
@@ -123,8 +123,7 @@ export default function UploadPage() {
       url: f.url,
       progress: 0,
       state: "pending",
-      // CHANGED: clearer message so users know to click Upload
-      message: "Ready to upload — click Upload",
+      message: "Ready to upload - click Upload",
     }));
     setRows(newRows);
     setOverallMsg(newFiles.length ? "Ready. Click Upload to begin." : "");
@@ -168,11 +167,11 @@ export default function UploadPage() {
     }
   }
 
-  // NEW: simple stuck detector for long waits during upload/saving
+  // Stuck detector for long waits during upload/saving
   function startStuckTimer() {
     clearStuckTimer();
     stuckTimerRef.current = setTimeout(() => {
-      setHint("Still waiting… Often a slow connection, a file over 10 MB, or a sign-in/session issue.");
+      setHint("Still waiting... Often a slow connection, a file over 10 MB, or a sign-in or session issue.");
     }, 12000);
   }
   function clearStuckTimer() {
@@ -201,7 +200,7 @@ export default function UploadPage() {
         anyRejected = true;
         return { ...r, state: "rejected", message: err, progress: 0 };
       }
-      return { ...r, state: "pending", message: "Starting…" };
+      return { ...r, state: "pending", message: "Starting..." };
     });
     setRows(nextRowsA);
     if (anyRejected && nextRowsA.every((r) => r.state === "rejected")) {
@@ -211,7 +210,7 @@ export default function UploadPage() {
     }
 
     setIsUploading(true);
-    setOverallMsg("Uploading…");
+    setOverallMsg("Uploading...");
     setHint("");
     startStuckTimer();
 
@@ -228,7 +227,7 @@ export default function UploadPage() {
       startFauxProgress(i);
       setRows((prev) => {
         const copy = [...prev];
-        copy[i] = { ...copy[i], state: "uploading", message: "Uploading…" };
+        copy[i] = { ...copy[i], state: "uploading", message: "Uploading..." };
         return copy;
       });
 
@@ -260,10 +259,10 @@ export default function UploadPage() {
         continue;
       }
 
-      // NEW: show “saving” step
+      // Show “saving” step
       setRows((prev) => {
         const copy = [...prev];
-        copy[i] = { ...copy[i], state: "saving", message: "Saving metadata…" };
+        copy[i] = { ...copy[i], state: "saving", message: "Saving metadata..." };
         return copy;
       });
 
@@ -325,25 +324,16 @@ export default function UploadPage() {
 
     const ok = (r) => r.state === "success";
     const bad = (r) => r.state === "error" || r.state === "rejected";
-    const succ = nextRowsA.length ? (await new Promise((res) => {
-      // read the final state
-      setRows((final) => {
-        const s = final.filter(ok).length;
-        const b = final.filter(bad).length;
-        setOverallMsg(`Done. Success: ${s} • Issues: ${b}`);
-        res(s);
-        return final;
-      });
-    })) : 0;
-
-    if (succ === 0) {
-      setHint("If none succeeded, try a smaller JPEG/PNG, and confirm you are signed in.");
-    } else {
-      setHint("");
-    }
+    setRows((final) => {
+      const s = final.filter(ok).length;
+      const b = final.filter(bad).length;
+      setOverallMsg(`Done. Success: ${s} • Issues: ${b}`);
+      if (s === 0) setHint("If none succeeded, try a smaller JPEG or PNG, and confirm you are signed in.");
+      return final;
+    });
   }
 
-  // Overall status derived on every change (lightweight)
+  // Overall status derived on every change
   useEffect(() => {
     if (!rows.length) return;
     const uploading = rows.filter((r) => r.state === "uploading").length;
@@ -352,12 +342,11 @@ export default function UploadPage() {
     const error = rows.filter((r) => r.state === "error" || r.state === "rejected").length;
 
     if (isUploading) {
-      if (saving > 0) setOverallMsg(`Saving metadata (${saving})…`);
-      else if (uploading > 0) setOverallMsg(`Uploading (${uploading})…`);
+      if (saving > 0) setOverallMsg(`Saving metadata (${saving})...`);
+      else if (uploading > 0) setOverallMsg(`Uploading (${uploading})...`);
     } else if (success + error > 0) {
       setOverallMsg(`Done. Success: ${success} • Issues: ${error}`);
     }
-    // clear stuck hint once anything finishes
     if (success + error > 0) clearStuckTimer();
   }, [rows, isUploading]);
 
@@ -479,7 +468,7 @@ export default function UploadPage() {
             />
           </label>
 
-          {/* NEW: overall status line */}
+          {/* Overall status line */}
           <p aria-live="polite" style={{ margin: "6px 0 12px", minHeight: 18, fontSize: 13 }}>
             {overallMsg}
           </p>
@@ -576,7 +565,6 @@ export default function UploadPage() {
             </button>
           </div>
 
-          {/* Per your existing end text */}
           {totalCountText && (
             <div style={{ marginTop: 12, fontSize: 13, color: "#374151" }}>{totalCountText}</div>
           )}
