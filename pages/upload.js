@@ -1,6 +1,7 @@
 // Build: 36.7g_2025-08-19
 // Rename category label to 'Blebs (clear to brown)'; colors/notes behavior unchanged
 // Writes to image_metadata.path and saves optional notes/colors
+// Small additions: overall upload status, “saving” step, 12s “Still waiting…” hint
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -56,14 +57,19 @@ export default function UploadPage() {
   const [profileSnap, setProfileSnap] = useState(null);
 
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
-  const [blebColor, setBlebColor] = useState(""); // blank unless chosen
-  const [fiberBundlesColor, setFiberBundlesColor] = useState(""); // blank unless chosen
-  const [fibersColor, setFibersColor] = useState(""); // blank unless chosen
+  const [blebColor, setBlebColor] = useState("");
+  const [fiberBundlesColor, setFiberBundlesColor] = useState("");
+  const [fibersColor, setFibersColor] = useState("");
   const [notes, setNotes] = useState("");
 
   const [files, setFiles] = useState([]); // [{file, url}]
   const [rows, setRows] = useState([]); // per-file status rows
   const [isUploading, setIsUploading] = useState(false);
+
+  // NEW: simple overall status + “stuck” hint
+  const [overallMsg, setOverallMsg] = useState("");
+  const [hint, setHint] = useState("");
+  const stuckTimerRef = useRef(null);
 
   const fileInputRef = useRef(null);
 
@@ -88,7 +94,7 @@ export default function UploadPage() {
       const { data, error } = await supabase
         .from("user_profile")
         .select("initials, age, location, contact_opt_in")
-        .eq("id", user.id)
+        .eq("id", user.id) // keeping your existing key usage
         .maybeSingle();
       if (canceled) return;
       if (!error) setProfileSnap(data || null);
@@ -117,9 +123,12 @@ export default function UploadPage() {
       url: f.url,
       progress: 0,
       state: "pending",
-      message: "Waiting",
+      // CHANGED: clearer message so users know to click Upload
+      message: "Ready to upload — click Upload",
     }));
     setRows(newRows);
+    setOverallMsg(newFiles.length ? "Ready. Click Upload to begin." : "");
+    setHint("");
   }
 
   function onChooseFiles(ev) {
@@ -159,6 +168,20 @@ export default function UploadPage() {
     }
   }
 
+  // NEW: simple stuck detector for long waits during upload/saving
+  function startStuckTimer() {
+    clearStuckTimer();
+    stuckTimerRef.current = setTimeout(() => {
+      setHint("Still waiting… Often a slow connection, a file over 10 MB, or a sign-in/session issue.");
+    }, 12000);
+  }
+  function clearStuckTimer() {
+    if (stuckTimerRef.current) {
+      clearTimeout(stuckTimerRef.current);
+      stuckTimerRef.current = null;
+    }
+  }
+
   async function handleUpload(ev) {
     ev.preventDefault();
     if (!user?.id) {
@@ -178,36 +201,34 @@ export default function UploadPage() {
         anyRejected = true;
         return { ...r, state: "rejected", message: err, progress: 0 };
       }
-      return { ...r, state: "pending", message: "Ready" };
+      return { ...r, state: "pending", message: "Starting…" };
     });
     setRows(nextRowsA);
-    if (anyRejected && nextRowsA.every((r) => r.state === "rejected")) return;
+    if (anyRejected && nextRowsA.every((r) => r.state === "rejected")) {
+      setOverallMsg("All files were rejected by checks.");
+      setHint("");
+      return;
+    }
 
     setIsUploading(true);
+    setOverallMsg("Uploading…");
+    setHint("");
+    startStuckTimer();
 
-    // Shared metadata for the batch
-    const shared = {
-      category: selectedCategory,
-      bleb_color: isBlebs ? (blebColor || null) : null,
-      fiber_bundles_color: isFiberBundles ? (fiberBundlesColor || null) : null,
-      fibers_color: isFibers ? (fibersColor || null) : null,
-      notes: notes.trim() ? notes.trim() : null,
-      uploader_initials: profileSnap?.initials ?? null,
-      uploader_age: profileSnap?.age ?? null,
-      uploader_location: profileSnap?.location ?? null,
-      uploader_contact_opt_in: profileSnap?.contact_opt_in ?? null,
-    };
+    // Map allowed rows once so we don’t rely on a stale state snapshot
+    const allowed = nextRowsA.map((r) => r.state !== "rejected");
 
     // Upload each file sequentially
     for (let i = 0; i < files.length; i++) {
+      if (!allowed[i]) continue;
+
       const f = files[i].file;
-      if (rows[i].state === "rejected") continue;
 
       // Start faux progress
       startFauxProgress(i);
       setRows((prev) => {
         const copy = [...prev];
-        copy[i] = { ...copy[i], state: "uploading", message: "Uploading..." };
+        copy[i] = { ...copy[i], state: "uploading", message: "Uploading…" };
         return copy;
       });
 
@@ -239,6 +260,13 @@ export default function UploadPage() {
         continue;
       }
 
+      // NEW: show “saving” step
+      setRows((prev) => {
+        const copy = [...prev];
+        copy[i] = { ...copy[i], state: "saving", message: "Saving metadata…" };
+        return copy;
+      });
+
       // Insert metadata row
       const meta = {
         user_id: user.id,
@@ -247,15 +275,15 @@ export default function UploadPage() {
         ext: extFromName(f.name),
         mime_type: f.type,
         size: f.size,
-        category: shared.category,
-        bleb_color: shared.bleb_color,
-        fiber_bundles_color: shared.fiber_bundles_color,
-        fibers_color: shared.fibers_color,
-        notes: shared.notes,
-        uploader_initials: shared.uploader_initials,
-        uploader_age: shared.uploader_age,
-        uploader_location: shared.uploader_location,
-        uploader_contact_opt_in: shared.uploader_contact_opt_in,
+        category: selectedCategory,
+        bleb_color: isBlebs ? (blebColor || null) : null,
+        fiber_bundles_color: isFiberBundles ? (fiberBundlesColor || null) : null,
+        fibers_color: isFibers ? (fibersColor || null) : null,
+        notes: notes.trim() ? notes.trim() : null,
+        uploader_initials: profileSnap?.initials ?? null,
+        uploader_age: profileSnap?.age ?? null,
+        uploader_location: profileSnap?.location ?? null,
+        uploader_contact_opt_in: profileSnap?.contact_opt_in ?? null,
       };
 
       const { error: insErr } = await supabase.from("image_metadata").insert(meta);
@@ -277,6 +305,7 @@ export default function UploadPage() {
           };
           return copy;
         });
+        // Safe cleanup
         await supabase.storage.from("images").remove([path]);
         continue;
       }
@@ -290,8 +319,47 @@ export default function UploadPage() {
       });
     }
 
+    // Finish
     setIsUploading(false);
+    clearStuckTimer();
+
+    const ok = (r) => r.state === "success";
+    const bad = (r) => r.state === "error" || r.state === "rejected";
+    const succ = nextRowsA.length ? (await new Promise((res) => {
+      // read the final state
+      setRows((final) => {
+        const s = final.filter(ok).length;
+        const b = final.filter(bad).length;
+        setOverallMsg(`Done. Success: ${s} • Issues: ${b}`);
+        res(s);
+        return final;
+      });
+    })) : 0;
+
+    if (succ === 0) {
+      setHint("If none succeeded, try a smaller JPEG/PNG, and confirm you are signed in.");
+    } else {
+      setHint("");
+    }
   }
+
+  // Overall status derived on every change (lightweight)
+  useEffect(() => {
+    if (!rows.length) return;
+    const uploading = rows.filter((r) => r.state === "uploading").length;
+    const saving = rows.filter((r) => r.state === "saving").length;
+    const success = rows.filter((r) => r.state === "success").length;
+    const error = rows.filter((r) => r.state === "error" || r.state === "rejected").length;
+
+    if (isUploading) {
+      if (saving > 0) setOverallMsg(`Saving metadata (${saving})…`);
+      else if (uploading > 0) setOverallMsg(`Uploading (${uploading})…`);
+    } else if (success + error > 0) {
+      setOverallMsg(`Done. Success: ${success} • Issues: ${error}`);
+    }
+    // clear stuck hint once anything finishes
+    if (success + error > 0) clearStuckTimer();
+  }, [rows, isUploading]);
 
   const totalCountText = useMemo(() => {
     const ok = rows.filter((r) => r.state === "success").length;
@@ -334,7 +402,7 @@ export default function UploadPage() {
             </select>
           </label>
 
-          {/* Color pickers, start blank with placeholder */}
+          {/* Color pickers */}
           {isBlebs && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Bleb Color (optional)</span>
@@ -411,6 +479,12 @@ export default function UploadPage() {
             />
           </label>
 
+          {/* NEW: overall status line */}
+          <p aria-live="polite" style={{ margin: "6px 0 12px", minHeight: 18, fontSize: 13 }}>
+            {overallMsg}
+          </p>
+          {hint ? <p style={{ margin: "-6px 0 12px", fontSize: 12, color: "#6b7280" }}>{hint}</p> : null}
+
           {/* Selected files list */}
           {files.length > 0 && (
             <div style={{ marginTop: 12 }}>
@@ -485,6 +559,8 @@ export default function UploadPage() {
                 files.forEach((f) => URL.revokeObjectURL(f.url));
                 setFiles([]);
                 setRows([]);
+                setOverallMsg("");
+                setHint("");
               }}
               disabled={isUploading}
               style={{
@@ -500,6 +576,7 @@ export default function UploadPage() {
             </button>
           </div>
 
+          {/* Per your existing end text */}
           {totalCountText && (
             <div style={{ marginTop: 12, fontSize: 13, color: "#374151" }}>{totalCountText}</div>
           )}
