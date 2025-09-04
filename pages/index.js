@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.160";
+const INDEX_BUILD = "idx-36.161";
 
 function prettyDate(s) {
   try {
@@ -631,28 +631,19 @@ export default function HomePage() {
     }
   }
 
-  // One-shot image error handler
-  async function handleImgError(rowId, absIndex, storagePath, filename, rowUserId) {
+  // --- Focus ring helpers for inputs (inline, no CSS files) ---
+  function onFocusRing(e) {
     try {
-      if (!rowId && rowId !== 0) return;
-      const tried = retrySetRef.current;
-      if (tried.has(rowId)) return;
-      tried.add(rowId);
-
-      const bucket = "images";
-      const primary = normalizePath(storagePath || "");
-      const alt = filename ? normalizePath(`${rowUserId || user?.id || ""}/${filename}`) : "";
-
-      let newUrl = "";
-
-      if (!newUrl && primary) newUrl = await singleSignedUrl(bucket, primary);
-      if (!newUrl && alt)     newUrl = await singleSignedUrl(bucket, alt);
-      if (!newUrl && alt)     newUrl = publicUrl(bucket, alt);
-      if (!newUrl && primary) newUrl = publicUrl(bucket, primary);
-      if (!newUrl && primary) newUrl = await downloadToBlobUrl(bucket, primary);
-      if (!newUrl && alt)     newUrl = await downloadToBlobUrl(bucket, alt);
-
-      if (newUrl) setItemUrl(setItems, absIndex, newUrl);
+      e.target.style.outline = "2px solid #0ea5e9";
+      e.target.style.outlineOffset = "2px";
+      e.target.style.boxShadow = "0 0 0 2px rgba(14,165,233,0.15)";
+    } catch {}
+  }
+  function onBlurRing(e) {
+    try {
+      e.target.style.outline = "";
+      e.target.style.outlineOffset = "";
+      e.target.style.boxShadow = "";
     } catch {}
   }
 
@@ -751,238 +742,264 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Profile form */}
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!user?.id) return;
-          setProfileStatus("Saving...");
+      {/* Light divider separating actions from profile */}
+      <div aria-hidden="true" style={{ borderTop: "1px solid #e5e7eb", margin: "4px 0 12px" }} />
 
-          try {
-            await supabase
-              .from("user_profile")
-              .upsert({ user_id: user.id }, { onConflict: "user_id" });
+      {/* Profile form (polish only: max-width wrapper, labels, spacing, focus ring) */}
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!user?.id) return;
+            setProfileStatus("Saving...");
 
-            const metaPayload = {
-              first_name: nonEmpty(firstNameField) ? firstNameField : null,
-              last_name: nonEmpty(lastNameField) ? lastNameField : null,
-            };
-            const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
-            if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
-
-            const ageVal =
-              age === "" || age === null || typeof age === "undefined"
-                ? null
-                : Number(age);
-
-            const researchersAllowed =
-              contactPref === "researchers_and_members" ||
-              contactPref === "researchers_only";
-
-            const updates = [
-              ["uploader_initials", initials || null],
-              ["initials", initials || null],
-              ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
-              ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
-              ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
-              ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
-              ["uploader_age", ageVal],
-              ["age", ageVal],
-              ["uploader_location", location || null],
-              ["location", location || null],
-              ["contact_preference", contactPref],
-              ["uploader_contact_opt_in", researchersAllowed],
-              ["contact_opt_in", researchersAllowed],
-            ];
-
-            for (const [col, val] of updates) {
-              const { error } = await supabase
+            try {
+              await supabase
                 .from("user_profile")
-                .update({ [col]: val })
-                .eq("user_id", user.id);
-              if (error) {
-                const raw = error.message || ""
-                const msg = raw.toLowerCase();
-                const ignorable =
-                  msg.includes("does not exist") ||
-                  msg.includes("could not find") ||
-                  msg.includes("schema cache") ||
-                  (msg.includes("unknown") && msg.includes("column")) ||
-                  (msg.includes("column") && msg.includes("not found"));
-                if (!ignorable) throw error;
+                .upsert({ user_id: user.id }, { onConflict: "user_id" });
+
+              const metaPayload = {
+                first_name: nonEmpty(firstNameField) ? firstNameField : null,
+                last_name: nonEmpty(lastNameField) ? lastNameField : null,
+              };
+              const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
+              if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
+
+              const ageVal =
+                age === "" || age === null || typeof age === "undefined"
+                  ? null
+                  : Number(age);
+
+              const researchersAllowed =
+                contactPref === "researchers_and_members" ||
+                contactPref === "researchers_only";
+
+              const updates = [
+                ["uploader_initials", initials || null],
+                ["initials", initials || null],
+                ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
+                ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
+                ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
+                ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
+                ["uploader_age", ageVal],
+                ["age", ageVal],
+                ["uploader_location", location || null],
+                ["location", location || null],
+                ["contact_preference", contactPref],
+                ["uploader_contact_opt_in", researchersAllowed],
+                ["contact_opt_in", researchersAllowed],
+              ];
+
+              for (const [col, val] of updates) {
+                const { error } = await supabase
+                  .from("user_profile")
+                  .update({ [col]: val })
+                  .eq("user_id", user.id);
+                if (error) {
+                  const raw = error.message || ""
+                  const msg = raw.toLowerCase();
+                  const ignorable =
+                    msg.includes("does not exist") ||
+                    msg.includes("could not find") ||
+                    msg.includes("schema cache") ||
+                    (msg.includes("unknown") && msg.includes("column")) ||
+                    (msg.includes("column") && msg.includes("not found"));
+                  if (!ignorable) throw error;
+                }
               }
+
+              await updateImageMetadataForUserProfile(user.id, {
+                uploader_initials: initials || null,
+                uploader_age: ageVal,
+                uploader_location: location || null,
+                uploader_contact_opt_in: researchersAllowed,
+              });
+
+              setProfileStatus("Profile saved.");
+              showToast("Saved");
+              setTimeout(() => setProfileStatus(""), 1500);
+            } catch (err) {
+              setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
             }
-
-            await updateImageMetadataForUserProfile(user.id, {
-              uploader_initials: initials || null,
-              uploader_age: ageVal,
-              uploader_location: location || null,
-              uploader_contact_opt_in: researchersAllowed,
-            });
-
-            setProfileStatus("Profile saved.");
-            showToast("Saved");
-            setTimeout(() => setProfileStatus(""), 1500);
-          } catch (err) {
-            setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
-          }
-        }}
-        aria-labelledby="profile-form-heading"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-          padding: 12,
-          border: "1px solid #e5e5e5",
-          borderRadius: 10,
-          background: "#fff",
-          marginBottom: 16,
-        }}
-      >
-        <h2
-          id="profile-form-heading"
+          }}
+          aria-labelledby="profile-form-heading"
           style={{
-            position: "absolute",
-            left: -9999,
-            top: "auto",
-            width: 1,
-            height: 1,
-            overflow: "hidden",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 14,
+            padding: 14,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            background: "#fff",
+            marginBottom: 16,
           }}
         >
-          Profile
-        </h2>
-
-        {/* Initials */}
-        <div>
-          <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Initials
-          </label>
-          <input
-            id="initials"
-            value={initials}
-            onChange={(e) => setInitials(e.target.value)}
-            style={{ width: 90, padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* First name */}
-        <div>
-          <label htmlFor="first_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            First name
-          </label>
-          <input
-            id="first_name"
-            value={firstNameField}
-            onChange={(e) => setFirstNameField(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Last name */}
-        <div>
-          <label htmlFor="last_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Last name
-          </label>
-          <input
-            id="last_name"
-            value={lastNameField}
-            onChange={(e) => setLastNameField(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Age */}
-        <div>
-          <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Age
-          </label>
-          <input
-            id="age"
-            type="number"
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Location */}
-        <div>
-          <label htmlFor="location" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Location
-          </label>
-          <input
-            id="location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Contact opt-in (3 options) */}
-        <fieldset
-          aria-label="Contact opt-in"
-          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10 }}
-        >
-          <legend style={{ fontSize: 12, padding: "0 6px" }}>Contact opt in</legend>
-          <div style={{ display: "grid", gap: 6 }}>
-            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
-              <input
-                type="radio"
-                name="contact_preference"
-                value="researchers_and_members"
-                checked={contactPref === "researchers_and_members"}
-                onChange={(e) => setContactPref(e.target.value)}
-              />
-              <span>Researchers & members</span>
-            </label>
-            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
-              <input
-                type="radio"
-                name="contact_preference"
-                value="researchers_only"
-                checked={contactPref === "researchers_only"}
-                onChange={(e) => setContactPref(e.target.value)}
-              />
-              <span>Researchers only</span>
-            </label>
-            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
-              <input
-                type="radio"
-                name="contact_preference"
-                value="members_only"
-                checked={contactPref === "members_only"}
-                onChange={(e) => setContactPref(e.target.value)}
-              />
-              <span>Members only</span>
-            </label>
-          </div>
-        </fieldset>
-
-        {/* Save */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button
-            type="submit"
-            aria-label="Save profile"
+          <h2
+            id="profile-form-heading"
             style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #0f766e",
-              background: "#14b8a6",
-              color: "white",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontSize: 12,
-              whiteSpace: "nowrap",
+              position: "absolute",
+              left: -9999,
+              top: "auto",
+              width: 1,
+              height: 1,
+              overflow: "hidden",
             }}
           >
-            Save Profile
-          </button>
-          <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-            {profileStatus}
-          </span>
-        </div>
-      </form>
+            Profile
+          </h2>
+
+          {/*
+            Shared label/input base styles for consistency
+          */}
+          {(() => null)()}
+
+          {/* Initials */}
+          <div>
+            <label htmlFor="initials" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Initials
+            </label>
+            <input
+              id="initials"
+              value={initials}
+              onChange={(e) => setInitials(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* First name */}
+          <div>
+            <label htmlFor="first_name" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              First name
+            </label>
+            <input
+              id="first_name"
+              value={firstNameField}
+              onChange={(e) => setFirstNameField(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* Last name */}
+          <div>
+            <label htmlFor="last_name" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Last name
+            </label>
+            <input
+              id="last_name"
+              value={lastNameField}
+              onChange={(e) => setLastNameField(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* Age */}
+          <div>
+            <label htmlFor="age" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Age
+            </label>
+            <input
+              id="age"
+              type="number"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* Location */}
+          <div>
+            <label htmlFor="location" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Location
+            </label>
+            <input
+              id="location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* Contact opt-in (3 options) */}
+          <fieldset
+            aria-label="Contact opt-in"
+            style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}
+          >
+            <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 600, color: "#334155" }}>Contact opt in</legend>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="radio"
+                  name="contact_preference"
+                  value="researchers_and_members"
+                  checked={contactPref === "researchers_and_members"}
+                  onChange={(e) => setContactPref(e.target.value)}
+                  onFocus={onFocusRing}
+                  onBlur={onBlurRing}
+                />
+                <span>Researchers & members</span>
+              </label>
+              <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="radio"
+                  name="contact_preference"
+                  value="researchers_only"
+                  checked={contactPref === "researchers_only"}
+                  onChange={(e) => setContactPref(e.target.value)}
+                  onFocus={onFocusRing}
+                  onBlur={onBlurRing}
+                />
+                <span>Researchers only</span>
+              </label>
+              <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="radio"
+                  name="contact_preference"
+                  value="members_only"
+                  checked={contactPref === "members_only"}
+                  onChange={(e) => setContactPref(e.target.value)}
+                  onFocus={onFocusRing}
+                  onBlur={onBlurRing}
+                />
+                <span>Members only</span>
+              </label>
+            </div>
+          </fieldset>
+
+          {/* Save */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="submit"
+              aria-label="Save profile"
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #0f766e",
+                background: "#14b8a6",
+                color: "white",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Save Profile
+            </button>
+            <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+              {profileStatus}
+            </span>
+          </div>
+        </form>
+      </div>
 
       {/* Small CSV button */}
       <div style={{ margin: "4px 0 10px" }}>
