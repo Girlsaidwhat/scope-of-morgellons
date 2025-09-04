@@ -1,11 +1,12 @@
 ﻿// pages/_app.js
-// Build 36.176_2025-09-03
+// Build 36.177_2025-09-03
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
+import Head from "next/head";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.176_2025-09-03";
+export const BUILD_VERSION = "Build 36.177_2025-09-03";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -59,6 +60,20 @@ function BuildBadge() {
     <div aria-label="Build version" style={{ position: "fixed", right: 8, bottom: 0, zIndex: 2147483647, fontSize: 12, padding: "4px 10px", borderRadius: 8, color: "#fff", background: "#111", border: "1px solid #000", boxShadow: "0 2px 6px rgba(0,0,0,0.25)", pointerEvents: "none" }}>
       {BUILD_VERSION}
     </div>
+  );
+}
+
+/* ---------- Head (font) ---------- */
+function RootHead() {
+  return (
+    <Head>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+      <style jsx global>{`
+        html, body { font-family: 'Roboto', Arial, Helvetica, sans-serif; }
+      `}</style>
+    </Head>
   );
 }
 
@@ -212,7 +227,18 @@ function ResetPasswordScreen({ onDone }) {
 function LandingScreen() {
   return (
     <ErrorBoundary>
-      <main id="main" tabIndex={-1} style={{ minHeight: "100vh", background: "#000", color: "#f4f4f5", fontFamily: "Arial, Helvetica, sans-serif", boxSizing: "border-box", paddingBottom: 460 }}>
+      <main
+        id="main"
+        tabIndex={-1}
+        style={{
+          minHeight: "100vh",
+          background: "#000",
+          color: "#f4f4f5",
+          fontFamily: "Roboto, Arial, Helvetica, sans-serif",
+          boxSizing: "border-box",
+          paddingBottom: 460
+        }}
+      >
         <div style={{ padding: "8px 24px" }}>
           <div style={{ width: "100%", maxWidth: 980, margin: "0 auto", padding: 16, background: "#0a0a0a", border: "1px solid #27272a", borderRadius: 12, boxShadow: "0 6px 16px rgba(0,0,0,0.25)", position: "relative", boxSizing: "border-box" }}>
             <ExplorePanel />
@@ -326,7 +352,7 @@ function CarouselRow({ maxWidth = 560 }) {
   }, [urls]);
 
   const FADE_MS = 2800;
-  const PAUSE_MS = 1200; // was 1400; slightly tighter inter-column gap, even wrap-around
+  const PAUSE_MS = 1200; // slightly tighter inter-column gap, even wrap-around
   const [kicks, setKicks] = useState([0, 0, 0]);
 
   useEffect(() => {
@@ -368,7 +394,7 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
       setIdx((p) => (p + 1) % len);
       setVisible(true);
     }, fadeMs);
-    return () => { if (tOut) clearTimeout(tOut); };
+  return () => { if (tOut) clearTimeout(tOut); };
   }, [kick, len, fadeMs]);
 
   const url = len ? images[idx] : "";
@@ -408,6 +434,7 @@ export default function MyApp({ Component, pageProps }) {
   if (resetMode) {
     return (
       <>
+        <RootHead />
         <ResetPasswordScreen onDone={() => setResetMode(false)} />
         <BuildBadge />
       </>
@@ -421,6 +448,7 @@ export default function MyApp({ Component, pageProps }) {
     if (path === "/signin") {
       return (
         <>
+          <RootHead />
           <AuthScreen />
           <BuildBadge />
         </>
@@ -428,6 +456,7 @@ export default function MyApp({ Component, pageProps }) {
     }
     return (
       <>
+        <RootHead />
         <LandingScreen />
         <BuildBadge />
       </>
@@ -436,9 +465,9 @@ export default function MyApp({ Component, pageProps }) {
 
   return (
     <>
+      <RootHead />
       <Component {...pageProps} />
       <BuildBadge />
     </>
   );
 }
-
