@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.162";
+const INDEX_BUILD = "idx-36.163";
 
 function prettyDate(s) {
   try {
@@ -223,7 +223,6 @@ async function updateImageMetadataForUserProfile(userId, fields) {
 // ---------------- Landing (public, anonymized) ----------------
 function Landing() {
   const router = useRouter();
-  // Placeholder “categories” and a simple highlight rotation (anonymized, no user images).
   const categories = [
     { key: "blebs", label: "Blebs (clear to brown)" },
     { key: "fibers", label: "Fibers" },
@@ -270,7 +269,7 @@ function Landing() {
         </p>
       </header>
 
-      {/* Anonymized category tiles (no photos; soft gradients) */}
+      {/* Anonymized category tiles */}
       <section aria-label="Categories" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
         {categories.map((c, i) => {
           const active = i === idx;
@@ -299,7 +298,7 @@ function Landing() {
         })}
       </section>
 
-      {/* Placeholder sections (anchors only) */}
+      {/* Placeholder sections */}
       <section id="about" style={{ marginTop: 20, borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
         <h2 style={{ fontSize: 18, margin: 0 }}>About</h2>
         <p style={{ marginTop: 8, opacity: 0.9 }}>
@@ -333,8 +332,11 @@ export default function HomePage() {
   const [firstNameField, setFirstNameField] = useState("");
   const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
-  const [location, setLocation] = useState("");
-  const [contactPref, setContactPref] = useState("researchers_and_members");
+  const [city, setCity] = useState("");           // was "location", label now City
+  const [stateCode, setStateCode] = useState(""); // new US state dropdown
+  const [country, setCountry] = useState("");     // new country field
+  const [role, setRole] = useState("patient");    // "patient" | "doctor" | "researcher" | "other"
+  const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "all"
   const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
@@ -393,7 +395,7 @@ export default function HomePage() {
     const m = user?.user_metadata?.first_name?.trim();
     if (m) return m;
     const email = user?.email || "";
-    const local = email.split("@")[0] || "";
+    aconst local = email.split("@")[0] || "";
     const piece = (local.split(/[._-]/)[0] || local).trim();
     return piece ? piece[0].toUpperCase() + piece.slice(1) : "";
   }, [user]);
@@ -409,6 +411,13 @@ export default function HomePage() {
   }, [user?.id]);
 
   // ---------- Profile: load ----------
+  function mapContactWhoFromLegacy(pref) {
+    if (pref === "researchers_only") return "researchers";
+    if (pref === "members_only") return "members";
+    if (pref === "researchers_and_members") return "all";
+    return "all";
+  }
+
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -422,12 +431,8 @@ export default function HomePage() {
       if (canceled) return;
 
       if (error && error.code === "PGRST116") {
-        if (nonEmpty(user?.user_metadata?.first_name)) {
-          setFirstNameField(user.user_metadata.first_name);
-        }
-        if (nonEmpty(user?.user_metadata?.last_name)) {
-          setLastNameField(user.user_metadata.last_name);
-        }
+        if (nonEmpty(user?.user_metadata?.first_name)) setFirstNameField(user.user_metadata.first_name);
+        if (nonEmpty(user?.user_metadata?.last_name)) setLastNameField(user.user_metadata.last_name);
         setProfileStatus("");
         return;
       }
@@ -447,18 +452,24 @@ export default function HomePage() {
       const ageSrc = d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
       setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
 
-      setLocation(d.uploader_location ?? d.location ?? "");
+      // City / State / Country
+      setCity(d.uploader_location ?? d.location ?? "");
+      setStateCode(d.uploader_state ?? d.state ?? "");
+      setCountry(d.uploader_country ?? d.country ?? "");
 
-      if (typeof d.contact_preference === "string") {
-        const v = d.contact_preference;
-        if (v === "researchers_and_members" || v === "researchers_only" || v === "members_only") {
-          setContactPref(v);
-        }
+      // Role
+      const roleSrc = d.uploader_role ?? d.role ?? "";
+      setRole(nonEmpty(roleSrc) ? roleSrc : "patient");
+
+      // Contact who (prefer new fields if present)
+      const whoSrc = d.uploader_contact_who ?? d.contact_who ?? "";
+      if (nonEmpty(whoSrc) && ["members", "doctors", "researchers", "all"].includes(whoSrc)) {
+        setContactWho(whoSrc);
       } else {
-        const opt = d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
-        if (opt === false) setContactPref("members_only");
-        if (opt === true) setContactPref("researchers_and_members");
+        const legacy = d.contact_preference ?? "";
+        setContactWho(mapContactWhoFromLegacy(legacy));
       }
+
       setProfileStatus("");
     })();
     return () => { canceled = true; };
@@ -621,45 +632,20 @@ export default function HomePage() {
     }
   }
 
-  // Card helpers
-  function cardColorBadge(row) {
-    if (row.category === "Blebs (clear to brown)" && row.bleb_color)
-      return <Badge>Color: {row.bleb_color}</Badge>;
-    return null;
-  }
+  // State list (US + DC)
+  const US_STATES = [
+    "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME",
+    "MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI",
+    "SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"
+  ];
 
-  async function handleCopy(e, url, id) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedMap((m) => ({ ...m, [id]: true }));
-      setTimeout(() => {
-        setCopiedMap((m) => {
-          const n = { ...m };
-          delete n[id];
-          return n;
-        });
-      }, 1000);
-    } catch {
-      alert("Copy failed.");
-    }
-  }
-
-  function handleOpen(e, url) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      window.open(url, "_blank", "noopener");
-    } catch {}
-  }
-
-  async function handleSignOut() {
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      router.push("/");
-    }
+  // Map contactWho -> legacy contact_preference string for backward compatibility
+  function legacyPrefFromWho(who) {
+    if (who === "researchers") return "researchers_only";
+    if (who === "members") return "members_only";
+    if (who === "all") return "researchers_and_members";
+    // "doctors" has no legacy equivalent; keep something safe and also write contact_who
+    return "members_only";
   }
 
   // ---------- Logged-out renders Landing ----------
@@ -739,7 +725,7 @@ export default function HomePage() {
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }}>
           <button
-            onClick={handleSignOut}
+            onClick={() => { supabase.auth.signOut().finally(() => router.push("/")); }}
             aria-label="Sign out"
             style={{
               padding: "8px 12px",
@@ -760,7 +746,7 @@ export default function HomePage() {
       {/* Light divider separating actions from profile */}
       <div aria-hidden="true" style={{ borderTop: "1px solid #e5e7eb", margin: "4px 0 12px" }} />
 
-      {/* Profile form (reordered fields; initials auto; age narrow) */}
+      {/* Profile form */}
       <div style={{ maxWidth: 760, margin: "0 auto" }}>
         <form
           onSubmit={async (e) => {
@@ -769,10 +755,10 @@ export default function HomePage() {
             setProfileStatus("Saving...");
 
             try {
-              await supabase
-                .from("user_profile")
-                .upsert({ user_id: user.id }, { onConflict: "user_id" });
+              // Ensure row exists
+              await supabase.from("user_profile").upsert({ user_id: user.id }, { onConflict: "user_id" });
 
+              // Update auth metadata for names
               const metaPayload = {
                 first_name: nonEmpty(firstNameField) ? firstNameField : null,
                 last_name: nonEmpty(lastNameField) ? lastNameField : null,
@@ -780,14 +766,13 @@ export default function HomePage() {
               const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
               if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
 
-              const ageVal =
-                age === "" || age === null || typeof age === "undefined"
-                  ? null
-                  : Number(age);
+              const ageVal = age === "" || age === null || typeof age === "undefined" ? null : Number(age);
 
-              const researchersAllowed =
-                contactPref === "researchers_and_members" ||
-                contactPref === "researchers_only";
+              // Researchers allowed for legacy boolean
+              const researchersAllowed = contactWho === "researchers" || contactWho === "all";
+
+              // Legacy contact_preference (for back-compat)
+              const legacyPref = legacyPrefFromWho(contactWho);
 
               const updates = [
                 ["uploader_initials", initials || null],
@@ -796,22 +781,35 @@ export default function HomePage() {
                 ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
                 ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
                 ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
+
                 ["uploader_age", ageVal],
                 ["age", ageVal],
-                ["uploader_location", location || null],
-                ["location", location || null],
-                ["contact_preference", contactPref],
+
+                ["uploader_location", city || null],
+                ["location", city || null],
+
+                ["uploader_state", stateCode || null],
+                ["state", stateCode || null],
+
+                ["uploader_country", nonEmpty(country) ? country : null],
+                ["country", nonEmpty(country) ? country : null],
+
+                ["uploader_role", role || null],
+                ["role", role || null],
+
+                ["uploader_contact_who", contactWho],
+                ["contact_who", contactWho],
+
+                // Back-compat fields
+                ["contact_preference", legacyPref],
                 ["uploader_contact_opt_in", researchersAllowed],
                 ["contact_opt_in", researchersAllowed],
               ];
 
               for (const [col, val] of updates) {
-                const { error } = await supabase
-                  .from("user_profile")
-                  .update({ [col]: val })
-                  .eq("user_id", user.id);
+                const { error } = await supabase.from("user_profile").update({ [col]: val }).eq("user_id", user.id);
                 if (error) {
-                  const raw = error.message || ""
+                  const raw = error.message || "";
                   const msg = raw.toLowerCase();
                   const ignorable =
                     msg.includes("does not exist") ||
@@ -823,10 +821,14 @@ export default function HomePage() {
                 }
               }
 
+              // Cascade some fields to image_metadata for search/discovery safety
               await updateImageMetadataForUserProfile(user.id, {
                 uploader_initials: initials || null,
                 uploader_age: ageVal,
-                uploader_location: location || null,
+                uploader_location: city || null,
+                uploader_state: stateCode || null,
+                uploader_country: nonEmpty(country) ? country : null,
+                uploader_role: role || null,
                 uploader_contact_opt_in: researchersAllowed,
               });
 
@@ -893,7 +895,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Initials (auto-populated from first + last; still editable if needed) */}
+          {/* Initials (auto) */}
           <div>
             <label htmlFor="initials" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
               Initials
@@ -901,20 +903,14 @@ export default function HomePage() {
             <input
               id="initials"
               value={initials}
-              onChange={(e) => {
-                initialsTouchedRef.current = true;
-                setInitials(e.target.value);
-              }}
-              onFocus={(e) => {
-                initialsTouchedRef.current = true;
-                onFocusRing(e);
-              }}
+              onChange={(e) => { initialsTouchedRef.current = true; setInitials(e.target.value); }}
+              onFocus={(e) => { initialsTouchedRef.current = true; onFocusRing(e); }}
               onBlur={onBlurRing}
               style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
             />
           </div>
 
-          {/* Age (narrow like initials) */}
+          {/* Age (narrow) */}
           <div>
             <label htmlFor="age" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
               Age
@@ -930,64 +926,111 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Location */}
+          {/* City */}
           <div>
-            <label htmlFor="location" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Location
+            <label htmlFor="city" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Location (City)
             </label>
             <input
-              id="location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              id="city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
               onFocus={onFocusRing}
               onBlur={onBlurRing}
               style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
             />
           </div>
 
-          {/* Contact opt-in (3 options) */}
+          {/* State (dropdown) */}
+          <div>
+            <label htmlFor="state" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              State
+            </label>
+            <select
+              id="state"
+              value={stateCode}
+              onChange={(e) => setStateCode(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: 120, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            >
+              <option value="">Select</option>
+              {US_STATES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Country */}
+          <div>
+            <label htmlFor="country" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
+              Country
+            </label>
+            <input
+              id="country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              onFocus={onFocusRing}
+              onBlur={onBlurRing}
+              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            />
+          </div>
+
+          {/* Role: I am a ... */}
           <fieldset
-            aria-label="Contact opt-in"
-            style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: 12 }}
+            aria-label="I am a"
+            style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1", background: "#f8fafc" }}
           >
-            <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 600, color: "#334155" }}>Contact opt in</legend>
-            <div style={{ display: "grid", gap: 8 }}>
-              <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="radio"
-                  name="contact_preference"
-                  value="researchers_and_members"
-                  checked={contactPref === "researchers_and_members"}
-                  onChange={(e) => setContactPref(e.target.value)}
-                  onFocus={onFocusRing}
-                  onBlur={onBlurRing}
-                />
-                <span>Researchers & members</span>
-              </label>
-              <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="radio"
-                  name="contact_preference"
-                  value="researchers_only"
-                  checked={contactPref === "researchers_only"}
-                  onChange={(e) => setContactPref(e.target.value)}
-                  onFocus={onFocusRing}
-                  onBlur={onBlurRing}
-                />
-                <span>Researchers only</span>
-              </label>
-              <label style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                <input
-                  type="radio"
-                  name="contact_preference"
-                  value="members_only"
-                  checked={contactPref === "members_only"}
-                  onChange={(e) => setContactPref(e.target.value)}
-                  onFocus={onFocusRing}
-                  onBlur={onBlurRing}
-                />
-                <span>Members only</span>
-              </label>
+            <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>I am a…</legend>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+              {[
+                { val: "patient", label: "Patient" },
+                { val: "doctor", label: "Doctor" },
+                { val: "researcher", label: "Researcher" },
+                { val: "other", label: "Other" },
+              ].map((opt) => (
+                <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="role"
+                    value={opt.val}
+                    checked={role === opt.val}
+                    onChange={(e) => setRole(e.target.value)}
+                    onFocus={onFocusRing}
+                    onBlur={onBlurRing}
+                  />
+                  <span>{opt.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Who can contact me */}
+          <fieldset
+            aria-label="Who can contact me"
+            style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1" }}
+          >
+            <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>Who can contact me</legend>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+              {[
+                { val: "members", label: "Other members" },
+                { val: "doctors", label: "Doctors" },
+                { val: "researchers", label: "Researchers" },
+                { val: "all", label: "All" },
+              ].map((opt) => (
+                <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
+                  <input
+                    type="radio"
+                    name="contact_who"
+                    value={opt.val}
+                    checked={contactWho === opt.val}
+                    onChange={(e) => setContactWho(e.target.value)}
+                    onFocus={onFocusRing}
+                    onBlur={onBlurRing}
+                  />
+                  <span>{opt.label}</span>
+                </label>
+              ))}
             </div>
           </fieldset>
 
