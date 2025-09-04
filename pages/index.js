@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.163";
+const INDEX_BUILD = "idx-36.165";
 
 function prettyDate(s) {
   try {
@@ -223,6 +223,7 @@ async function updateImageMetadataForUserProfile(userId, fields) {
 // ---------------- Landing (public, anonymized) ----------------
 function Landing() {
   const router = useRouter();
+  // Placeholder “categories” and a simple highlight rotation (anonymized, no user images).
   const categories = [
     { key: "blebs", label: "Blebs (clear to brown)" },
     { key: "fibers", label: "Fibers" },
@@ -269,7 +270,7 @@ function Landing() {
         </p>
       </header>
 
-      {/* Anonymized category tiles */}
+      {/* Anonymized category tiles (no photos; soft gradients) */}
       <section aria-label="Categories" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
         {categories.map((c, i) => {
           const active = i === idx;
@@ -298,7 +299,7 @@ function Landing() {
         })}
       </section>
 
-      {/* Placeholder sections */}
+      {/* Placeholder sections (anchors only) */}
       <section id="about" style={{ marginTop: 20, borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
         <h2 style={{ fontSize: 18, margin: 0 }}>About</h2>
         <p style={{ marginTop: 8, opacity: 0.9 }}>
@@ -332,10 +333,10 @@ export default function HomePage() {
   const [firstNameField, setFirstNameField] = useState("");
   const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
-  const [city, setCity] = useState("");           // was "location", label now City
-  const [stateCode, setStateCode] = useState(""); // new US state dropdown
-  const [country, setCountry] = useState("");     // new country field
-  const [role, setRole] = useState("patient");    // "patient" | "doctor" | "researcher" | "other"
+  const [city, setCity] = useState("");
+  const [stateCode, setStateCode] = useState("");
+  const [country, setCountry] = useState("");
+  const [role, setRole] = useState("patient"); // "patient" | "doctor" | "researcher" | "other"
   const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "all"
   const [profileStatus, setProfileStatus] = useState("");
 
@@ -395,7 +396,7 @@ export default function HomePage() {
     const m = user?.user_metadata?.first_name?.trim();
     if (m) return m;
     const email = user?.email || "";
-    aconst local = email.split("@")[0] || "";
+    const local = email.split("@")[0] || "";
     const piece = (local.split(/[._-]/)[0] || local).trim();
     return piece ? piece[0].toUpperCase() + piece.slice(1) : "";
   }, [user]);
@@ -475,7 +476,7 @@ export default function HomePage() {
     return () => { canceled = true; };
   }, [user?.id]);
 
-  // --- Focus ring helpers for inputs (inline, no CSS files) ---
+  // --- Focus ring helpers for inputs (inline) ---
   function onFocusRing(e) {
     try {
       e.target.style.outline = "2px solid #0ea5e9";
@@ -632,6 +633,66 @@ export default function HomePage() {
     }
   }
 
+  // Card helpers and actions
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => {
+        setCopiedMap((m) => {
+          const n = { ...m };
+          delete n[id];
+          return n;
+        });
+      }, 1000);
+    } catch {
+      alert("Copy failed.");
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
+  async function handleSignOut() {
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      router.push("/");
+    }
+  }
+
+  // One-shot image error handler
+  async function handleImgError(rowId, absIndex, storagePath, filename, rowUserId) {
+    try {
+      if (!rowId && rowId !== 0) return;
+      const tried = retrySetRef.current;
+      if (tried.has(rowId)) return;
+      tried.add(rowId);
+
+      const bucket = "images";
+      const primary = normalizePath(storagePath || "");
+      const alt = filename ? normalizePath(`${rowUserId || user?.id || ""}/${filename}`) : "";
+
+      let newUrl = "";
+
+      if (!newUrl && primary) newUrl = await singleSignedUrl(bucket, primary);
+      if (!newUrl && alt)     newUrl = await singleSignedUrl(bucket, alt);
+      if (!newUrl && alt)     newUrl = publicUrl(bucket, alt);
+      if (!newUrl && primary) newUrl = publicUrl(bucket, primary);
+      if (!newUrl && primary) newUrl = await downloadToBlobUrl(bucket, primary);
+      if (!newUrl && alt)     newUrl = await downloadToBlobUrl(bucket, alt);
+
+      if (newUrl) setItemUrl(setItems, absIndex, newUrl);
+    } catch {}
+  }
+
   // State list (US + DC)
   const US_STATES = [
     "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME",
@@ -725,7 +786,7 @@ export default function HomePage() {
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }}>
           <button
-            onClick={() => { supabase.auth.signOut().finally(() => router.push("/")); }}
+            onClick={handleSignOut}
             aria-label="Sign out"
             style={{
               padding: "8px 12px",
@@ -743,322 +804,319 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Light divider separating actions from profile */}
-      <div aria-hidden="true" style={{ borderTop: "1px solid #e5e7eb", margin: "4px 0 12px" }} />
-
       {/* Profile form */}
-      <div style={{ maxWidth: 760, margin: "0 auto" }}>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!user?.id) return;
-            setProfileStatus("Saving...");
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!user?.id) return;
+          setProfileStatus("Saving...");
 
-            try {
-              // Ensure row exists
-              await supabase.from("user_profile").upsert({ user_id: user.id }, { onConflict: "user_id" });
+          try {
+            await supabase.from("user_profile").upsert({ user_id: user.id }, { onConflict: "user_id" });
 
-              // Update auth metadata for names
-              const metaPayload = {
-                first_name: nonEmpty(firstNameField) ? firstNameField : null,
-                last_name: nonEmpty(lastNameField) ? lastNameField : null,
-              };
-              const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
-              if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
+            const metaPayload = {
+              first_name: nonEmpty(firstNameField) ? firstNameField : null,
+              last_name: nonEmpty(lastNameField) ? lastNameField : null,
+            };
+            const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
+            if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
 
-              const ageVal = age === "" || age === null || typeof age === "undefined" ? null : Number(age);
+            const ageVal =
+              age === "" || age === null || typeof age === "undefined"
+                ? null
+                : Number(age);
 
-              // Researchers allowed for legacy boolean
-              const researchersAllowed = contactWho === "researchers" || contactWho === "all";
+            const researchersAllowed =
+              contactWho === "researchers" || contactWho === "all";
 
-              // Legacy contact_preference (for back-compat)
-              const legacyPref = legacyPrefFromWho(contactWho);
+            const legacyPref = legacyPrefFromWho(contactWho);
 
-              const updates = [
-                ["uploader_initials", initials || null],
-                ["initials", initials || null],
-                ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
-                ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
-                ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
-                ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
+            const updates = [
+              ["uploader_initials", initials || null],
+              ["initials", initials || null],
+              ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
+              ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
+              ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
+              ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
 
-                ["uploader_age", ageVal],
-                ["age", ageVal],
+              ["uploader_age", ageVal],
+              ["age", ageVal],
 
-                ["uploader_location", city || null],
-                ["location", city || null],
+              ["uploader_location", city || null],
+              ["location", city || null],
 
-                ["uploader_state", stateCode || null],
-                ["state", stateCode || null],
+              ["uploader_state", stateCode || null],
+              ["state", stateCode || null],
 
-                ["uploader_country", nonEmpty(country) ? country : null],
-                ["country", nonEmpty(country) ? country : null],
+              ["uploader_country", nonEmpty(country) ? country : null],
+              ["country", nonEmpty(country) ? country : null],
 
-                ["uploader_role", role || null],
-                ["role", role || null],
+              ["uploader_role", role || null],
+              ["role", role || null],
 
-                ["uploader_contact_who", contactWho],
-                ["contact_who", contactWho],
+              ["uploader_contact_who", contactWho],
+              ["contact_who", contactWho],
 
-                // Back-compat fields
-                ["contact_preference", legacyPref],
-                ["uploader_contact_opt_in", researchersAllowed],
-                ["contact_opt_in", researchersAllowed],
-              ];
+              // Back-compat fields
+              ["contact_preference", legacyPref],
+              ["uploader_contact_opt_in", researchersAllowed],
+              ["contact_opt_in", researchersAllowed],
+            ];
 
-              for (const [col, val] of updates) {
-                const { error } = await supabase.from("user_profile").update({ [col]: val }).eq("user_id", user.id);
-                if (error) {
-                  const raw = error.message || "";
-                  const msg = raw.toLowerCase();
-                  const ignorable =
-                    msg.includes("does not exist") ||
-                    msg.includes("could not find") ||
-                    msg.includes("schema cache") ||
-                    (msg.includes("unknown") && msg.includes("column")) ||
-                    (msg.includes("column") && msg.includes("not found"));
-                  if (!ignorable) throw error;
-                }
+            for (const [col, val] of updates) {
+              const { error } = await supabase
+                .from("user_profile")
+                .update({ [col]: val })
+                .eq("user_id", user.id);
+              if (error) {
+                const raw = error.message || "";
+                const msg = raw.toLowerCase();
+                const ignorable =
+                  msg.includes("does not exist") ||
+                  msg.includes("could not find") ||
+                  msg.includes("schema cache") ||
+                  (msg.includes("unknown") && msg.includes("column")) ||
+                  (msg.includes("column") && msg.includes("not found"));
+                if (!ignorable) throw error;
               }
-
-              // Cascade some fields to image_metadata for search/discovery safety
-              await updateImageMetadataForUserProfile(user.id, {
-                uploader_initials: initials || null,
-                uploader_age: ageVal,
-                uploader_location: city || null,
-                uploader_state: stateCode || null,
-                uploader_country: nonEmpty(country) ? country : null,
-                uploader_role: role || null,
-                uploader_contact_opt_in: researchersAllowed,
-              });
-
-              setProfileStatus("Profile saved.");
-              showToast("Saved");
-              setTimeout(() => setProfileStatus(""), 1500);
-            } catch (err) {
-              setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
             }
-          }}
-          aria-labelledby="profile-form-heading"
+
+            await updateImageMetadataForUserProfile(user.id, {
+              uploader_initials: initials || null,
+              uploader_age: ageVal,
+              uploader_location: city || null,
+              uploader_state: stateCode || null,
+              uploader_country: nonEmpty(country) ? country : null,
+              uploader_role: role || null,
+              uploader_contact_opt_in: researchersAllowed,
+            });
+
+            setProfileStatus("Profile saved.");
+            showToast("Saved");
+            setTimeout(() => setProfileStatus(""), 1500);
+          } catch (err) {
+            setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
+          }
+        }}
+        aria-labelledby="profile-form-heading"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 14,
+          padding: 14,
+          border: "1px solid #e5e5e5",
+          borderRadius: 10,
+          background: "#fff",
+          marginBottom: 16,
+        }}
+      >
+        <h2
+          id="profile-form-heading"
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 14,
-            padding: 14,
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            background: "#fff",
-            marginBottom: 16,
+            position: "absolute",
+            left: -9999,
+            top: "auto",
+            width: 1,
+            height: 1,
+            overflow: "hidden",
           }}
         >
-          <h2
-            id="profile-form-heading"
+          Profile
+        </h2>
+
+        {/* First name */}
+        <div>
+          <label htmlFor="first_name" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            First name
+          </label>
+          <input
+            id="first_name"
+            value={firstNameField}
+            onChange={(e) => setFirstNameField(e.target.value)}
+            onFocus={onFocusRing}
+            onBlur={onBlurRing}
+            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          />
+        </div>
+
+        {/* Last name */}
+        <div>
+          <label htmlFor="last_name" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            Last name
+          </label>
+          <input
+            id="last_name"
+            value={lastNameField}
+            onChange={(e) => setLastNameField(e.target.value)}
+            onFocus={onFocusRing}
+            onBlur={onBlurRing}
+            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          />
+        </div>
+
+        {/* Initials (auto) */}
+        <div>
+          <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            Initials
+          </label>
+          <input
+            id="initials"
+            value={initials}
+            onChange={(e) => { initialsTouchedRef.current = true; setInitials(e.target.value); }}
+            onFocus={(e) => { initialsTouchedRef.current = true; onFocusRing(e); }}
+            onBlur={onBlurRing}
+            style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          />
+        </div>
+
+        {/* Age (narrow) */}
+        <div>
+          <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            Age
+          </label>
+          <input
+            id="age"
+            type="number"
+            value={age}
+            onChange={(e) => setAge(e.target.value)}
+            onFocus={onFocusRing}
+            onBlur={onBlurRing}
+            style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          />
+        </div>
+
+        {/* City */}
+        <div>
+          <label htmlFor="city" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            Location (City)
+          </label>
+          <input
+            id="city"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            onFocus={onFocusRing}
+            onBlur={onBlurRing}
+            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          />
+        </div>
+
+        {/* State (dropdown) */}
+        <div>
+          <label htmlFor="state" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            State
+          </label>
+          <select
+            id="state"
+            value={stateCode}
+            onChange={(e) => setStateCode(e.target.value)}
+            onFocus={onFocusRing}
+            onBlur={onBlurRing}
+            style={{ width: 120, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          >
+            <option value="">Select</option>
+            {US_STATES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Country */}
+        <div>
+          <label htmlFor="country" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+            Country
+          </label>
+          <input
+            id="country"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            onFocus={onFocusRing}
+            onBlur={onBlurRing}
+            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+          />
+        </div>
+
+        {/* Role: I am a ... */}
+        <fieldset
+          aria-label="I am a"
+          style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1", background: "#f8fafc" }}
+        >
+          <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>I am a…</legend>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+            {[
+              { val: "patient", label: "Patient" },
+              { val: "doctor", label: "Doctor" },
+              { val: "researcher", label: "Researcher" },
+              { val: "other", label: "Other" },
+            ].map((opt) => (
+              <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
+                <input
+                  type="radio"
+                  name="role"
+                  value={opt.val}
+                  checked={role === opt.val}
+                  onChange={(e) => setRole(e.target.value)}
+                  onFocus={onFocusRing}
+                  onBlur={onBlurRing}
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* Who can contact me */}
+        <fieldset
+          aria-label="Who can contact me"
+          style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1" }}
+        >
+          <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>Who can contact me</legend>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+            {[
+              { val: "members", label: "Other members" },
+              { val: "doctors", label: "Doctors" },
+              { val: "researchers", label: "Researchers" },
+              { val: "all", label: "All" },
+            ].map((opt) => (
+              <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
+                <input
+                  type="radio"
+                  name="contact_who"
+                  value={opt.val}
+                  checked={contactWho === opt.val}
+                  onChange={(e) => setContactWho(e.target.value)}
+                  onFocus={onFocusRing}
+                  onBlur={onBlurRing}
+                />
+                <span>{opt.label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* Save */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button
+            type="submit"
+            aria-label="Save profile"
             style={{
-              position: "absolute",
-              left: -9999,
-              top: "auto",
-              width: 1,
-              height: 1,
-              overflow: "hidden",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #0f766e",
+              background: "#14b8a6",
+              color: "white",
+              fontWeight: 600,
+              cursor: "pointer",
+              fontSize: 12,
+              whiteSpace: "nowrap",
             }}
           >
-            Profile
-          </h2>
-
-          {/* First name */}
-          <div>
-            <label htmlFor="first_name" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              First name
-            </label>
-            <input
-              id="first_name"
-              value={firstNameField}
-              onChange={(e) => setFirstNameField(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
-          {/* Last name */}
-          <div>
-            <label htmlFor="last_name" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Last name
-            </label>
-            <input
-              id="last_name"
-              value={lastNameField}
-              onChange={(e) => setLastNameField(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
-          {/* Initials (auto) */}
-          <div>
-            <label htmlFor="initials" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Initials
-            </label>
-            <input
-              id="initials"
-              value={initials}
-              onChange={(e) => { initialsTouchedRef.current = true; setInitials(e.target.value); }}
-              onFocus={(e) => { initialsTouchedRef.current = true; onFocusRing(e); }}
-              onBlur={onBlurRing}
-              style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
-          {/* Age (narrow) */}
-          <div>
-            <label htmlFor="age" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Age
-            </label>
-            <input
-              id="age"
-              type="number"
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
-          {/* City */}
-          <div>
-            <label htmlFor="city" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Location (City)
-            </label>
-            <input
-              id="city"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
-          {/* State (dropdown) */}
-          <div>
-            <label htmlFor="state" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              State
-            </label>
-            <select
-              id="state"
-              value={stateCode}
-              onChange={(e) => setStateCode(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: 120, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            >
-              <option value="">Select</option>
-              {US_STATES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Country */}
-          <div>
-            <label htmlFor="country" style={{ fontSize: 12, fontWeight: 600, color: "#334155", display: "block", marginBottom: 6 }}>
-              Country
-            </label>
-            <input
-              id="country"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              onFocus={onFocusRing}
-              onBlur={onBlurRing}
-              style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-            />
-          </div>
-
-          {/* Role: I am a ... */}
-          <fieldset
-            aria-label="I am a"
-            style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1", background: "#f8fafc" }}
-          >
-            <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>I am a…</legend>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
-              {[
-                { val: "patient", label: "Patient" },
-                { val: "doctor", label: "Doctor" },
-                { val: "researcher", label: "Researcher" },
-                { val: "other", label: "Other" },
-              ].map((opt) => (
-                <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
-                  <input
-                    type="radio"
-                    name="role"
-                    value={opt.val}
-                    checked={role === opt.val}
-                    onChange={(e) => setRole(e.target.value)}
-                    onFocus={onFocusRing}
-                    onBlur={onBlurRing}
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* Who can contact me */}
-          <fieldset
-            aria-label="Who can contact me"
-            style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1" }}
-          >
-            <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>Who can contact me</legend>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
-              {[
-                { val: "members", label: "Other members" },
-                { val: "doctors", label: "Doctors" },
-                { val: "researchers", label: "Researchers" },
-                { val: "all", label: "All" },
-              ].map((opt) => (
-                <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
-                  <input
-                    type="radio"
-                    name="contact_who"
-                    value={opt.val}
-                    checked={contactWho === opt.val}
-                    onChange={(e) => setContactWho(e.target.value)}
-                    onFocus={onFocusRing}
-                    onBlur={onBlurRing}
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* Save */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <button
-              type="submit"
-              aria-label="Save profile"
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #0f766e",
-                background: "#14b8a6",
-                color: "white",
-                fontWeight: 600,
-                cursor: "pointer",
-                fontSize: 12,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Save Profile
-            </button>
-            <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-              {profileStatus}
-            </span>
-          </div>
-        </form>
-      </div>
+            Save Profile
+          </button>
+          <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+            {profileStatus}
+          </span>
+        </div>
+      </form>
 
       {/* Small CSV button */}
       <div style={{ margin: "4px 0 10px" }}>
