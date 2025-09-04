@@ -2,6 +2,7 @@
 // Rename category label to 'Blebs (clear to brown)'; colors/notes behavior unchanged
 // Writes to image_metadata.path and saves optional notes/colors
 // Small additions: overall upload status, “saving” step, 12s “Still waiting…” hint
+// NEW: Tiny "Send feedback" mailto link in header (top-right)
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -9,6 +10,15 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Feedback email (change if you prefer a different address)
+const FEEDBACK_TO = "girlsaidwhat@gmail.com";
+function feedbackHref(contextLabel = "Upload") {
+  const subject = `${contextLabel} – Scope feedback`;
+  const page = typeof window !== "undefined" ? window.location.href : "/upload";
+  const body = `Page: ${page}\n\nWhat happened:\n`;
+  return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 // Categories
 const CATEGORIES = [
@@ -360,7 +370,16 @@ export default function UploadPage() {
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
         <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7g_2025-08-19</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <a
+            href={feedbackHref("Upload")}
+            aria-label="Send feedback about the Upload page"
+            style={{ fontSize: 12, textDecoration: "underline" }}
+          >
+            Send feedback
+          </a>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7g_2025-08-19</div>
+        </div>
       </header>
 
       {!user ? (

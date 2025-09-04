@@ -1,6 +1,7 @@
 ﻿// pages/index.js
 // Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
 // Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
+// NEW: Tiny "Send feedback" mailto link in Home top-right controls.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -15,6 +16,15 @@ const supabase = createClient(
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
 const INDEX_BUILD = "idx-36.160";
+
+// Feedback email (change if you prefer a different address)
+const FEEDBACK_TO = "girlsaidwhat@gmail.com";
+function feedbackHref(contextLabel, pathHint = "/") {
+  const subject = `${contextLabel} – Scope feedback`;
+  const page = typeof window !== "undefined" ? window.location.href : pathHint;
+  const body = `Page: ${page}\n\nWhat happened:\n`;
+  return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
 
 function prettyDate(s) {
   try {
@@ -727,6 +737,13 @@ export default function HomePage() {
         </Link>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }}>
+          <a
+            href={feedbackHref("Home", "/")}
+            aria-label="Send feedback about Home"
+            style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc", fontSize: 12, fontWeight: 600, textDecoration: "none" }}
+          >
+            Send feedback
+          </a>
           <button
             onClick={handleSignOut}
             aria-label="Sign out"
