@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.160";
+const INDEX_BUILD = "idx-36.177";
 
 function prettyDate(s) {
   try {
@@ -327,6 +327,7 @@ export default function HomePage() {
 
   // Auth/user
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false); // prevent Landing flash for signed-in users
 
   // Profile form (schema-tolerant)
   const [initials, setInitials] = useState("");
@@ -374,16 +375,18 @@ export default function HomePage() {
     router.replace({ pathname: router.pathname, query: newQuery }, undefined, { shallow: true });
   }, [router.isReady, router.query?.deleted, router.pathname]);
 
-  // Load user (session)
+  // Load user (session) — gate rendering until checked
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
       setUser(data?.session?.user ?? null);
+      setAuthReady(true);
     })();
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
       setUser(sess?.user ?? null);
+      setAuthReady(true);
     });
     return () => sub.subscription?.unsubscribe?.();
   }, []);
@@ -590,13 +593,6 @@ export default function HomePage() {
     }
   }
 
-  // Card helpers
-  function cardColorBadge(row) {
-    if (row.category === "Blebs (clear to brown)" && row.bleb_color)
-      return <Badge>Color: {row.bleb_color}</Badge>;
-    return null;
-  }
-
   async function handleCopy(e, url, id) {
     e.preventDefault();
     e.stopPropagation();
@@ -656,7 +652,12 @@ export default function HomePage() {
     } catch {}
   }
 
-  // ---------- Logged-out renders Landing ----------
+  // ----- Render gating to avoid Landing flash for signed-in users -----
+  if (!authReady) {
+    return (
+      <main id="main" tabIndex={-1} aria-busy="true" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }} />
+    );
+  }
   if (!user) {
     return <Landing />;
   }
