@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.191";
+const INDEX_BUILD = "idx-36.193";
 
 function prettyDate(s) {
   try {
@@ -353,10 +353,9 @@ export default function HomePage() {
   const [country, setCountry] = useState("");
 
   // Role + Who-can-contact
-  const [role, setRole] = useState(""); // "patient" | "doctor" | "researcher" | "journalist" | "other"
-  const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "journalists" | "all"
-  // Legacy back-compat (kept internal; not shown)
-  const [contactPref, setContactPref] = useState("researchers_and_members");
+  const [role, setRole] = useState("");
+  const [contactWho, setContactWho] = useState("all");
+  const [contactPref, setContactPref] = useState("researchers_and_members"); // legacy back-compat
 
   const [profileStatus, setProfileStatus] = useState("");
 
@@ -368,7 +367,7 @@ export default function HomePage() {
   const [galleryStatus, setGalleryStatus] = useState("");
 
   // Per-card "copied!" feedback
-  const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
+  const [copiedMap, setCopiedMap] = useState({});
 
   const retrySetRef = useRef(new Set());
 
@@ -457,7 +456,7 @@ export default function HomePage() {
         setProfileStatus(`Profile load error: ${error.message}`);
         return;
       }
-      const d = data || {};
+      const d = (data || {});
 
       setInitials(d.uploader_initials ?? d.initials ?? "");
 
@@ -737,6 +736,7 @@ export default function HomePage() {
           cursor: "pointer",
           userSelect: "none",
           whiteSpace: "nowrap",
+          transition: "transform 120ms ease",
         }}
       >
         {children}
@@ -765,7 +765,7 @@ export default function HomePage() {
   function legacyPrefFromWho(who) {
     if (who === "members") return "members_only";
     if (who === "researchers") return "researchers_only";
-    return "researchers_and_members"; // "doctors", "journalists", and "all" map to widest legacy set
+    return "researchers_and_members"; // widest legacy set
   }
 
   return (
@@ -809,12 +809,9 @@ export default function HomePage() {
           marginBottom: 16,
         }}
       >
-        <h1 style={{ fontSize: 24, margin: 0 }}>
+        <h1 style={{ fontSize: 26, margin: 0 }}>
           {firstName ? `Welcome, ${firstName}` : "Welcome"}
         </h1>
-        <div style={{ fontSize: 14, opacity: 0.8 }}>
-          Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
-        </div>
       </header>
 
       {/* Actions row */}
@@ -962,11 +959,12 @@ export default function HomePage() {
         }}
         aria-labelledby="profile-form-heading"
         style={{
-          padding: 12,
-          border: "1px solid #e5e5e5",
+          padding: 14,
+          border: "1px solid #e2e8f0",
           borderRadius: 10,
           background: "#fff",
-          marginBottom: 16,
+          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+          margin: "24px 0",
         }}
       >
         <h2
@@ -1019,7 +1017,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Initials (8ch) */}
+          {/* Initials */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="initials" style={srOnly}>Initials</label>
             <input
@@ -1044,7 +1042,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Age (8ch) */}
+          {/* Age */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="age" style={srOnly}>Age</label>
             <input
@@ -1168,8 +1166,8 @@ export default function HomePage() {
         </div>
       </form>
 
-      {/* Small CSV button */}
-      <div style={{ margin: "4px 0 10px" }}>
+      {/* CSV + total items (relocated just above gallery) */}
+      <div style={{ margin: "4px 0 6px" }}>
         <button
           onClick={exportCSV}
           aria-label="Export all image metadata to CSV"
@@ -1193,6 +1191,15 @@ export default function HomePage() {
         >
           {csvBusy ? "Preparing…" : "Export CSV"}
         </button>
+      </div>
+
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ fontSize: 12, opacity: 0.8, margin: "2px 0 10px" }}
+      >
+        Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
       </div>
 
       {/* Gallery status (initial) */}
@@ -1234,6 +1241,7 @@ export default function HomePage() {
                   borderRadius: 8,
                   overflow: "hidden",
                   background: "#fff",
+                  transition: "transform 120ms ease",
                 }}
                 aria-label={`Open details for ${row.filename || row.id}`}
               >
@@ -1250,7 +1258,7 @@ export default function HomePage() {
                     style={{
                       width: "100%",
                       height: 160,
-                      background: "#f1f5f9",
+                      background: "#f8fafc",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1261,7 +1269,7 @@ export default function HomePage() {
                     Preview loading…
                   </div>
                 )}
-                <div style={{ padding: 10 }}>
+                <div style={{ padding: 10, borderTop: "1px solid #f1f5f9" }}>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                     {row.category ? <Badge>{row.category}</Badge> : null}
                     {row.category === "Blebs (clear to brown)" && row.bleb_color ? (
