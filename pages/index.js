@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.165";
+const INDEX_BUILD = "idx-36.160";
 
 function prettyDate(s) {
   try {
@@ -333,11 +333,8 @@ export default function HomePage() {
   const [firstNameField, setFirstNameField] = useState("");
   const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
-  const [city, setCity] = useState("");
-  const [stateCode, setStateCode] = useState("");
-  const [country, setCountry] = useState("");
-  const [role, setRole] = useState("patient"); // "patient" | "doctor" | "researcher" | "other"
-  const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "all"
+  const [location, setLocation] = useState("");
+  const [contactPref, setContactPref] = useState("researchers_and_members");
   const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
@@ -412,13 +409,6 @@ export default function HomePage() {
   }, [user?.id]);
 
   // ---------- Profile: load ----------
-  function mapContactWhoFromLegacy(pref) {
-    if (pref === "researchers_only") return "researchers";
-    if (pref === "members_only") return "members";
-    if (pref === "researchers_and_members") return "all";
-    return "all";
-  }
-
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -432,8 +422,12 @@ export default function HomePage() {
       if (canceled) return;
 
       if (error && error.code === "PGRST116") {
-        if (nonEmpty(user?.user_metadata?.first_name)) setFirstNameField(user.user_metadata.first_name);
-        if (nonEmpty(user?.user_metadata?.last_name)) setLastNameField(user.user_metadata.last_name);
+        if (nonEmpty(user?.user_metadata?.first_name)) {
+          setFirstNameField(user.user_metadata.first_name);
+        }
+        if (nonEmpty(user?.user_metadata?.last_name)) {
+          setLastNameField(user.user_metadata.last_name);
+        }
         setProfileStatus("");
         return;
       }
@@ -453,59 +447,22 @@ export default function HomePage() {
       const ageSrc = d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
       setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
 
-      // City / State / Country
-      setCity(d.uploader_location ?? d.location ?? "");
-      setStateCode(d.uploader_state ?? d.state ?? "");
-      setCountry(d.uploader_country ?? d.country ?? "");
+      setLocation(d.uploader_location ?? d.location ?? "");
 
-      // Role
-      const roleSrc = d.uploader_role ?? d.role ?? "";
-      setRole(nonEmpty(roleSrc) ? roleSrc : "patient");
-
-      // Contact who (prefer new fields if present)
-      const whoSrc = d.uploader_contact_who ?? d.contact_who ?? "";
-      if (nonEmpty(whoSrc) && ["members", "doctors", "researchers", "all"].includes(whoSrc)) {
-        setContactWho(whoSrc);
+      if (typeof d.contact_preference === "string") {
+        const v = d.contact_preference;
+        if (v === "researchers_and_members" || v === "researchers_only" || v === "members_only") {
+          setContactPref(v);
+        }
       } else {
-        const legacy = d.contact_preference ?? "";
-        setContactWho(mapContactWhoFromLegacy(legacy));
+        const opt = d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
+        if (opt === false) setContactPref("members_only");
+        if (opt === true) setContactPref("researchers_and_members");
       }
-
       setProfileStatus("");
     })();
     return () => { canceled = true; };
   }, [user?.id]);
-
-  // --- Focus ring helpers for inputs (inline) ---
-  function onFocusRing(e) {
-    try {
-      e.target.style.outline = "2px solid #0ea5e9";
-      e.target.style.outlineOffset = "2px";
-      e.target.style.boxShadow = "0 0 0 2px rgba(14,165,233,0.15)";
-    } catch {}
-  }
-  function onBlurRing(e) {
-    try {
-      e.target.style.outline = "";
-      e.target.style.outlineOffset = "";
-      e.target.style.boxShadow = "";
-    } catch {}
-  }
-
-  // --- Initials auto-population from first + last ---
-  const initialsTouchedRef = useRef(false);
-  function computeInitials(fn, ln) {
-    const f = (fn || "").trim();
-    const l = (ln || "").trim();
-    const fi = f ? f[0].toUpperCase() : "";
-    const li = l ? l[0].toUpperCase() : "";
-    return (fi + li) || "";
-  }
-  useEffect(() => {
-    if (!initialsTouchedRef.current) {
-      setInitials(computeInitials(firstNameField, lastNameField));
-    }
-  }, [firstNameField, lastNameField]);
 
   // Fetch total count
   useEffect(() => {
@@ -633,7 +590,13 @@ export default function HomePage() {
     }
   }
 
-  // Card helpers and actions
+  // Card helpers
+  function cardColorBadge(row) {
+    if (row.category === "Blebs (clear to brown)" && row.bleb_color)
+      return <Badge>Color: {row.bleb_color}</Badge>;
+    return null;
+  }
+
   async function handleCopy(e, url, id) {
     e.preventDefault();
     e.stopPropagation();
@@ -691,22 +654,6 @@ export default function HomePage() {
 
       if (newUrl) setItemUrl(setItems, absIndex, newUrl);
     } catch {}
-  }
-
-  // State list (US + DC)
-  const US_STATES = [
-    "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME",
-    "MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI",
-    "SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"
-  ];
-
-  // Map contactWho -> legacy contact_preference string for backward compatibility
-  function legacyPrefFromWho(who) {
-    if (who === "researchers") return "researchers_only";
-    if (who === "members") return "members_only";
-    if (who === "all") return "researchers_and_members";
-    // "doctors" has no legacy equivalent; keep something safe and also write contact_who
-    return "members_only";
   }
 
   // ---------- Logged-out renders Landing ----------
@@ -780,7 +727,7 @@ export default function HomePage() {
             Go to Uploads
           </Link>
           <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }}>
-            Questionnaire
+            Go to My Story
           </Link>
         </div>
 
@@ -812,7 +759,9 @@ export default function HomePage() {
           setProfileStatus("Saving...");
 
           try {
-            await supabase.from("user_profile").upsert({ user_id: user.id }, { onConflict: "user_id" });
+            await supabase
+              .from("user_profile")
+              .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
             const metaPayload = {
               first_name: nonEmpty(firstNameField) ? firstNameField : null,
@@ -827,9 +776,8 @@ export default function HomePage() {
                 : Number(age);
 
             const researchersAllowed =
-              contactWho === "researchers" || contactWho === "all";
-
-            const legacyPref = legacyPrefFromWho(contactWho);
+              contactPref === "researchers_and_members" ||
+              contactPref === "researchers_only";
 
             const updates = [
               ["uploader_initials", initials || null],
@@ -838,27 +786,11 @@ export default function HomePage() {
               ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
               ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
               ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
-
               ["uploader_age", ageVal],
               ["age", ageVal],
-
-              ["uploader_location", city || null],
-              ["location", city || null],
-
-              ["uploader_state", stateCode || null],
-              ["state", stateCode || null],
-
-              ["uploader_country", nonEmpty(country) ? country : null],
-              ["country", nonEmpty(country) ? country : null],
-
-              ["uploader_role", role || null],
-              ["role", role || null],
-
-              ["uploader_contact_who", contactWho],
-              ["contact_who", contactWho],
-
-              // Back-compat fields
-              ["contact_preference", legacyPref],
+              ["uploader_location", location || null],
+              ["location", location || null],
+              ["contact_preference", contactPref],
               ["uploader_contact_opt_in", researchersAllowed],
               ["contact_opt_in", researchersAllowed],
             ];
@@ -869,7 +801,7 @@ export default function HomePage() {
                 .update({ [col]: val })
                 .eq("user_id", user.id);
               if (error) {
-                const raw = error.message || "";
+                const raw = error.message || ""
                 const msg = raw.toLowerCase();
                 const ignorable =
                   msg.includes("does not exist") ||
@@ -884,10 +816,7 @@ export default function HomePage() {
             await updateImageMetadataForUserProfile(user.id, {
               uploader_initials: initials || null,
               uploader_age: ageVal,
-              uploader_location: city || null,
-              uploader_state: stateCode || null,
-              uploader_country: nonEmpty(country) ? country : null,
-              uploader_role: role || null,
+              uploader_location: location || null,
               uploader_contact_opt_in: researchersAllowed,
             });
 
@@ -902,8 +831,8 @@ export default function HomePage() {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 14,
-          padding: 14,
+          gap: 12,
+          padding: 12,
           border: "1px solid #e5e5e5",
           borderRadius: 10,
           background: "#fff",
@@ -924,54 +853,48 @@ export default function HomePage() {
           Profile
         </h2>
 
+        {/* Initials */}
+        <div>
+          <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+            Initials
+          </label>
+          <input
+            id="initials"
+            value={initials}
+            onChange={(e) => setInitials(e.target.value)}
+            style={{ width: 90, padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
+          />
+        </div>
+
         {/* First name */}
         <div>
-          <label htmlFor="first_name" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+          <label htmlFor="first_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             First name
           </label>
           <input
             id="first_name"
             value={firstNameField}
             onChange={(e) => setFirstNameField(e.target.value)}
-            onFocus={onFocusRing}
-            onBlur={onBlurRing}
-            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
         {/* Last name */}
         <div>
-          <label htmlFor="last_name" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+          <label htmlFor="last_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             Last name
           </label>
           <input
             id="last_name"
             value={lastNameField}
             onChange={(e) => setLastNameField(e.target.value)}
-            onFocus={onFocusRing}
-            onBlur={onBlurRing}
-            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
-        {/* Initials (auto) */}
+        {/* Age */}
         <div>
-          <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
-            Initials
-          </label>
-          <input
-            id="initials"
-            value={initials}
-            onChange={(e) => { initialsTouchedRef.current = true; setInitials(e.target.value); }}
-            onFocus={(e) => { initialsTouchedRef.current = true; onFocusRing(e); }}
-            onBlur={onBlurRing}
-            style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-          />
-        </div>
-
-        {/* Age (narrow) */}
-        <div>
-          <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
+          <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
             Age
           </label>
           <input
@@ -979,117 +902,60 @@ export default function HomePage() {
             type="number"
             value={age}
             onChange={(e) => setAge(e.target.value)}
-            onFocus={onFocusRing}
-            onBlur={onBlurRing}
-            style={{ width: 90, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
-        {/* City */}
+        {/* Location */}
         <div>
-          <label htmlFor="city" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
-            Location (City)
+          <label htmlFor="location" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+            Location
           </label>
           <input
-            id="city"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            onFocus={onFocusRing}
-            onBlur={onBlurRing}
-            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
+            id="location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
         </div>
 
-        {/* State (dropdown) */}
-        <div>
-          <label htmlFor="state" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
-            State
-          </label>
-          <select
-            id="state"
-            value={stateCode}
-            onChange={(e) => setStateCode(e.target.value)}
-            onFocus={onFocusRing}
-            onBlur={onBlurRing}
-            style={{ width: 120, padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-          >
-            <option value="">Select</option>
-            {US_STATES.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Country */}
-        <div>
-          <label htmlFor="country" style={{ fontSize: 12, display: "block", marginBottom: 6, fontWeight: 600, color: "#334155" }}>
-            Country
-          </label>
-          <input
-            id="country"
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            onFocus={onFocusRing}
-            onBlur={onBlurRing}
-            style={{ width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, background: "#ffffff" }}
-          />
-        </div>
-
-        {/* Role: I am a ... */}
+        {/* Contact opt-in (3 options) */}
         <fieldset
-          aria-label="I am a"
-          style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1", background: "#f8fafc" }}
+          aria-label="Contact opt-in"
+          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10 }}
         >
-          <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>I am a…</legend>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
-            {[
-              { val: "patient", label: "Patient" },
-              { val: "doctor", label: "Doctor" },
-              { val: "researcher", label: "Researcher" },
-              { val: "other", label: "Other" },
-            ].map((opt) => (
-              <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
-                <input
-                  type="radio"
-                  name="role"
-                  value={opt.val}
-                  checked={role === opt.val}
-                  onChange={(e) => setRole(e.target.value)}
-                  onFocus={onFocusRing}
-                  onBlur={onBlurRing}
-                />
-                <span>{opt.label}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        {/* Who can contact me */}
-        <fieldset
-          aria-label="Who can contact me"
-          style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 12, gridColumn: "1 / -1" }}
-        >
-          <legend style={{ fontSize: 12, padding: "0 6px", fontWeight: 700, color: "#334155" }}>Who can contact me</legend>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
-            {[
-              { val: "members", label: "Other members" },
-              { val: "doctors", label: "Doctors" },
-              { val: "researchers", label: "Researchers" },
-              { val: "all", label: "All" },
-            ].map((opt) => (
-              <label key={opt.val} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 500 }}>
-                <input
-                  type="radio"
-                  name="contact_who"
-                  value={opt.val}
-                  checked={contactWho === opt.val}
-                  onChange={(e) => setContactWho(e.target.value)}
-                  onFocus={onFocusRing}
-                  onBlur={onBlurRing}
-                />
-                <span>{opt.label}</span>
-              </label>
-            ))}
+          <legend style={{ fontSize: 12, padding: "0 6px" }}>Contact opt in</legend>
+          <div style={{ display: "grid", gap: 6 }}>
+            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
+              <input
+                type="radio"
+                name="contact_preference"
+                value="researchers_and_members"
+                checked={contactPref === "researchers_and_members"}
+                onChange={(e) => setContactPref(e.target.value)}
+              />
+              <span>Researchers & members</span>
+            </label>
+            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
+              <input
+                type="radio"
+                name="contact_preference"
+                value="researchers_only"
+                checked={contactPref === "researchers_only"}
+                onChange={(e) => setContactPref(e.target.value)}
+              />
+              <span>Researchers only</span>
+            </label>
+            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
+              <input
+                type="radio"
+                name="contact_preference"
+                value="members_only"
+                checked={contactPref === "members_only"}
+                onChange={(e) => setContactPref(e.target.value)}
+              />
+              <span>Members only</span>
+            </label>
           </div>
         </fieldset>
 
