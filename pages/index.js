@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.178";
+const INDEX_BUILD = "idx-36.179";
 
 function prettyDate(s) {
   try {
@@ -223,7 +223,6 @@ async function updateImageMetadataForUserProfile(userId, fields) {
 // ---------------- Landing (public, anonymized) ----------------
 function Landing() {
   const router = useRouter();
-  // Placeholder “categories” and a simple highlight rotation (anonymized, no user images).
   const categories = [
     { key: "blebs", label: "Blebs (clear to brown)" },
     { key: "fibers", label: "Fibers" },
@@ -238,7 +237,6 @@ function Landing() {
 
   return (
     <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      {/* Top nav (simple) */}
       <nav aria-label="Main" style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginBottom: 12 }}>
         <a href="#about" style={{ textDecoration: "none" }} title="Learn about the project">About</a>
         <a href="#news" style={{ textDecoration: "none" }} title="Latest updates">News</a>
@@ -262,7 +260,6 @@ function Landing() {
         </button>
       </nav>
 
-      {/* Hero */}
       <header style={{ textAlign: "center", margin: "20px 0 18px" }}>
         <h1 style={{ margin: 0, fontSize: 28 }}>The Scope of Morgellons</h1>
         <p style={{ margin: "8px 0 0", opacity: 0.9 }}>
@@ -270,7 +267,6 @@ function Landing() {
         </p>
       </header>
 
-      {/* Anonymized category tiles (no photos; soft gradients) */}
       <section aria-label="Categories" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
         {categories.map((c, i) => {
           const active = i === idx;
@@ -299,7 +295,6 @@ function Landing() {
         })}
       </section>
 
-      {/* Placeholder sections (anchors only) */}
       <section id="about" style={{ marginTop: 20, borderTop: "1px solid #e5e7eb", paddingTop: 12 }}>
         <h2 style={{ fontSize: 18, margin: 0 }}>About</h2>
         <p style={{ marginTop: 8, opacity: 0.9 }}>
@@ -494,7 +489,7 @@ export default function HomePage() {
     const b = (lastNameField || "").trim().charAt(0).toUpperCase();
     const ni = (a + b).slice(0, 3);
     if (ni) setInitials(ni);
-  }, [firstNameField, lastNameField]); // only while not manually edited
+  }, [firstNameField, lastNameField]);
 
   // Load a page of gallery items (append)
   async function loadMore() {
@@ -518,13 +513,11 @@ export default function HomePage() {
     const batch = (data || []).map((r) => ({ ...r, display_url: "" }));
     const startIndex = items.length;
 
-    // 1) Show the grid immediately with placeholders
     setItems((prev) => [...prev, ...batch]);
     setOffset((prev) => prev + batch.length);
     setGalleryStatus("");
     setLoading(false);
 
-    // 2) Resolve URLs in the background
     resolveUrlsInBackground(setItems, startIndex, batch, "images", user.id);
   }
 
@@ -543,7 +536,7 @@ export default function HomePage() {
     return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
-  // CSV export (all rows for signed-in user)
+  // CSV export
   async function exportCSV() {
     if (!user?.id) return;
     if (csvGateRef.current || csvBusy) return;
@@ -637,7 +630,6 @@ export default function HomePage() {
     }
   }
 
-  // One-shot image error handler
   async function handleImgError(rowId, absIndex, storagePath, filename, rowUserId) {
     try {
       if (!rowId && rowId !== 0) return;
@@ -689,7 +681,7 @@ export default function HomePage() {
       tabIndex={-1}
       style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
     >
-      {/* Tiny toast (top-center). Shared for Deleted/Saved. */}
+      {/* Tiny toast */}
       {toast ? (
         <div
           role="status"
@@ -821,7 +813,7 @@ export default function HomePage() {
                 .update({ [col]: val })
                 .eq("user_id", user.id);
               if (error) {
-                const raw = error.message || ""
+                const raw = error.message || "";
                 const msg = raw.toLowerCase();
                 const ignorable =
                   msg.includes("does not exist") ||
@@ -972,7 +964,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Contact opt-in (kept as-is) */}
+        {/* Contact opt-in (kept as-is for now) */}
         <fieldset
           aria-label="Contact opt in"
           style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
@@ -1148,7 +1140,7 @@ export default function HomePage() {
                         style={{
                           padding: "6px 10px",
                           borderRadius: 8,
-                          border: "1px solid "#cbd5e1",
+                          border: "1px solid #cbd5e1",
                           background: "#f8fafc",
                           cursor: "pointer",
                           fontSize: 12,
