@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.177";
+const INDEX_BUILD = "idx-36.178";
 
 function prettyDate(s) {
   try {
@@ -486,6 +486,16 @@ export default function HomePage() {
     return () => { canceled = true; };
   }, [user?.id]);
 
+  // -------- Profile inputs: one-line layout + initials auto-fill ----------
+  const initialsTouchedRef = useRef(false);
+  useEffect(() => {
+    if (initialsTouchedRef.current) return;
+    const a = (firstNameField || "").trim().charAt(0).toUpperCase();
+    const b = (lastNameField || "").trim().charAt(0).toUpperCase();
+    const ni = (a + b).slice(0, 3);
+    if (ni) setInitials(ni);
+  }, [firstNameField, lastNameField]); // only while not manually edited
+
   // Load a page of gallery items (append)
   async function loadMore() {
     if (!user?.id) return;
@@ -663,6 +673,15 @@ export default function HomePage() {
   }
 
   // ---------- Logged-in Home ----------
+  const srOnly = {
+    position: "absolute",
+    left: -9999,
+    top: "auto",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+  };
+
   return (
     <main
       id="main"
@@ -830,9 +849,6 @@ export default function HomePage() {
         }}
         aria-labelledby="profile-form-heading"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
           padding: 12,
           border: "1px solid #e5e5e5",
           borderRadius: 10,
@@ -854,76 +870,112 @@ export default function HomePage() {
           Profile
         </h2>
 
-        {/* Initials */}
-        <div>
-          <label htmlFor="initials" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Initials
-          </label>
-          <input
-            id="initials"
-            value={initials}
-            onChange={(e) => setInitials(e.target.value)}
-            style={{ width: 90, padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
+        {/* One-line inputs */}
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "flex-end",
+            whiteSpace: "nowrap",
+            overflowX: "auto",
+            paddingBottom: 2,
+          }}
+          aria-label="Basic profile fields"
+        >
+          {/* First name */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="first_name" style={srOnly}>
+              First name
+            </label>
+            <input
+              id="first_name"
+              placeholder="First"
+              value={firstNameField}
+              onChange={(e) => setFirstNameField(e.target.value)}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}
+            />
+          </div>
+
+          {/* Last name */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="last_name" style={srOnly}>
+              Last name
+            </label>
+            <input
+              id="last_name"
+              placeholder="Last"
+              value={lastNameField}
+              onChange={(e) => setLastNameField(e.target.value)}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}
+            />
+          </div>
+
+          {/* Initials (3ch) */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="initials" style={srOnly}>
+              Initials
+            </label>
+            <input
+              id="initials"
+              placeholder="INI"
+              value={initials}
+              maxLength={3}
+              onChange={(e) => {
+                initialsTouchedRef.current = true;
+                setInitials(e.target.value.toUpperCase());
+              }}
+              style={{
+                padding: 8,
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                width: "3ch",
+                minWidth: "3ch",
+                textTransform: "uppercase",
+              }}
+            />
+          </div>
+
+          {/* Age (3ch) */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="age" style={srOnly}>
+              Age
+            </label>
+            <input
+              id="age"
+              type="number"
+              inputMode="numeric"
+              placeholder="Age"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              style={{
+                padding: 8,
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                width: "3ch",
+                minWidth: "3ch",
+              }}
+            />
+          </div>
+
+          {/* City */}
+          <div style={{ display: "flex", flexDirection: "column", flex: "1 1 200px" }}>
+            <label htmlFor="location" style={srOnly}>
+              Location (City)
+            </label>
+            <input
+              id="location"
+              placeholder="City"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 160 }}
+            />
+          </div>
         </div>
 
-        {/* First name */}
-        <div>
-          <label htmlFor="first_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            First name
-          </label>
-          <input
-            id="first_name"
-            value={firstNameField}
-            onChange={(e) => setFirstNameField(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Last name */}
-        <div>
-          <label htmlFor="last_name" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Last name
-          </label>
-          <input
-            id="last_name"
-            value={lastNameField}
-            onChange={(e) => setLastNameField(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Age */}
-        <div>
-          <label htmlFor="age" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Age
-          </label>
-          <input
-            id="age"
-            type="number"
-            value={age}
-            onChange={(e) => setAge(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Location */}
-        <div>
-          <label htmlFor="location" style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
-            Location
-          </label>
-          <input
-            id="location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-        </div>
-
-        {/* Contact opt-in (3 options) */}
+        {/* Contact opt-in (kept as-is) */}
         <fieldset
-          aria-label="Contact opt-in"
-          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10 }}
+          aria-label="Contact opt in"
+          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
         >
           <legend style={{ fontSize: 12, padding: "0 6px" }}>Contact opt in</legend>
           <div style={{ display: "grid", gap: 6 }}>
@@ -961,7 +1013,7 @@ export default function HomePage() {
         </fieldset>
 
         {/* Save */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
           <button
             type="submit"
             aria-label="Save profile"
@@ -1096,7 +1148,7 @@ export default function HomePage() {
                         style={{
                           padding: "6px 10px",
                           borderRadius: 8,
-                          border: "1px solid #cbd5e1",
+                          border: "1px solid "#cbd5e1",
                           background: "#f8fafc",
                           cursor: "pointer",
                           fontSize: 12,
