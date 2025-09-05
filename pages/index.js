@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.179";
+const INDEX_BUILD = "idx-36.181";
 
 function prettyDate(s) {
   try {
@@ -78,7 +78,6 @@ function publicUrl(bucket, path) {
   }
 }
 
-// Last-resort download with small concurrency; updates items as each finishes.
 async function downloadToBlobUrl(bucket, path) {
   try {
     const { data, error } = await supabase.storage.from(bucket).download(path);
@@ -89,7 +88,6 @@ async function downloadToBlobUrl(bucket, path) {
   return "";
 }
 
-// Update display_url for item at absolute index
 function setItemUrl(setItems, absIndex, url) {
   if (!url) return;
   setItems((prev) => {
@@ -102,27 +100,20 @@ function setItemUrl(setItems, absIndex, url) {
 
 async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGuess, userId) {
   const bucket = bucketGuess || "images";
-
-  // Paths to try for each row
   const primaryPaths = batchRows.map((r) => normalizePath(r.storage_path || ""));
   const altPaths = batchRows.map((r) =>
     r.filename ? `${r.user_id || userId || ""}/${r.filename}`.replace(/^\/+/, "") : ""
   );
 
-  // 1) Try batch signed URLs for primary paths
   const signedPrimary = await batchSignedUrls(bucket, primaryPaths);
-
-  // Apply successes
   signedPrimary.forEach((u, i) => {
     if (u) setItemUrl(setItems, startIndex + i, u);
   });
 
-  // 2) For any still blank, try alt path signed URLs individually, then public URL
   for (let i = 0; i < batchRows.length; i++) {
     const abs = startIndex + i;
     const had = signedPrimary[i];
     if (had) continue;
-
     const alt = normalizePath(altPaths[i]);
     if (alt) {
       const su = await singleSignedUrl(bucket, alt);
@@ -136,18 +127,13 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
         continue;
       }
     }
-
-    // Try public URL on primary as well (cheap)
     const primary = normalizePath(primaryPaths[i]);
     if (primary) {
       const pu2 = publicUrl(bucket, primary);
-      if (pu2) {
-        setItemUrl(setItems, abs, pu2);
-      }
+      if (pu2) setItemUrl(setItems, abs, pu2);
     }
   }
 
-  // 3) For any items still without a URL, attempt light download with concurrency=3
   const unresolved = [];
   for (let i = 0; i < batchRows.length; i++) {
     const abs = startIndex + i;
@@ -158,7 +144,6 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
   const workers = new Array(3).fill(0).map(async () => {
     while (ptr < unresolved.length) {
       const cur = unresolved[ptr++];
-      // Skip if already filled
       let already = false;
       setItems((prev) => {
         const has = !!prev[cur.abs]?.display_url;
@@ -177,7 +162,6 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
         setItemUrl(setItems, cur.abs, p2);
         continue;
       }
-      // If all failed, leave empty; card still works (opens detail page)
     }
   });
   await Promise.all(workers);
@@ -191,19 +175,13 @@ function nonEmpty(v) {
 async function updateImageMetadataForUserProfile(userId, fields) {
   if (!userId) return;
   try {
-    const { error } = await supabase
-      .from("image_metadata")
-      .update(fields)
-      .eq("user_id", userId);
+    const { error } = await supabase.from("image_metadata").update(fields).eq("user_id", userId);
     if (error) throw error;
   } catch (err) {
     const entries = Object.entries(fields);
     for (const [col, val] of entries) {
       try {
-        const { error } = await supabase
-          .from("image_metadata")
-          .update({ [col]: val })
-          .eq("user_id", userId);
+        const { error } = await supabase.from("image_metadata").update({ [col]: val }).eq("user_id", userId);
         if (error) {
           const raw = error.message || "";
           const msg = raw.toLowerCase();
@@ -219,6 +197,15 @@ async function updateImageMetadataForUserProfile(userId, fields) {
     }
   }
 }
+
+// -------------- US state list (abbr) --------------
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA",
+  "HI","ID","IL","IN","IA","KS","KY","LA","ME","MD",
+  "MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
+  "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"
+];
 
 // ---------------- Landing (public, anonymized) ----------------
 function Landing() {
@@ -329,7 +316,9 @@ export default function HomePage() {
   const [firstNameField, setFirstNameField] = useState("");
   const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
-  const [location, setLocation] = useState("");
+  const [city, setCity] = useState(""); // renamed for clarity
+  const [stateAbbr, setStateAbbr] = useState("");
+  const [country, setCountry] = useState("");
   const [contactPref, setContactPref] = useState("researchers_and_members");
   const [profileStatus, setProfileStatus] = useState("");
 
@@ -343,16 +332,13 @@ export default function HomePage() {
   // Per-card "copied!" feedback
   const [copiedMap, setCopiedMap] = useState({}); // { [id]: true }
 
-  // One-shot retry guard for image onError (prevents loops)
   const retrySetRef = useRef(new Set());
 
-  // CSV busy state + guards
   const [csvBusy, setCsvBusy] = useState(false);
   const csvGateRef = useRef(false);
   const csvStartRef = useRef(0);
   const MIN_BUSY_MS = 1000;
 
-  // Toast (Deleted/Saved)
   const [toast, setToast] = useState("");
   function showToast(msg) {
     setToast(msg);
@@ -445,7 +431,14 @@ export default function HomePage() {
       const ageSrc = d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
       setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
 
-      setLocation(d.uploader_location ?? d.location ?? "");
+      const citySrc = d.uploader_location ?? d.location ?? "";
+      setCity(citySrc || "");
+
+      const st = d.uploader_state ?? d.state ?? "";
+      setStateAbbr(typeof st === "string" ? st.toUpperCase() : "");
+
+      const ctry = d.uploader_country ?? d.country ?? "";
+      setCountry(ctry || "");
 
       if (typeof d.contact_preference === "string") {
         const v = d.contact_preference;
@@ -528,7 +521,6 @@ export default function HomePage() {
     }
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Determine if more pages likely exist
   const hasMore = useMemo(() => {
     if (loading) return false;
     if (items.length === 0) return false;
@@ -536,7 +528,6 @@ export default function HomePage() {
     return items.length % PAGE_SIZE === 0;
   }, [items.length, count, loading]);
 
-  // CSV export
   async function exportCSV() {
     if (!user?.id) return;
     if (csvGateRef.current || csvBusy) return;
@@ -681,7 +672,7 @@ export default function HomePage() {
       tabIndex={-1}
       style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
     >
-      {/* Tiny toast */}
+      {/* Tiny toast (top-center) */}
       {toast ? (
         <div
           role="status"
@@ -800,8 +791,12 @@ export default function HomePage() {
               ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
               ["uploader_age", ageVal],
               ["age", ageVal],
-              ["uploader_location", location || null],
-              ["location", location || null],
+              ["uploader_location", city || null],
+              ["location", city || null],
+              ["uploader_state", stateAbbr || null],
+              ["state", stateAbbr || null],
+              ["uploader_country", nonEmpty(country) ? country : null],
+              ["country", nonEmpty(country) ? country : null],
               ["contact_preference", contactPref],
               ["uploader_contact_opt_in", researchersAllowed],
               ["contact_opt_in", researchersAllowed],
@@ -828,7 +823,7 @@ export default function HomePage() {
             await updateImageMetadataForUserProfile(user.id, {
               uploader_initials: initials || null,
               uploader_age: ageVal,
-              uploader_location: location || null,
+              uploader_location: city || null,
               uploader_contact_opt_in: researchersAllowed,
             });
 
@@ -876,37 +871,31 @@ export default function HomePage() {
         >
           {/* First name */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="first_name" style={srOnly}>
-              First name
-            </label>
+            <label htmlFor="first_name" style={srOnly}>First name</label>
             <input
               id="first_name"
               placeholder="First"
               value={firstNameField}
               onChange={(e) => setFirstNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120 }}
             />
           </div>
 
           {/* Last name */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="last_name" style={srOnly}>
-              Last name
-            </label>
+            <label htmlFor="last_name" style={srOnly}>Last name</label>
             <input
               id="last_name"
               placeholder="Last"
               value={lastNameField}
               onChange={(e) => setLastNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120 }}
             />
           </div>
 
-          {/* Initials (3ch) */}
+          {/* Initials (4ch for readability) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="initials" style={srOnly}>
-              Initials
-            </label>
+            <label htmlFor="initials" style={srOnly}>Initials</label>
             <input
               id="initials"
               placeholder="INI"
@@ -916,22 +905,22 @@ export default function HomePage() {
                 initialsTouchedRef.current = true;
                 setInitials(e.target.value.toUpperCase());
               }}
+              title="Your initials (auto-fills from First + Last)"
               style={{
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "3ch",
-                minWidth: "3ch",
+                width: "4ch",
+                minWidth: "4ch",
                 textTransform: "uppercase",
+                textAlign: "center",
               }}
             />
           </div>
 
-          {/* Age (3ch) */}
+          {/* Age (4ch for readability) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="age" style={srOnly}>
-              Age
-            </label>
+            <label htmlFor="age" style={srOnly}>Age</label>
             <input
               id="age"
               type="number"
@@ -939,32 +928,66 @@ export default function HomePage() {
               placeholder="Age"
               value={age}
               onChange={(e) => setAge(e.target.value)}
+              title="Age"
               style={{
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "3ch",
-                minWidth: "3ch",
+                width: "4ch",
+                minWidth: "4ch",
+                textAlign: "center",
               }}
             />
           </div>
 
           {/* City */}
-          <div style={{ display: "flex", flexDirection: "column", flex: "1 1 200px" }}>
-            <label htmlFor="location" style={srOnly}>
-              Location (City)
-            </label>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="city" style={srOnly}>Location (City)</label>
             <input
-              id="location"
+              id="city"
               placeholder="City"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 160 }}
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120, maxWidth: 180 }}
+            />
+          </div>
+
+          {/* State dropdown */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="state" style={srOnly}>State</label>
+            <select
+              id="state"
+              value={stateAbbr}
+              onChange={(e) => setStateAbbr(e.target.value)}
+              title="State (US)"
+              style={{
+                padding: 8,
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                minWidth: 80,
+              }}
+            >
+              <option value="">State</option>
+              {US_STATES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Country input */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <label htmlFor="country" style={srOnly}>Country</label>
+            <input
+              id="country"
+              placeholder="Country"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120 }}
             />
           </div>
         </div>
 
-        {/* Contact opt-in (kept as-is for now) */}
+        {/* Contact opt-in (unchanged for this step) */}
         <fieldset
           aria-label="Contact opt in"
           style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
