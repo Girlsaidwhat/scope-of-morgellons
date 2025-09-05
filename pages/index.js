@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.199";
+const INDEX_BUILD = "idx-36.203";
 
 function prettyDate(s) {
   try {
@@ -255,7 +255,7 @@ function Landing() {
   }, []);
 
   return (
-    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
+    <main id="main" tabIndex={-1} style={{ maxWidth: 1000, margin: "0 auto", padding: 24 }}>
       <nav aria-label="Main" style={{ display: "flex", justifyContent: "flex-end", gap: 14, marginBottom: 12 }}>
         <a href="#about" style={{ textDecoration: "none" }} title="Learn about the project">About</a>
         <a href="#news" style={{ textDecoration: "none" }} title="Latest updates">News</a>
@@ -704,7 +704,7 @@ export default function HomePage() {
   // ----- Render gating to avoid Landing flash for signed-in users -----
   if (!authReady) {
     return (
-      <main id="main" tabIndex={-1} aria-busy="true" style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }} />
+      <main id="main" tabIndex={-1} aria-busy="true" style={{ maxWidth: 1000, margin: "0 auto", padding: 24 }} />
     );
   }
   if (!user) {
@@ -775,7 +775,7 @@ export default function HomePage() {
       id="main"
       data-index-build={INDEX_BUILD}
       tabIndex={-1}
-      style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}
+      style={{ maxWidth: 1000, margin: "0 auto", padding: 24 }}
     >
       {/* Tiny toast (top-center) */}
       {toast ? (
@@ -861,6 +861,11 @@ export default function HomePage() {
           </button>
         </div>
       </div>
+
+      {/* Mini-heading: Profile */}
+      <h2 id="profile-form-heading" style={{ fontSize: 14, margin: "8px 0 6px", opacity: 0.85 }}>
+        Profile
+      </h2>
 
       {/* Profile form */}
       <form
@@ -966,23 +971,9 @@ export default function HomePage() {
           borderRadius: 10,
           background: "#fff",
           boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-          margin: "24px 0",
+          margin: "8px 0 24px",
         }}
       >
-        <h2
-          id="profile-form-heading"
-          style={{
-            position: "absolute",
-            left: -9999,
-            top: "auto",
-            width: 1,
-            height: 1,
-            overflow: "hidden",
-          }}
-        >
-          Profile
-        </h2>
-
         {/* One-line inputs */}
         <div
           style={{
@@ -1004,7 +995,7 @@ export default function HomePage() {
               placeholder="First"
               value={firstNameField}
               onChange={(e) => setFirstNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 120 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
             />
           </div>
 
@@ -1016,7 +1007,7 @@ export default function HomePage() {
               placeholder="Last"
               value={lastNameField}
               onChange={(e) => setLastNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 120 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
             />
           </div>
 
@@ -1036,7 +1027,7 @@ export default function HomePage() {
               style={{
                 padding: 8,
                 border: "1px solid #cbd5e1",
-                borderRadius: 6,
+                borderRadius: 8,
                 width: "8ch",
                 minWidth: "8ch",
                 textTransform: "uppercase",
@@ -1059,7 +1050,7 @@ export default function HomePage() {
               style={{
                 padding: 8,
                 border: "1px solid #cbd5e1",
-                borderRadius: 6,
+                borderRadius: 8,
                 width: "8ch",
                 minWidth: "8ch",
                 textAlign: "center",
@@ -1075,7 +1066,7 @@ export default function HomePage() {
               placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 90, maxWidth: 140 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 90, maxWidth: 140 }}
             />
           </div>
 
@@ -1090,8 +1081,9 @@ export default function HomePage() {
               style={{
                 padding: 8,
                 border: "1px solid #cbd5e1",
-                borderRadius: 6,
+                borderRadius: 8,
                 minWidth: 80,
+                height: 34,
               }}
             >
               <option value="">State</option>
@@ -1109,7 +1101,7 @@ export default function HomePage() {
               placeholder="Country"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 100 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 100 }}
             />
           </div>
         </div>
@@ -1169,6 +1161,11 @@ export default function HomePage() {
         </div>
       </form>
 
+      {/* Mini-heading: Your gallery */}
+      <h2 id="your-gallery-heading" style={{ fontSize: 14, margin: "0 0 6px", opacity: 0.85 }}>
+        Your gallery
+      </h2>
+
       {/* Gallery toolbar: CSV + Total items */}
       <div
         role="region"
@@ -1194,7 +1191,7 @@ export default function HomePage() {
           style={{
             padding: "6px 10px",
             borderRadius: 8,
-            border: "1px solid #1e293b",
+            border: "1px solid #1f2937",
             background: csvBusy ? "#475569" : "#1f2937",
             color: "white",
             cursor: csvBusy ? "wait" : "pointer",
@@ -1285,14 +1282,14 @@ export default function HomePage() {
                     Preview loading…
                   </div>
                 )}
-                <div style={{ padding: 10, borderTop: "1px solid #f1f5f9" }}>
+                <div style={{ padding: 10, borderTop: "1px solid #f3f4f6" }}>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
                     {row.category ? <Badge>{row.category}</Badge> : null}
                     {row.category === "Blebs (clear to brown)" && row.bleb_color ? (
                       <Badge>Color: {row.bleb_color}</Badge>
                     ) : null}
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
+                  <div style={{ fontSize: 11, opacity: 0.65 }}>{prettyDate(row.created_at)}</div>
 
                   {/* Card actions */}
                   {url ? (
@@ -1369,7 +1366,7 @@ export default function HomePage() {
         ) : null}
       </div>
 
-      {/* Unified input tone + chip hover (scoped to this page build) */}
+      {/* Unified input tone + consistent heights/radii + chip hover (scoped) */}
       <style jsx global>{`
         main[data-index-build="${INDEX_BUILD}"] input,
         main[data-index-build="${INDEX_BUILD}"] select {
@@ -1377,6 +1374,8 @@ export default function HomePage() {
           outline: none;
           transition: box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
           background-color: #ffffff;
+          border-radius: 8px;
+          height: 34px;
         }
         main[data-index-build="${INDEX_BUILD}"] input:hover,
         main[data-index-build="${INDEX_BUILD}"] select:hover {
@@ -1387,6 +1386,9 @@ export default function HomePage() {
           border-color: #0f766e !important;
           outline: 2px solid rgba(20, 184, 166, 0.25);
           box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+        }
+        main[data-index-build="${INDEX_BUILD}"] button {
+          border-radius: 8px;
         }
         main[data-index-build="${INDEX_BUILD}"] [data-chip] {
           background: #f9fafb;
