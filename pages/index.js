@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.193";
+const INDEX_BUILD = "idx-36.199";
 
 function prettyDate(s) {
   try {
@@ -725,18 +725,20 @@ export default function HomePage() {
   function Chip({ active, children }) {
     return (
       <span
+        data-chip
+        data-active={active ? "1" : "0"}
         style={{
           padding: "6px 10px",
           borderRadius: 999,
           border: active ? "1px solid #0f766e" : "1px solid #cbd5e1",
-          background: active ? "#14b8a6" : "#f8fafc",
+          background: active ? "#14b8a6" : "#f9fafb",
           color: active ? "white" : "inherit",
           fontWeight: 600,
           fontSize: 12,
           cursor: "pointer",
           userSelect: "none",
           whiteSpace: "nowrap",
-          transition: "transform 120ms ease",
+          transition: "transform 120ms ease, box-shadow 120ms ease",
         }}
       >
         {children}
@@ -806,13 +808,19 @@ export default function HomePage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
-          marginBottom: 16,
+          marginBottom: 8,
         }}
       >
-        <h1 style={{ fontSize: 26, margin: 0 }}>
+        <h1 style={{ fontSize: 28, margin: 0 }}>
           {firstName ? `Welcome, ${firstName}` : "Welcome"}
         </h1>
       </header>
+      {/* Thin divider under header */}
+      <div
+        role="separator"
+        aria-hidden="true"
+        style={{ height: 1, background: "#e5e7eb", margin: "8px 0 16px" }}
+      />
 
       {/* Actions row */}
       <div
@@ -878,10 +886,8 @@ export default function HomePage() {
                 ? null
                 : Number(age);
 
-            // Compose a safe single-string location to persist
             const compositeLoc = formatCompositeLocation(city, stateAbbr, country);
 
-            // Map who-can-contact to legacy preference + researcher opt-in
             const legacyPref = legacyPrefFromWho(contactWho);
             setContactPref(legacyPref);
             const researchersAllowed = contactWho === "researchers" || contactWho === "all";
@@ -896,11 +902,9 @@ export default function HomePage() {
               ["uploader_age", ageVal],
               ["age", ageVal],
 
-              // Persist composite location (works even without new columns)
               ["uploader_location", nonEmpty(compositeLoc) ? compositeLoc : null],
               ["location", nonEmpty(compositeLoc) ? compositeLoc : null],
 
-              // Best-effort writes to potential dedicated columns
               ["uploader_city", nonEmpty(city) ? city : null],
               ["city", nonEmpty(city) ? city : null],
               ["uploader_state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
@@ -908,7 +912,6 @@ export default function HomePage() {
               ["uploader_country", nonEmpty(country) ? country : null],
               ["country", nonEmpty(country) ? country : null],
 
-              // Role (schema tolerant)
               ["role", role || null],
               ["user_role", role || null],
               ["uploader_role", role || null],
@@ -917,7 +920,6 @@ export default function HomePage() {
               ["is_researcher", role === "researcher" ? true : role ? false : null],
               ["is_journalist", role === "journalist" ? true : role ? false : null],
 
-              // Contact-who (new) + legacy fields (back-compat)
               ["contact_who", contactWho],
               ["contactable_by", contactWho],
               ["contact_preference", legacyPref],
@@ -959,7 +961,7 @@ export default function HomePage() {
         }}
         aria-labelledby="profile-form-heading"
         style={{
-          padding: 14,
+          padding: 18,
           border: "1px solid #e2e8f0",
           borderRadius: 10,
           background: "#fff",
@@ -990,6 +992,7 @@ export default function HomePage() {
             whiteSpace: "nowrap",
             overflowX: "auto",
             paddingBottom: 2,
+            marginBottom: 16,
           }}
           aria-label="Basic profile fields"
         >
@@ -1001,7 +1004,7 @@ export default function HomePage() {
               placeholder="First"
               value={firstNameField}
               onChange={(e) => setFirstNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 120 }}
             />
           </div>
 
@@ -1013,7 +1016,7 @@ export default function HomePage() {
               placeholder="Last"
               value={lastNameField}
               onChange={(e) => setLastNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 120 }}
             />
           </div>
 
@@ -1032,7 +1035,7 @@ export default function HomePage() {
               title="Your initials (auto-fills from First + Last)"
               style={{
                 padding: 8,
-                border: "1px solid #ccc",
+                border: "1px solid #cbd5e1",
                 borderRadius: 6,
                 width: "8ch",
                 minWidth: "8ch",
@@ -1055,7 +1058,7 @@ export default function HomePage() {
               title="Age"
               style={{
                 padding: 8,
-                border: "1px solid #ccc",
+                border: "1px solid #cbd5e1",
                 borderRadius: 6,
                 width: "8ch",
                 minWidth: "8ch",
@@ -1072,7 +1075,7 @@ export default function HomePage() {
               placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 90, maxWidth: 140 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 90, maxWidth: 140 }}
             />
           </div>
 
@@ -1086,7 +1089,7 @@ export default function HomePage() {
               title="State (US)"
               style={{
                 padding: 8,
-                border: "1px solid #ccc",
+                border: "1px solid #cbd5e1",
                 borderRadius: 6,
                 minWidth: 80,
               }}
@@ -1106,7 +1109,7 @@ export default function HomePage() {
               placeholder="Country"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 100 }}
+              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 6, minWidth: 100 }}
             />
           </div>
         </div>
@@ -1114,7 +1117,7 @@ export default function HomePage() {
         {/* Role: I am a ... */}
         <fieldset
           aria-label="I am a"
-          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
+          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
         >
           <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1129,7 +1132,7 @@ export default function HomePage() {
         {/* Who can contact me */}
         <fieldset
           aria-label="Who can contact me"
-          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
+          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
         >
           <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -1142,7 +1145,7 @@ export default function HomePage() {
         </fieldset>
 
         {/* Save */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
           <button
             type="submit"
             aria-label="Save profile"
@@ -1166,8 +1169,21 @@ export default function HomePage() {
         </div>
       </form>
 
-      {/* CSV + total items (relocated just above gallery) */}
-      <div style={{ margin: "4px 0 6px" }}>
+      {/* Gallery toolbar: CSV + Total items */}
+      <div
+        role="region"
+        aria-label="Gallery tools"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "6px 0",
+          margin: "4px 0 10px",
+          borderBottom: "1px solid #e5e7eb",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
         <button
           onClick={exportCSV}
           aria-label="Export all image metadata to CSV"
@@ -1191,15 +1207,15 @@ export default function HomePage() {
         >
           {csvBusy ? "Preparing…" : "Export CSV"}
         </button>
-      </div>
 
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        style={{ fontSize: 12, opacity: 0.8, margin: "2px 0 10px" }}
-      >
-        Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ fontSize: 12, opacity: 0.8 }}
+        >
+          Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
+        </div>
       </div>
 
       {/* Gallery status (initial) */}
@@ -1352,6 +1368,43 @@ export default function HomePage() {
           </div>
         ) : null}
       </div>
+
+      {/* Unified input tone + chip hover (scoped to this page build) */}
+      <style jsx global>{`
+        main[data-index-build="${INDEX_BUILD}"] input,
+        main[data-index-build="${INDEX_BUILD}"] select {
+          border-color: #cbd5e1 !important;
+          outline: none;
+          transition: box-shadow 120ms ease, border-color 120ms ease, background-color 120ms ease;
+          background-color: #ffffff;
+        }
+        main[data-index-build="${INDEX_BUILD}"] input:hover,
+        main[data-index-build="${INDEX_BUILD}"] select:hover {
+          border-color: #94a3b8 !important;
+        }
+        main[data-index-build="${INDEX_BUILD}"] input:focus,
+        main[data-index-build="${INDEX_BUILD}"] select:focus {
+          border-color: #0f766e !important;
+          outline: 2px solid rgba(20, 184, 166, 0.25);
+          box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+        }
+        main[data-index-build="${INDEX_BUILD}"] [data-chip] {
+          background: #f9fafb;
+          border: 1px solid #cbd5e1;
+        }
+        main[data-index-build="${INDEX_BUILD}"] [data-chip][data-active="1"] {
+          background: #14b8a6;
+          border-color: #0f766e;
+          color: #fff;
+        }
+        main[data-index-build="${INDEX_BUILD}"] [data-chip]:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+        main[data-index-build="${INDEX_BUILD}"] [data-chip][data-active="1"]:hover {
+          box-shadow: 0 2px 6px rgba(20,184,166,0.28);
+        }
+      `}</style>
     </main>
   );
 }
