@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.188";
+const INDEX_BUILD = "idx-36.189";
 
 function prettyDate(s) {
   try {
