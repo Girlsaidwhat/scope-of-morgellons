@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.187";
+const INDEX_BUILD = "idx-36.188";
 
 function prettyDate(s) {
   try {
@@ -324,7 +324,7 @@ export default function HomePage() {
 
   // Role + Who-can-contact
   const [role, setRole] = useState(""); // "patient" | "doctor" | "researcher" | "journalist" | "other"
-  const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "all"
+  const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "journalists" | "all"
   // Legacy back-compat (kept internal; not shown)
   const [contactPref, setContactPref] = useState("researchers_and_members");
 
@@ -728,7 +728,7 @@ export default function HomePage() {
   function legacyPrefFromWho(who) {
     if (who === "members") return "members_only";
     if (who === "researchers") return "researchers_only";
-    return "researchers_and_members"; // "doctors" and "all" map to widest legacy set
+    return "researchers_and_members"; // "doctors", "journalists", and "all" map to widest legacy set
   }
 
   return (
@@ -1092,6 +1092,7 @@ export default function HomePage() {
             <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
             <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
             <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
+            <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
             <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
           </div>
         </fieldset>
