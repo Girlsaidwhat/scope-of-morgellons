@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.189";
+const INDEX_BUILD = "idx-36.191";
 
 function prettyDate(s) {
   try {
@@ -208,6 +208,36 @@ const US_STATES = [
   "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC",
   "SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","DC"
 ];
+
+// -------- Composite location helpers (store in location columns) --------
+function formatCompositeLocation(city, stateAbbr, country) {
+  const parts = [city, stateAbbr, country].map((p) => (p || "").trim()).filter(Boolean);
+  return parts.join(", ");
+}
+
+function parseCompositeLocation(s) {
+  const t = (s || "").trim();
+  if (!t) return { city: "", state: "", country: "" };
+  const parts = t.split(",").map((p) => p.trim()).filter(Boolean);
+  let city = "", state = "", country = "";
+  if (parts.length === 1) {
+    city = parts[0];
+  } else if (parts.length === 2) {
+    city = parts[0];
+    const p2 = parts[1].toUpperCase();
+    if (US_STATES.includes(p2)) state = p2; else country = parts[1];
+  } else {
+    city = parts[0];
+    const maybeState = parts[1].toUpperCase();
+    if (US_STATES.includes(maybeState)) {
+      state = maybeState;
+      country = parts.slice(2).join(", ");
+    } else {
+      country = parts.slice(1).join(", ");
+    }
+  }
+  return { city, state, country };
+}
 
 // ---------------- Landing (public, anonymized) ----------------
 function Landing() {
@@ -439,14 +469,22 @@ export default function HomePage() {
       const ageSrc = d.uploader_age ?? d.age ?? d.uploaderAge ?? d.user_age ?? null;
       setAge(ageSrc === null || typeof ageSrc === "undefined" ? "" : String(ageSrc));
 
-      const citySrc = d.uploader_location ?? d.location ?? "";
-      setCity(citySrc || "");
+      // City/State/Country from dedicated columns if present, else parse composite location
+      const locRaw = d.uploader_location ?? d.location ?? "";
+      let cityVal = d.uploader_city ?? d.city ?? "";
+      let stateVal = d.uploader_state ?? d.state ?? "";
+      let countryVal = d.uploader_country ?? d.country ?? "";
 
-      const st = d.uploader_state ?? d.state ?? "";
-      setStateAbbr(typeof st === "string" ? st.toUpperCase() : "");
+      if (!nonEmpty(cityVal) && nonEmpty(locRaw)) {
+        const parsed = parseCompositeLocation(locRaw);
+        if (!nonEmpty(cityVal)) cityVal = parsed.city;
+        if (!nonEmpty(stateVal)) stateVal = parsed.state;
+        if (!nonEmpty(countryVal)) countryVal = parsed.country;
+      }
 
-      const ctry = d.uploader_country ?? d.country ?? "";
-      setCountry(ctry || "");
+      setCity(cityVal || "");
+      setStateAbbr(typeof stateVal === "string" ? stateVal.toUpperCase() : "");
+      setCountry(countryVal || "");
 
       // Role (schema tolerant)
       const roleGuess = d.role ?? d.user_role ?? d.uploader_role ?? "";
@@ -465,7 +503,6 @@ export default function HomePage() {
           : "");
       setContactWho(who || "all");
 
-      // Keep legacy field in sync internally
       if (who === "members") setContactPref("members_only");
       else if (who === "researchers") setContactPref("researchers_only");
       else setContactPref("researchers_and_members");
@@ -844,6 +881,9 @@ export default function HomePage() {
                 ? null
                 : Number(age);
 
+            // Compose a safe single-string location to persist
+            const compositeLoc = formatCompositeLocation(city, stateAbbr, country);
+
             // Map who-can-contact to legacy preference + researcher opt-in
             const legacyPref = legacyPrefFromWho(contactWho);
             setContactPref(legacyPref);
@@ -858,10 +898,16 @@ export default function HomePage() {
               ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
               ["uploader_age", ageVal],
               ["age", ageVal],
-              ["uploader_location", city || null],
-              ["location", city || null],
-              ["uploader_state", stateAbbr || null],
-              ["state", stateAbbr || null],
+
+              // Persist composite location (works even without new columns)
+              ["uploader_location", nonEmpty(compositeLoc) ? compositeLoc : null],
+              ["location", nonEmpty(compositeLoc) ? compositeLoc : null],
+
+              // Best-effort writes to potential dedicated columns
+              ["uploader_city", nonEmpty(city) ? city : null],
+              ["city", nonEmpty(city) ? city : null],
+              ["uploader_state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
+              ["state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
               ["uploader_country", nonEmpty(country) ? country : null],
               ["country", nonEmpty(country) ? country : null],
 
@@ -903,7 +949,7 @@ export default function HomePage() {
             await updateImageMetadataForUserProfile(user.id, {
               uploader_initials: initials || null,
               uploader_age: ageVal,
-              uploader_location: city || null,
+              uploader_location: nonEmpty(compositeLoc) ? compositeLoc : null,
               uploader_contact_opt_in: researchersAllowed,
             });
 
@@ -1028,7 +1074,7 @@ export default function HomePage() {
               placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 100, maxWidth: 140 }}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 90, maxWidth: 140 }}
             />
           </div>
 
