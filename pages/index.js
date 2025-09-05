@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.181";
+const INDEX_BUILD = "idx-36.182";
 
 function prettyDate(s) {
   try {
@@ -316,7 +316,7 @@ export default function HomePage() {
   const [firstNameField, setFirstNameField] = useState("");
   const [lastNameField, setLastNameField] = useState("");
   const [age, setAge] = useState("");
-  const [city, setCity] = useState(""); // renamed for clarity
+  const [city, setCity] = useState("");
   const [stateAbbr, setStateAbbr] = useState("");
   const [country, setCountry] = useState("");
   const [contactPref, setContactPref] = useState("researchers_and_members");
@@ -893,7 +893,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Initials (4ch for readability) */}
+          {/* Initials (5ch) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="initials" style={srOnly}>Initials</label>
             <input
@@ -910,15 +910,15 @@ export default function HomePage() {
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "4ch",
-                minWidth: "4ch",
+                width: "5ch",
+                minWidth: "5ch",
                 textTransform: "uppercase",
                 textAlign: "center",
               }}
             />
           </div>
 
-          {/* Age (4ch for readability) */}
+          {/* Age (5ch) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="age" style={srOnly}>Age</label>
             <input
@@ -933,14 +933,14 @@ export default function HomePage() {
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "4ch",
-                minWidth: "4ch",
+                width: "5ch",
+                minWidth: "5ch",
                 textAlign: "center",
               }}
             />
           </div>
 
-          {/* City */}
+          {/* City (slightly narrower) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="city" style={srOnly}>Location (City)</label>
             <input
@@ -948,7 +948,7 @@ export default function HomePage() {
               placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120, maxWidth: 180 }}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 100, maxWidth: 140 }}
             />
           </div>
 
@@ -974,7 +974,7 @@ export default function HomePage() {
             </select>
           </div>
 
-          {/* Country input */}
+          {/* Country (slightly narrower) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="country" style={srOnly}>Country</label>
             <input
@@ -982,7 +982,7 @@ export default function HomePage() {
               placeholder="Country"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
-              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 120 }}
+              style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 100 }}
             />
           </div>
         </div>
