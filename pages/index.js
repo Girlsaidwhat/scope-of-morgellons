@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.183";
+const INDEX_BUILD = "idx-36.185";
 
 function prettyDate(s) {
   try {
@@ -114,6 +114,7 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
     const abs = startIndex + i;
     const had = signedPrimary[i];
     if (had) continue;
+
     const alt = normalizePath(altPaths[i]);
     if (alt) {
       const su = await singleSignedUrl(bucket, alt);
@@ -127,6 +128,7 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
         continue;
       }
     }
+
     const primary = normalizePath(primaryPaths[i]);
     if (primary) {
       const pu2 = publicUrl(bucket, primary);
@@ -587,6 +589,14 @@ export default function HomePage() {
     }
   }
 
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
   async function handleCopy(e, url, id) {
     e.preventDefault();
     e.stopPropagation();
@@ -603,14 +613,6 @@ export default function HomePage() {
     } catch {
       alert("Copy failed.");
     }
-  }
-
-  function handleOpen(e, url) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      window.open(url, "_blank", "noopener");
-    } catch {}
   }
 
   async function handleSignOut() {
@@ -761,7 +763,7 @@ export default function HomePage() {
           if (!user?.id) return;
           setProfileStatus("Saving...");
 
-        try {
+          try {
             await supabase
               .from("user_profile")
               .upsert({ user_id: user.id }, { onConflict: "user_id" });
@@ -893,7 +895,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Initials (6ch) */}
+          {/* Initials (8ch) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="initials" style={srOnly}>Initials</label>
             <input
@@ -910,15 +912,15 @@ export default function HomePage() {
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "6ch",
-                minWidth: "6ch",
+                width: "8ch",
+                minWidth: "8ch",
                 textTransform: "uppercase",
                 textAlign: "center",
               }}
             />
           </div>
 
-          {/* Age (6ch) */}
+          {/* Age (8ch) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="age" style={srOnly}>Age</label>
             <input
@@ -933,14 +935,14 @@ export default function HomePage() {
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "6ch",
-                minWidth: "6ch",
+                width: "8ch",
+                minWidth: "8ch",
                 textAlign: "center",
               }}
             />
           </div>
 
-          {/* City (compact) */}
+          {/* City */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="city" style={srOnly}>Location (City)</label>
             <input
@@ -974,7 +976,7 @@ export default function HomePage() {
             </select>
           </div>
 
-          {/* Country (compact) */}
+          {/* Country */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="country" style={srOnly}>Country</label>
             <input
