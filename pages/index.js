@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.185";
+const INDEX_BUILD = "idx-36.187";
 
 function prettyDate(s) {
   try {
@@ -321,7 +321,13 @@ export default function HomePage() {
   const [city, setCity] = useState("");
   const [stateAbbr, setStateAbbr] = useState("");
   const [country, setCountry] = useState("");
+
+  // Role + Who-can-contact
+  const [role, setRole] = useState(""); // "patient" | "doctor" | "researcher" | "journalist" | "other"
+  const [contactWho, setContactWho] = useState("all"); // "members" | "doctors" | "researchers" | "all"
+  // Legacy back-compat (kept internal; not shown)
   const [contactPref, setContactPref] = useState("researchers_and_members");
+
   const [profileStatus, setProfileStatus] = useState("");
 
   // Gallery
@@ -442,16 +448,28 @@ export default function HomePage() {
       const ctry = d.uploader_country ?? d.country ?? "";
       setCountry(ctry || "");
 
-      if (typeof d.contact_preference === "string") {
-        const v = d.contact_preference;
-        if (v === "researchers_and_members" || v === "researchers_only" || v === "members_only") {
-          setContactPref(v);
-        }
-      } else {
-        const opt = d.uploader_contact_opt_in ?? d.contact_opt_in ?? d.opt_in ?? null;
-        if (opt === false) setContactPref("members_only");
-        if (opt === true) setContactPref("researchers_and_members");
-      }
+      // Role (schema tolerant)
+      const roleGuess = d.role ?? d.user_role ?? d.uploader_role ?? "";
+      setRole(typeof roleGuess === "string" ? roleGuess.toLowerCase() : "");
+
+      // Contact-who (schema tolerant) or derive from legacy contact_preference
+      const who =
+        d.contact_who ??
+        d.contactable_by ??
+        (d.contact_preference === "members_only"
+          ? "members"
+          : d.contact_preference === "researchers_only"
+          ? "researchers"
+          : d.contact_preference === "researchers_and_members"
+          ? "all"
+          : "");
+      setContactWho(who || "all");
+
+      // Keep legacy field in sync internally
+      if (who === "members") setContactPref("members_only");
+      else if (who === "researchers") setContactPref("researchers_only");
+      else setContactPref("researchers_and_members");
+
       setProfileStatus("");
     })();
     return () => { canceled = true; };
@@ -667,6 +685,52 @@ export default function HomePage() {
     overflow: "hidden",
   };
 
+  // Helpers for the “chip” look
+  function Chip({ active, children }) {
+    return (
+      <span
+        style={{
+          padding: "6px 10px",
+          borderRadius: 999,
+          border: active ? "1px solid #0f766e" : "1px solid #cbd5e1",
+          background: active ? "#14b8a6" : "#f8fafc",
+          color: active ? "white" : "inherit",
+          fontWeight: 600,
+          fontSize: 12,
+          cursor: "pointer",
+          userSelect: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {children}
+      </span>
+    );
+  }
+
+  function RadioChip({ name, value, checked, onChange, label }) {
+    return (
+      <label style={{ display: "inline-flex", alignItems: "center" }}>
+        <input
+          type="radio"
+          name={name}
+          value={value}
+          checked={checked}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
+          aria-label={label}
+        />
+        <Chip active={checked}>{label}</Chip>
+      </label>
+    );
+  }
+
+  // Map “who can contact” → legacy contact_preference for back-compat
+  function legacyPrefFromWho(who) {
+    if (who === "members") return "members_only";
+    if (who === "researchers") return "researchers_only";
+    return "researchers_and_members"; // "doctors" and "all" map to widest legacy set
+  }
+
   return (
     <main
       id="main"
@@ -780,9 +844,10 @@ export default function HomePage() {
                 ? null
                 : Number(age);
 
-            const researchersAllowed =
-              contactPref === "researchers_and_members" ||
-              contactPref === "researchers_only";
+            // Map who-can-contact to legacy preference + researcher opt-in
+            const legacyPref = legacyPrefFromWho(contactWho);
+            setContactPref(legacyPref);
+            const researchersAllowed = contactWho === "researchers" || contactWho === "all";
 
             const updates = [
               ["uploader_initials", initials || null],
@@ -799,7 +864,20 @@ export default function HomePage() {
               ["state", stateAbbr || null],
               ["uploader_country", nonEmpty(country) ? country : null],
               ["country", nonEmpty(country) ? country : null],
-              ["contact_preference", contactPref],
+
+              // Role (schema tolerant)
+              ["role", role || null],
+              ["user_role", role || null],
+              ["uploader_role", role || null],
+              ["is_patient", role === "patient" ? true : role ? false : null],
+              ["is_doctor", role === "doctor" ? true : role ? false : null],
+              ["is_researcher", role === "researcher" ? true : role ? false : null],
+              ["is_journalist", role === "journalist" ? true : role ? false : null],
+
+              // Contact-who (new) + legacy fields (back-compat)
+              ["contact_who", contactWho],
+              ["contactable_by", contactWho],
+              ["contact_preference", legacyPref],
               ["uploader_contact_opt_in", researchersAllowed],
               ["contact_opt_in", researchersAllowed],
             ];
@@ -989,43 +1067,32 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Contact opt-in (unchanged for this step) */}
+        {/* Role: I am a ... */}
         <fieldset
-          aria-label="Contact opt in"
+          aria-label="I am a"
           style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
         >
-          <legend style={{ fontSize: 12, padding: "0 6px" }}>Contact opt in</legend>
-          <div style={{ display: "grid", gap: 6 }}>
-            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
-              <input
-                type="radio"
-                name="contact_preference"
-                value="researchers_and_members"
-                checked={contactPref === "researchers_and_members"}
-                onChange={(e) => setContactPref(e.target.value)}
-              />
-              <span>Researchers & members</span>
-            </label>
-            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
-              <input
-                type="radio"
-                name="contact_preference"
-                value="researchers_only"
-                checked={contactPref === "researchers_only"}
-                onChange={(e) => setContactPref(e.target.value)}
-              />
-              <span>Researchers only</span>
-            </label>
-            <label style={{ fontSize: 12, display: "flex", gap: 8 }}>
-              <input
-                type="radio"
-                name="contact_preference"
-                value="members_only"
-                checked={contactPref === "members_only"}
-                onChange={(e) => setContactPref(e.target.value)}
-              />
-              <span>Members only</span>
-            </label>
+          <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
+            <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
+            <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
+            <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
+            <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
+          </div>
+        </fieldset>
+
+        {/* Who can contact me */}
+        <fieldset
+          aria-label="Who can contact me"
+          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 10 }}
+        >
+          <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
+            <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
+            <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
+            <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
           </div>
         </fieldset>
 
