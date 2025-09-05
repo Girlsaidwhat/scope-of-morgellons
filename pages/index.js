@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.182";
+const INDEX_BUILD = "idx-36.183";
 
 function prettyDate(s) {
   try {
@@ -761,7 +761,7 @@ export default function HomePage() {
           if (!user?.id) return;
           setProfileStatus("Saving...");
 
-          try {
+        try {
             await supabase
               .from("user_profile")
               .upsert({ user_id: user.id }, { onConflict: "user_id" });
@@ -893,7 +893,7 @@ export default function HomePage() {
             />
           </div>
 
-          {/* Initials (5ch) */}
+          {/* Initials (6ch) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="initials" style={srOnly}>Initials</label>
             <input
@@ -910,15 +910,15 @@ export default function HomePage() {
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "5ch",
-                minWidth: "5ch",
+                width: "6ch",
+                minWidth: "6ch",
                 textTransform: "uppercase",
                 textAlign: "center",
               }}
             />
           </div>
 
-          {/* Age (5ch) */}
+          {/* Age (6ch) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="age" style={srOnly}>Age</label>
             <input
@@ -933,14 +933,14 @@ export default function HomePage() {
                 padding: 8,
                 border: "1px solid #ccc",
                 borderRadius: 6,
-                width: "5ch",
-                minWidth: "5ch",
+                width: "6ch",
+                minWidth: "6ch",
                 textAlign: "center",
               }}
             />
           </div>
 
-          {/* City (slightly narrower) */}
+          {/* City (compact) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="city" style={srOnly}>Location (City)</label>
             <input
@@ -974,7 +974,7 @@ export default function HomePage() {
             </select>
           </div>
 
-          {/* Country (slightly narrower) */}
+          {/* Country (compact) */}
           <div style={{ display: "flex", flexDirection: "column" }}>
             <label htmlFor="country" style={srOnly}>Country</label>
             <input
