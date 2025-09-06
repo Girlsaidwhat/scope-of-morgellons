@@ -60,5 +60,36 @@ body {
   :where(.gallery-card, .image-card, .card):has(img):hover {
     transform: none;
   }
+}/* Microburst fix: hover + focus for gallery anchors that wrap images */
+main a[href^="/image/"]:has(> img),
+main a[href*="/image/"]:has(> img) {
+  display: inline-block;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
+  transform: translateZ(0);
+  will-change: transform;
 }
+
+main a[href^="/image/"]:has(> img):hover,
+main a[href*="/image/"]:has(> img):hover {
+  transform: scale(1.012);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+main a[href^="/image/"]:has(> img):focus-visible,
+main a[href*="/image/"]:has(> img):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main a[href^="/image/"]:has(> img),
+  main a[href*="/image/"]:has(> img) {
+    transition: box-shadow 0.2s ease, outline-color 0.2s ease;
+  }
+  main a[href^="/image/"]:has(> img):hover,
+  main a[href*="/image/"]:has(> img):hover {
+    transform: none;
+  }
+}
+
 
