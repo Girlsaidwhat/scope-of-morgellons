@@ -3,6 +3,7 @@
 // Writes to image_metadata.path and saves optional notes/colors
 // Small additions: overall upload status, “saving” step, 12s “Still waiting…” hint
 // NEW: Tiny "Send feedback" mailto link in header (top-right)
+// Microburst A (0905): Heading = "Uploads"; add top toolbar with Back to Home + Browse Gallery
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -368,12 +369,31 @@ export default function UploadPage() {
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
+      {/* Top toolbar */}
+      <nav aria-label="Uploads page navigation" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <a
+          href="/"
+          aria-label="Back to Home"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e5e5", textDecoration: "none" }}
+        >
+          <span aria-hidden="true">←</span>
+          <span>Back to Home</span>
+        </a>
+        <a
+          href="/browse"
+          aria-label="Browse Gallery"
+          style={{ fontSize: 14, textDecoration: "underline" }}
+        >
+          Browse Gallery
+        </a>
+      </nav>
+
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>Upload</h1>
+        <h1 style={{ fontSize: 24, margin: 0 }}>Uploads</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <a
-            href={feedbackHref("Upload")}
-            aria-label="Send feedback about the Upload page"
+            href={feedbackHref("Uploads")}
+            aria-label="Send feedback about the Uploads page"
             style={{ fontSize: 12, textDecoration: "underline" }}
           >
             Send feedback
@@ -592,8 +612,3 @@ export default function UploadPage() {
     </div>
   );
 }
-
-
-
-
-
