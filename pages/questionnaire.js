@@ -1,5 +1,6 @@
 // pages/questionnaire.js
 // Minimal signed-in route; separate from Profile. No badge bump.
+// Update: Rename page heading to "My Story" and replace intro text per request.
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -10,14 +11,14 @@ const supabase = createClient(
 );
 
 const FEEDBACK_TO = "girlsaidwhat@gmail.com";
-function feedbackHref(contextLabel = "Questionnaire") {
+function feedbackHref(contextLabel = "My Story") {
   const subject = `${contextLabel} – Scope feedback`;
   const page = typeof window !== "undefined" ? window.location.href : "/questionnaire";
   const body = `Page: ${page}\n\nWhat happened:\n`;
   return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-export default function QuestionnairePage() {
+export default function MyStoryPage() {
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
 
@@ -47,8 +48,8 @@ export default function QuestionnairePage() {
       <>
         <a href="#main" style={skipStyle}>Skip to content</a>
         <main id="main" tabIndex={-1} style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
-          <h1 style={{ marginTop: 0 }}>Questionnaire</h1>
-          <p style={{ marginTop: 8 }}>Please sign in to access the questionnaire.</p>
+          <h1 style={{ marginTop: 0 }}>My Story</h1>
+          <p style={{ marginTop: 8 }}>Please sign in to access My Story.</p>
           <nav aria-label="Links" style={{ display: "flex", gap: 12, marginTop: 12 }}>
             <a href="/signin" style={{ textDecoration: "underline" }}>Sign in</a>
             <a href="/" style={{ textDecoration: "none" }}>Back to Home</a>
@@ -63,15 +64,16 @@ export default function QuestionnairePage() {
       <a href="#main" style={skipStyle}>Skip to content</a>
       <main id="main" tabIndex={-1} style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-          <h1 style={{ margin: 0 }}>Questionnaire</h1>
-          <a href={feedbackHref("Questionnaire")} aria-label="Send feedback about the Questionnaire page" style={{ fontSize: 12, textDecoration: "underline" }}>
+          <h1 style={{ margin: 0 }}>My Story</h1>
+          <a href={feedbackHref("My Story")} aria-label="Send feedback about the My Story page" style={{ fontSize: 12, textDecoration: "underline" }}>
             Send feedback
           </a>
         </header>
 
-        <section aria-label="Questionnaire intro" style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 12, background: "#fff" }}>
+        <section aria-label="My Story intro" style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 12, background: "#fff" }}>
           <p style={{ margin: 0 }}>
-            This page will host the intake questionnaire. It’s separate from your profile but linked from there.
+            This page will feature a questionnaire for symptoms, how long you've been sick, did you get a formal Lyme (and other coinfections) diagnosis,
+            space for your story as far as the disease goes, a space for you to talk about the personal impact Morgellons has had on your life, etc.
           </p>
         </section>
 
