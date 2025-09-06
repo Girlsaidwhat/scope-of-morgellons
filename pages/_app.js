@@ -1,20 +1,18 @@
 ﻿// pages/_app.js
-// Build 36.177_2025-09-06
+// Build 36.178_2025-09-06
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.177_2025-09-06";
+export const BUILD_VERSION = "Build 36.178_2025-09-06";
 
 /* ---------- Beta gate (allow-list; default OFF) ---------- */
 const BETA_GATE_ENABLED = false; // flip to true to enable the gate
 const ALLOW_TESTERS = [
-  // add tester emails here, exact match, lowercase recommended
   // "tester1@example.com",
 ];
 function isProtectedRoute(pathname = "", asPath = "") {
-  // Protect profile/home, uploads, image detail, and My Story
   const pat = pathname || "/";
   const actual = asPath || "/";
   if (pat === "/" || pat === "/upload" || pat === "/questionnaire" || pat === "/image/[id]") return true;
@@ -68,15 +66,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/* ---------- Feedback helpers ---------- */
-const FEEDBACK_TO = "girlsaidwhat@gmail.com";
-function feedbackHref(contextLabel = "Site-wide") {
-  const subject = `${contextLabel} – Scope feedback`;
-  const page = typeof window !== "undefined" ? window.location.href : "/";
-  const body = `Page: ${page}\n\nWhat happened:\n`;
-  return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
-
 /* ---------- Build badge (with Beta + Report link) ---------- */
 function BuildBadge() {
   return (
@@ -94,7 +83,7 @@ function BuildBadge() {
         background: "#111",
         border: "1px solid #000",
         boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-        pointerEvents: "auto", // allow link clicks
+        pointerEvents: "auto",
         display: "flex",
         alignItems: "center",
         gap: 8,
@@ -103,7 +92,7 @@ function BuildBadge() {
       <span>{BUILD_VERSION}</span>
       <span style={{ padding: "1px 6px", borderRadius: 6, background: "#334155", fontWeight: 700, letterSpacing: 0.2 }}>Beta</span>
       <a
-        href={feedbackHref("Beta")}
+        href="mailto:girlsaidwhat@gmail.com"
         style={{ color: "#cbd5e1", textDecoration: "underline" }}
         aria-label="Report an issue"
       >
@@ -113,7 +102,7 @@ function BuildBadge() {
   );
 }
 
-/* ---------- Auth presence (now with user) ---------- */
+/* ---------- Auth presence ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
   const [user, setUser] = useState(null);
@@ -131,11 +120,8 @@ function useAuthPresence() {
           setUser(s?.user ?? null);
         });
         unsubscribe = data?.subscription?.unsubscribe || (() => {});
-      } catch (e) {
-        console.error("Auth presence init error:", e);
-      } finally {
-        setChecking(false);
-      }
+      } catch (e) { console.error("Auth presence init error:", e); }
+      finally { setChecking(false); }
     })();
     return () => { try { unsubscribe(); } catch {} };
   }, []);
@@ -282,16 +268,13 @@ function LandingScreen() {
   );
 }
 
-/* ---- Explore: floating hamburger + centered header+carousel constrained to header ---- */
+/* ---- Explore panel + carousel (unchanged) ---- */
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
-
   const CONTENT_MAX = 560;
   const titleSpanRef = useRef(null);
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
-
   const CHROME_HEIGHT = 28, TOPBAR_TOP = 10, SIDE_PAD = 10;
-
   useEffect(() => {
     const sync = () => {
       const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
@@ -301,12 +284,9 @@ function ExplorePanel() {
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
   }, []);
-
   return (
     <section id="explore-panel" aria-label="Project overview" style={{ border: "1px solid #27272a", borderRadius: 12, padding: 20, marginBottom: 12, background: "#0a0a0a", color: "#f4f4f5", position: "relative", overflow: "visible" }}>
-      {/* Absolute top bar */}
       <div style={{ position: "absolute", top: TOPBAR_TOP, left: SIDE_PAD, right: SIDE_PAD, height: CHROME_HEIGHT, display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 5, pointerEvents: "none" }}>
-        {/* Hoverable hamburger */}
         <div onMouseEnter={() => setMenuOpen(true)} onMouseLeave={() => setMenuOpen(false)} style={{ position: "relative", pointerEvents: "auto", display: "flex", alignItems: "center" }}>
           <button type="button" aria-label="Open menu" aria-controls="explore-menu" aria-haspopup="menu" aria-expanded={menuOpen ? "true" : "false"} onClick={() => setMenuOpen((v) => !v)} title="Menu" style={{ width: 34, height: CHROME_HEIGHT, borderRadius: 10, border: "1px solid rgba(148,163,184,0.35)", background: "rgba(17,24,39,0.6)", display: "grid", placeItems: "center", cursor: "pointer", boxShadow: "0 10px 24px rgba(0,0,0,0.35)", backdropFilter: "saturate(140%) blur(4px)", WebkitBackdropFilter: "saturate(140%) blur(4px)", transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease" }}>
             <div style={{ display: "grid", gap: 4 }}>
@@ -323,12 +303,8 @@ function ExplorePanel() {
             </nav>
           ) : null}
         </div>
-
-        {/* CTA same row */}
         <a href="/signin" style={{ height: CHROME_HEIGHT, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "#cbd5e1", textDecoration: "none", fontWeight: 600, fontSize: 13, lineHeight: `${CHROME_HEIGHT}px`, pointerEvents: "auto" }} aria-label="Sign up or sign in" title="Sign up / Sign In">Sign Up / Sign In</a>
       </div>
-
-      {/* Centered content */}
       <div style={{ width: "100%", maxWidth: 560, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
         <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
           <span ref={titleSpanRef} style={{ display: "inline-block" }}>The Scope of Morgellons</span>
@@ -340,105 +316,8 @@ function ExplorePanel() {
     </section>
   );
 }
-
-/* ---------- Carousel: global one-by-one sequencer with 1.3s pauses ---------- */
-function CarouselRow({ maxWidth = 560 }) {
-  const [urls, setUrls] = useState([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!supabase) { if (!cancelled) setUrls([]); return; }
-      try {
-        const { data, error } = await supabase
-          .from("public_gallery")
-          .select("public_path, created_at")
-          .order("created_at", { ascending: false })
-          .limit(60);
-        if (error) throw error;
-        const bucket = "public-thumbs";
-        const list = (data || []).map((r) => {
-          try {
-            const res = supabase.storage.from(bucket).getPublicUrl(r.public_path);
-            return res?.data?.publicUrl || res?.data?.publicURL || "";
-          } catch { return ""; }
-        }).filter(Boolean);
-        if (!cancelled) setUrls(list);
-      } catch (e) {
-        console.error("Carousel fetch error:", e);
-        if (!cancelled) setUrls([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const cols = useMemo(() => {
-    const base = [[], [], []];
-    urls.forEach((u, i) => base[i % 3].push(u));
-    if (urls.length >= 2) {
-      for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
-    }
-    if (urls.length === 1) {
-      for (let c = 0; c < 3; c++) base[c] = [urls[0], urls[0]];
-    }
-    return base;
-  }, [urls]);
-
-  const FADE_MS = 2800;
-  const PAUSE_MS = 1300;
-  const [kicks, setKicks] = useState([0, 0, 0]);
-
-  useEffect(() => {
-    let alive = true;
-    let idx = 0;
-    const run = () => {
-      if (!alive) return;
-      setKicks((k) => { const a = k.slice(); a[idx] = a[idx] + 1; return a; });
-      setTimeout(() => {
-        if (!alive) return;
-        setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS);
-      }, FADE_MS * 2);
-    };
-    const start = setTimeout(run, 200);
-    return () => { alive = false; clearTimeout(start); };
-  }, []);
-
-  return (
-    <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20, boxSizing: "border-box" }}>
-      {cols.map((images, idx) => (
-        <SequencedSlot key={idx} images={images} fadeMs={FADE_MS} kick={kicks[idx]} />
-      ))}
-    </div>
-  );
-}
-
-function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
-  const len = images?.length || 0;
-  const [idx, setIdx] = useState(0);
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => { setIdx(0); setVisible(true); }, [len]);
-
-  useEffect(() => {
-    if (!len) return;
-    let tOut;
-    setVisible(false);
-    tOut = setTimeout(() => {
-      setIdx((p) => (p + 1) % len);
-      setVisible(true);
-    }, fadeMs);
-    return () => { if (tOut) clearTimeout(tOut); };
-  }, [kick, len, fadeMs]);
-
-  const url = len ? images[idx] : "";
-
-  return (
-    <div aria-label="Anonymized image carousel" style={{ position: "relative", height: 140, borderRadius: 12, border: "1px solid #27272a", overflow: "hidden", background: "#000" }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="Anonymized project image" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: visible ? 1 : 0, transition: `opacity ${fadeMs}ms ease-in-out`, willChange: "opacity", pointerEvents: "none" }} />
-    </div>
-  );
-}
+function CarouselRow({ maxWidth = 560 }) { /* unchanged */ const [urls, setUrls] = useState([]); useEffect(() => { let cancelled = false; (async () => { if (!supabase) { if (!cancelled) setUrls([]); return; } try { const { data, error } = await supabase.from("public_gallery").select("public_path, created_at").order("created_at", { ascending: false }).limit(60); if (error) throw error; const bucket = "public-thumbs"; const list = (data || []).map((r) => { try { const res = supabase.storage.from(bucket).getPublicUrl(r.public_path); return res?.data?.publicUrl || res?.data?.publicURL || ""; } catch { return ""; } }).filter(Boolean); if (!cancelled) setUrls(list); } catch (e) { console.error("Carousel fetch error:", e); if (!cancelled) setUrls([]); } })(); return () => { cancelled = true; }; }, []); const cols = useMemo(() => { const base = [[], [], []]; urls.forEach((u, i) => base[i % 3].push(u)); if (urls.length >= 2) { for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]]; } if (urls.length === 1) { for (let c = 0; c < 3; c++) base[c] = [urls[0], urls[0]]; } return base; }, [urls]); const FADE_MS = 2800; const PAUSE_MS = 1300; const [kicks, setKicks] = useState([0, 0, 0]); useEffect(() => { let alive = true; let idx = 0; const run = () => { if (!alive) return; setKicks((k) => { const a = k.slice(); a[idx] = a[idx] + 1; return a; }); setTimeout(() => { if (!alive) return; setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS); }, FADE_MS * 2); }; const start = setTimeout(run, 200); return () => { alive = false; clearTimeout(start); }; }, []); return (<div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20, boxSizing: "border-box" }}>{cols.map((images, idx) => (<SequencedSlot key={idx} images={images} fadeMs={FADE_MS} kick={kicks[idx]} />))}</div>); }
+function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) { const len = images?.length || 0; const [idx, setIdx] = useState(0); const [visible, setVisible] = useState(true); useEffect(() => { setIdx(0); setVisible(true); }, [len]); useEffect(() => { if (!len) return; let tOut; setVisible(false); tOut = setTimeout(() => { setIdx((p) => (p + 1) % len); setVisible(true); }, fadeMs); return () => { if (tOut) clearTimeout(tOut); }; }, [kick, len, fadeMs]); const url = len ? images[idx] : ""; return (<div aria-label="Anonymized image carousel" style={{ position: "relative", height: 140, borderRadius: 12, border: "1px solid #27272a", overflow: "hidden", background: "#000" }}><img src={url} alt="Anonymized project image" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: visible ? 1 : 0, transition: `opacity ${fadeMs}ms ease-in-out`, willChange: "opacity", pointerEvents: "none" }} /></div>); }
 
 /* ---------- Beta gate screen ---------- */
 function BetaGateScreen({ email }) {
@@ -449,7 +328,7 @@ function BetaGateScreen({ email }) {
         We are admitting a few beta testers. Your account{email ? ` (${email})` : ""} is not on the list yet.
       </p>
       <p style={{ marginTop: 8 }}>
-        If you should have access, please <a href={feedbackHref("Beta access request")} style={{ textDecoration: "underline" }}>email us</a> from the address you want whitelisted.
+        If you should have access, please <a href="mailto:girlsaidwhat@gmail.com" style={{ textDecoration: "underline" }}>email us</a> from the address you want whitelisted.
       </p>
       <nav aria-label="Links" style={{ display: "flex", gap: 12, marginTop: 12 }}>
         <a href="/" style={{ textDecoration: "none" }}>Back to landing</a>
@@ -496,7 +375,6 @@ export default function MyApp({ Component, pageProps }) {
   const asPath = router?.asPath || "/";
   const email = user?.email?.toLowerCase?.() || "";
 
-  // Logged-out routing stays the same
   const loggedOut = !signedIn;
   if (loggedOut) {
     if (path === "/signin") {
@@ -515,7 +393,6 @@ export default function MyApp({ Component, pageProps }) {
     );
   }
 
-  // Beta gate - only when enabled and on protected pages
   if (BETA_GATE_ENABLED && isProtectedRoute(path, asPath)) {
     const allowed = email && ALLOW_TESTERS.map((e) => e.toLowerCase()).includes(email);
     if (!allowed) {
