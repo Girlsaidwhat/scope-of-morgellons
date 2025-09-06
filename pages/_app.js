@@ -1,11 +1,26 @@
 ﻿// pages/_app.js
-// Build 36.176_2025-09-04
+// Build 36.177_2025-09-06
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.176_2025-09-04";
+export const BUILD_VERSION = "Build 36.177_2025-09-06";
+
+/* ---------- Beta gate (allow-list; default OFF) ---------- */
+const BETA_GATE_ENABLED = false; // flip to true to enable the gate
+const ALLOW_TESTERS = [
+  // add tester emails here, exact match, lowercase recommended
+  // "tester1@example.com",
+];
+function isProtectedRoute(pathname = "", asPath = "") {
+  // Protect profile/home, uploads, image detail, and My Story
+  const pat = pathname || "/";
+  const actual = asPath || "/";
+  if (pat === "/" || pat === "/upload" || pat === "/questionnaire" || pat === "/image/[id]") return true;
+  if (actual.startsWith("/image/")) return true;
+  return false;
+}
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -53,18 +68,55 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/* ---------- Build badge (lowest) ---------- */
+/* ---------- Feedback helpers ---------- */
+const FEEDBACK_TO = "girlsaidwhat@gmail.com";
+function feedbackHref(contextLabel = "Site-wide") {
+  const subject = `${contextLabel} – Scope feedback`;
+  const page = typeof window !== "undefined" ? window.location.href : "/";
+  const body = `Page: ${page}\n\nWhat happened:\n`;
+  return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+/* ---------- Build badge (with Beta + Report link) ---------- */
 function BuildBadge() {
   return (
-    <div aria-label="Build version" style={{ position: "fixed", right: 8, bottom: 0, zIndex: 2147483647, fontSize: 12, padding: "4px 10px", borderRadius: 8, color: "#fff", background: "#111", border: "1px solid #000", boxShadow: "0 2px 6px rgba(0,0,0,0.25)", pointerEvents: "none" }}>
-      {BUILD_VERSION}
+    <div
+      aria-label="Build version"
+      style={{
+        position: "fixed",
+        right: 8,
+        bottom: 0,
+        zIndex: 2147483647,
+        fontSize: 12,
+        padding: "4px 10px",
+        borderRadius: 8,
+        color: "#fff",
+        background: "#111",
+        border: "1px solid #000",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
+        pointerEvents: "auto", // allow link clicks
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <span>{BUILD_VERSION}</span>
+      <span style={{ padding: "1px 6px", borderRadius: 6, background: "#334155", fontWeight: 700, letterSpacing: 0.2 }}>Beta</span>
+      <a
+        href={feedbackHref("Beta")}
+        style={{ color: "#cbd5e1", textDecoration: "underline" }}
+        aria-label="Report an issue"
+      >
+        Report an issue
+      </a>
     </div>
   );
 }
 
-/* ---------- Auth presence ---------- */
+/* ---------- Auth presence (now with user) ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
+  const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
   useEffect(() => {
     if (!supabase) { setChecking(false); return; }
@@ -73,14 +125,21 @@ function useAuthPresence() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         setSignedIn(!!session);
-        const { data } = supabase.auth.onAuthStateChange((_evt, s) => setSignedIn(!!s));
+        setUser(session?.user ?? null);
+        const { data } = supabase.auth.onAuthStateChange((_evt, s) => {
+          setSignedIn(!!s);
+          setUser(s?.user ?? null);
+        });
         unsubscribe = data?.subscription?.unsubscribe || (() => {});
-      } catch (e) { console.error("Auth presence init error:", e); }
-      finally { setChecking(false); }
+      } catch (e) {
+        console.error("Auth presence init error:", e);
+      } finally {
+        setChecking(false);
+      }
     })();
     return () => { try { unsubscribe(); } catch {} };
   }, []);
-  return { signedIn, checking };
+  return { signedIn, user, checking };
 }
 
 /* ---------- Sign-in ---------- */
@@ -270,12 +329,12 @@ function ExplorePanel() {
       </div>
 
       {/* Centered content */}
-      <div style={{ width: "100%", maxWidth: CONTENT_MAX, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
+      <div style={{ width: "100%", maxWidth: 560, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
         <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
           <span ref={titleSpanRef} style={{ display: "inline-block" }}>The Scope of Morgellons</span>
         </h2>
         <div style={{ height: 48 }} />
-        <CarouselRow maxWidth={measuredWidth} />
+        <CarouselRow maxWidth={560} />
         <div style={{ height: 280 }} />
       </div>
     </section>
@@ -326,7 +385,7 @@ function CarouselRow({ maxWidth = 560 }) {
   }, [urls]);
 
   const FADE_MS = 2800;
-  const PAUSE_MS = 1300; // -100ms from 1.4s
+  const PAUSE_MS = 1300;
   const [kicks, setKicks] = useState([0, 0, 0]);
 
   useEffect(() => {
@@ -381,10 +440,29 @@ function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
   );
 }
 
+/* ---------- Beta gate screen ---------- */
+function BetaGateScreen({ email }) {
+  return (
+    <main id="main" tabIndex={-1} style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
+      <h1 style={{ marginTop: 0 }}>Beta access</h1>
+      <p style={{ marginTop: 8 }}>
+        We are admitting a few beta testers. Your account{email ? ` (${email})` : ""} is not on the list yet.
+      </p>
+      <p style={{ marginTop: 8 }}>
+        If you should have access, please <a href={feedbackHref("Beta access request")} style={{ textDecoration: "underline" }}>email us</a> from the address you want whitelisted.
+      </p>
+      <nav aria-label="Links" style={{ display: "flex", gap: 12, marginTop: 12 }}>
+        <a href="/" style={{ textDecoration: "none" }}>Back to landing</a>
+        <a href="/signin" style={{ textDecoration: "underline" }}>Sign out and switch account</a>
+      </nav>
+    </main>
+  );
+}
+
 /* ---------- App root ---------- */
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
-  const { signedIn, checking } = useAuthPresence();
+  const { signedIn, user, checking } = useAuthPresence();
 
   const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
   const [resetMode, setResetMode] = useState(isResetPath);
@@ -415,8 +493,11 @@ export default function MyApp({ Component, pageProps }) {
   }
 
   const path = router?.pathname || "/";
-  const loggedOut = !signedIn;
+  const asPath = router?.asPath || "/";
+  const email = user?.email?.toLowerCase?.() || "";
 
+  // Logged-out routing stays the same
+  const loggedOut = !signedIn;
   if (loggedOut) {
     if (path === "/signin") {
       return (
@@ -432,6 +513,19 @@ export default function MyApp({ Component, pageProps }) {
         <BuildBadge />
       </>
     );
+  }
+
+  // Beta gate - only when enabled and on protected pages
+  if (BETA_GATE_ENABLED && isProtectedRoute(path, asPath)) {
+    const allowed = email && ALLOW_TESTERS.map((e) => e.toLowerCase()).includes(email);
+    if (!allowed) {
+      return (
+        <>
+          <BetaGateScreen email={email} />
+          <BuildBadge />
+        </>
+      );
+    }
   }
 
   return (
