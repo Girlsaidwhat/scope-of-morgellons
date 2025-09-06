@@ -1,6 +1,6 @@
 // pages/questionnaire.js
 // Minimal signed-in route; separate from Profile. No badge bump.
-// Update: Rename page heading to "My Story" and replace intro text per request.
+// Update: Top nav (Back to Profile, Go to Uploads) above header for signed-in view.
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -63,6 +63,12 @@ export default function MyStoryPage() {
     <>
       <a href="#main" style={skipStyle}>Skip to content</a>
       <main id="main" tabIndex={-1} style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
+        {/* Top links */}
+        <nav aria-label="Page links" style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <a href="/" style={{ textDecoration: "none", fontWeight: 600 }}>Back to Profile</a>
+          <a href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>Go to Uploads</a>
+        </nav>
+
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
           <h1 style={{ margin: 0 }}>My Story</h1>
           <a href={feedbackHref("My Story")} aria-label="Send feedback about the My Story page" style={{ fontSize: 12, textDecoration: "underline" }}>
@@ -76,11 +82,6 @@ export default function MyStoryPage() {
             space for your story as far as the disease goes, a space for you to talk about the personal impact Morgellons has had on your life, etc.
           </p>
         </section>
-
-        <nav aria-label="Page links" style={{ display: "flex", gap: 12, marginTop: 14 }}>
-          <a href="/" style={{ textDecoration: "none", fontWeight: 600 }}>Back to Home</a>
-          <a href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>Go to Uploads</a>
-        </nav>
       </main>
     </>
   );
