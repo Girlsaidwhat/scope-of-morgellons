@@ -1,9 +1,9 @@
 // Build: 36.7g_2025-08-19
 // Rename category label to 'Blebs (clear to brown)'; colors/notes behavior unchanged
 // Writes to image_metadata.path and saves optional notes/colors
-// Small additions: overall upload status, “saving” step, 12s “Still waiting…” hint
+// Small additions: overall upload status, "saving" step, 12s "Still waiting..." hint
 // NEW: Tiny "Send feedback" mailto link in header (top-right)
-// Microburst A-1 (0906): Top button text = **Back to My Profile** (bold), add new categories
+// Microburst A-2 (0906): Top button text = **Back to My Profile** (bold); add new categories; rename "Miscellaneous" -> "Other" and place it last
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -15,7 +15,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Feedback email (change if you prefer a different address)
 const FEEDBACK_TO = "girlsaidwhat@gmail.com";
 function feedbackHref(contextLabel = "Upload") {
-  const subject = `${contextLabel} – Scope feedback`;
+  const subject = `${contextLabel} - Scope feedback`;
   const page = typeof window !== "undefined" ? window.location.href : "/upload";
   const body = `Page: ${page}\n\nWhat happened:\n`;
   return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -33,7 +33,6 @@ const CATEGORIES = [
   "Hexagons",
   "Crystalline Structures",
   "Feathers",
-  "Miscellaneous",
   "Hairs",
   "Skin",
   "Fire Skin",
@@ -41,6 +40,7 @@ const CATEGORIES = [
   "Wounds",
   "Embedded Artifacts",
   "Spiral Artifacts",
+  "Other", // keep at bottom
 ];
 
 const BLEBS_LABEL = "Blebs (clear to brown)";
@@ -84,7 +84,7 @@ export default function UploadPage() {
   const [rows, setRows] = useState([]); // per-file status rows
   const [isUploading, setIsUploading] = useState(false);
 
-  // Overall status + “stuck” hint
+  // Overall status + "stuck" hint
   const [overallMsg, setOverallMsg] = useState("");
   const [hint, setHint] = useState("");
   const stuckTimerRef = useRef(null);
@@ -232,7 +232,7 @@ export default function UploadPage() {
     setHint("");
     startStuckTimer();
 
-    // Map allowed rows once so we don’t rely on a stale state snapshot
+    // Map allowed rows once so we don't rely on a stale state snapshot
     const allowed = nextRowsA.map((r) => r.state !== "rejected");
 
     // Upload each file sequentially
@@ -277,7 +277,7 @@ export default function UploadPage() {
         continue;
       }
 
-      // Show “saving” step
+      // Show "saving" step
       setRows((prev) => {
         const copy = [...prev];
         copy[i] = { ...copy[i], state: "saving", message: "Saving metadata..." };
@@ -345,7 +345,7 @@ export default function UploadPage() {
     setRows((final) => {
       const s = final.filter(ok).length;
       const b = final.filter(bad).length;
-      setOverallMsg(`Done. Success: ${s} • Issues: ${b}`);
+      setOverallMsg(`Done. Success: ${s} - Issues: ${b}`);
       if (s === 0) setHint("If none succeeded, try a smaller JPEG or PNG, and confirm you are signed in.");
       return final;
     });
@@ -363,7 +363,7 @@ export default function UploadPage() {
       if (saving > 0) setOverallMsg(`Saving metadata (${saving})...`);
       else if (uploading > 0) setOverallMsg(`Uploading (${uploading})...`);
     } else if (success + error > 0) {
-      setOverallMsg(`Done. Success: ${success} • Issues: ${error}`);
+      setOverallMsg(`Done. Success: ${success} - Issues: ${error}`);
     }
     if (success + error > 0) clearStuckTimer();
   }, [rows, isUploading]);
@@ -371,7 +371,7 @@ export default function UploadPage() {
   const totalCountText = useMemo(() => {
     const ok = rows.filter((r) => r.state === "success").length;
     const fail = rows.filter((r) => r.state === "error" || r.state === "rejected").length;
-    return ok + fail > 0 ? `Done. Success: ${ok} • Issues: ${fail}` : "";
+    return ok + fail > 0 ? `Done. Success: ${ok} - Issues: ${fail}` : "";
   }, [rows]);
 
   return (
@@ -619,4 +619,3 @@ export default function UploadPage() {
     </div>
   );
 }
-
