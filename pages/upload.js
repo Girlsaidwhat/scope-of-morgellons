@@ -3,7 +3,7 @@
 // Writes to image_metadata.path and saves optional notes/colors
 // Small additions: overall upload status, “saving” step, 12s “Still waiting…” hint
 // NEW: Tiny "Send feedback" mailto link in header (top-right)
-// Microburst A (0905): Heading = "Uploads"; add top toolbar with Back to Home + Browse Gallery
+// Microburst A-1 (0906): Top button text = **Back to My Profile** (bold), add new categories
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -25,15 +25,22 @@ function feedbackHref(contextLabel = "Upload") {
 const CATEGORIES = [
   "Blebs (clear to brown)",
   "Biofilm",
+  "Spiky Biofilm",
   "Fiber Bundles",
+  "Embedded Fibers",
   "Fibers",
+  "Fire Hair",
   "Hexagons",
   "Crystalline Structures",
   "Feathers",
   "Miscellaneous",
   "Hairs",
   "Skin",
+  "Fire Skin",
+  "Sparkle Skin",
   "Wounds",
+  "Embedded Artifacts",
+  "Spiral Artifacts",
 ];
 
 const BLEBS_LABEL = "Blebs (clear to brown)";
@@ -373,11 +380,11 @@ export default function UploadPage() {
       <nav aria-label="Uploads page navigation" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <a
           href="/"
-          aria-label="Back to Home"
+          aria-label="Back to My Profile"
           style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e5e5", textDecoration: "none" }}
         >
           <span aria-hidden="true">←</span>
-          <span>Back to Home</span>
+          <span style={{ fontWeight: 700 }}><strong>Back to My Profile</strong></span>
         </a>
         <a
           href="/browse"
@@ -612,3 +619,4 @@ export default function UploadPage() {
     </div>
   );
 }
+
