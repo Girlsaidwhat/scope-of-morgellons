@@ -1,6 +1,7 @@
 // pages/questionnaire.js
 // Minimal signed-in route; separate from Profile. No badge bump.
 // Update: Top nav (Back to Profile, Go to Uploads) above header for signed-in view.
+// Spacing tweak: add a little more space between top links and header.
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -64,7 +65,7 @@ export default function MyStoryPage() {
       <a href="#main" style={skipStyle}>Skip to content</a>
       <main id="main" tabIndex={-1} style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
         {/* Top links */}
-        <nav aria-label="Page links" style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+        <nav aria-label="Page links" style={{ display: "flex", gap: 12, marginBottom: 16 }}>
           <a href="/" style={{ textDecoration: "none", fontWeight: 600 }}>Back to Profile</a>
           <a href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>Go to Uploads</a>
         </nav>
@@ -86,3 +87,4 @@ export default function MyStoryPage() {
     </>
   );
 }
+        
