@@ -4,6 +4,7 @@
 // Small additions: overall upload status, "saving" step, 12s "Still waiting..." hint
 // NEW: Tiny "Send feedback" mailto link in header (top-right)
 // Microburst A-2 (0906): Top button text = **Back to My Profile** (bold); add new categories; rename "Miscellaneous" -> "Other" and place it last
+// Microburst A-3 (0906): Rename "Wounds" -> "Lesions" in category list
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -37,7 +38,7 @@ const CATEGORIES = [
   "Skin",
   "Fire Skin",
   "Sparkle Skin",
-  "Wounds",
+  "Lesions",
   "Embedded Artifacts",
   "Spiral Artifacts",
   "Other", // keep at bottom
