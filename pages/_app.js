@@ -1,22 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.179_2025-09-06
+// Build 36.181_2025-09-06
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.179_2025-09-06";
-
-/* ---------- Beta gate (allow-list; default OFF) ---------- */
-const BETA_GATE_ENABLED = false;
-const ALLOW_TESTERS = [];
-function isProtectedRoute(pathname = "", asPath = "") {
-  const pat = pathname || "/";
-  const actual = asPath || "/";
-  if (pat === "/" || pat === "/upload" || pat === "/questionnaire" || pat === "/image/[id]") return true;
-  if (actual.startsWith("/image/")) return true;
-  return false;
-}
+export const BUILD_VERSION = "Build 36.181_2025-09-06";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -64,72 +53,35 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/* ---------- Build badge (Gmail link + Copy email) ---------- */
+/* ---------- Build badge (opens user mail app with page prefilled) ---------- */
 const SUPPORT_EMAIL = "girlsaidwhat@gmail.com";
-function gmailComposeHref() {
-  const base = "https://mail.google.com/mail/?view=cm&fs=1";
-  const params = new URLSearchParams({ to: SUPPORT_EMAIL, su: "Scope feedback" });
-  return `${base}&${params.toString()}`;
+function makeMailtoHref() {
+  try {
+    const page = typeof window !== "undefined" ? window.location.href : "/";
+    const params = new URLSearchParams();
+    params.set("subject", "Scope feedback");
+    params.set("body", `Page: ${page}\n\nWhat happened:\n`);
+    return `mailto:${SUPPORT_EMAIL}?${params.toString()}`;
+  } catch {
+    return `mailto:${SUPPORT_EMAIL}`;
+  }
 }
 function BuildBadge() {
-  const [copied, setCopied] = useState(false);
-  async function copyEmail() {
-    try {
-      await navigator.clipboard.writeText(SUPPORT_EMAIL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {}
-  }
+  const [href, setHref] = useState(`mailto:${SUPPORT_EMAIL}`);
+  useEffect(() => { setHref(makeMailtoHref()); }, []);
   return (
-    <div
-      aria-label="Build version"
-      style={{
-        position: "fixed",
-        right: 8,
-        bottom: 0,
-        zIndex: 2147483647,
-        fontSize: 12,
-        padding: "4px 10px",
-        borderRadius: 8,
-        color: "#fff",
-        background: "#111",
-        border: "1px solid #000",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-        pointerEvents: "auto",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
+    <div aria-label="Build version" style={{ position: "fixed", right: 8, bottom: 0, zIndex: 2147483647, fontSize: 12, padding: "4px 10px", borderRadius: 8, color: "#fff", background: "#111", border: "1px solid #000", boxShadow: "0 2px 6px rgba(0,0,0,0.25)", pointerEvents: "auto", display: "flex", alignItems: "center", gap: 8 }}>
       <span>{BUILD_VERSION}</span>
-      <span style={{ padding: "1px 6px", borderRadius: 6, background: "#334155", fontWeight: 700, letterSpacing: 0.2 }}>Beta</span>
-      <a
-        href={gmailComposeHref()}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: "#cbd5e1", textDecoration: "underline" }}
-        aria-label="Report an issue in Gmail"
-        title="Opens Gmail compose"
-      >
+      <a href={href} style={{ color: "#cbd5e1", textDecoration: "underline" }} aria-label="Report an issue via your email app" title="Opens your default email app">
         Report an issue
       </a>
-      <button
-        type="button"
-        onClick={copyEmail}
-        aria-label="Copy support email address"
-        title="Copy email"
-        style={{ padding: "2px 6px", borderRadius: 6, border: "1px solid #374151", background: "#1f2937", color: "#e5e7eb", cursor: "pointer" }}
-      >
-        {copied ? "Copied" : "Copy email"}
-      </button>
     </div>
   );
 }
 
-/* ---------- Auth presence (with user) ---------- */
+/* ---------- Auth presence ---------- */
 function useAuthPresence() {
   const [signedIn, setSignedIn] = useState(false);
-  const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
   useEffect(() => {
     if (!supabase) { setChecking(false); return; }
@@ -138,22 +90,98 @@ function useAuthPresence() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         setSignedIn(!!session);
-        setUser(session?.user ?? null);
-        const { data } = supabase.auth.onAuthStateChange((_evt, s) => {
-          setSignedIn(!!s);
-          setUser(s?.user ?? null);
-        });
+        const { data } = supabase.auth.onAuthStateChange((_evt, s) => setSignedIn(!!s));
         unsubscribe = data?.subscription?.unsubscribe || (() => {});
       } catch (e) { console.error("Auth presence init error:", e); }
       finally { setChecking(false); }
     })();
     return () => { try { unsubscribe(); } catch {} };
   }, []);
-  return { signedIn, user, checking };
+  return { signedIn, checking };
 }
 
-/* ---------- Sign-in / Reset / Landing (unchanged) ---------- */
-// ... (keep the rest of your file content exactly as in 36.178; no other changes below) ...
+/* ---------- Sign-in ---------- */
+function AuthScreen() {
+  const router = useRouter();
+  const [mode, setMode] = useState("sign_in");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showTips, setShowTips] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  const pageWrap = { maxWidth: 980, margin: "20px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" };
+  const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
+  const inputWrap = { display: "grid", gap: 6, justifyItems: "center" };
+  const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
+
+  async function handleSignIn(e) {
+    e.preventDefault?.(); setErr(""); setMsg("Signing in…");
+    try {
+      const sb = supabase || createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      setMsg("Signed in."); router.replace("/");
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not sign in."); }
+  }
+  async function handleSignUp(e) {
+    e.preventDefault?.(); setErr(""); setMsg("Creating account…");
+    try {
+      if (!supabase) throw new Error("Client not ready");
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      setMsg("Account created. Check your email to confirm, then sign in.");
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not sign up."); }
+  }
+  async function handleForgot(e) {
+    e.preventDefault?.(); setErr(""); setMsg("Sending reset email…");
+    try {
+      if (!supabase) throw new Error("Client not ready");
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/reset` });
+      if (error) throw error;
+      setMsg("Check your email for the reset link.");
+    } catch (e) { setMsg(""); setErr(e?.message || "Could not send reset email."); }
+  }
+
+  return (
+    <main id="main" style={pageWrap}>
+      <header style={{ width: "100%", paddingTop: 28 }}>
+        <div style={{ fontSize: 18, fontWeight: 600, color: "#333", textAlign: "center", marginBottom: 0, letterSpacing: 0.2, lineHeight: 1 }}>Welcome to</div>
+        <h1 style={{ margin: "0 0 6px", textAlign: "center", lineHeight: 1.12 }}>The Scope of Morgellons</h1>
+      </header>
+      <section aria-label="Sign in" style={{ borderTop: "1px solid #eee", paddingTop: 12, width: "100%" }}>
+        <form onSubmit={mode === "sign_in" ? handleSignIn : handleSignUp} aria-label={mode === "sign_in" ? "Sign in form" : "Sign up form"} style={formStyle}>
+          <label style={inputWrap}><span>Email</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={input} /></label>
+          <label style={inputWrap}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: 300 }}>
+              <span>Password</span>
+              <button type="button" aria-label="Password tips" onClick={() => setShowTips((v) => !v)} style={{ fontSize: 12, padding: "2px 8px" }}>?</button>
+            </div>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "sign_in" ? "current-password" : "new-password"} required style={input} />
+          </label>
+          {showTips ? (
+            <div role="dialog" aria-label="Password tips" style={{ border: "1px solid #ddd", borderRadius: 10, background: "white", padding: 10, margin: "0 auto", width: 320, textAlign: "left", fontSize: 12, lineHeight: 1.4 }}>
+              <strong style={{ display: "block", marginBottom: 6, fontSize: 12 }}>Password tips</strong>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                <li>Use a long passphrase of 3–5 words.</li>
+                <li>Make it unique for every site.</li>
+                <li>Use a password manager.</li>
+              </ul>
+            </div>
+          ) : null}
+          <div style={row}>
+            <button type="submit" style={btn}>{mode === "sign_in" ? "Sign in" : "Sign up"}</button>
+            <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>{mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}</button>
+            <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
+          </div>
+          <p aria-live="polite" style={statusStyle}>{msg}</p>
+          {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
+        </form>
+      </section>
+    </main>
+  );
+}
 
 /* ---------- Reset screen ---------- */
 function ResetPasswordScreen({ onDone }) {
@@ -212,13 +240,16 @@ function LandingScreen() {
   );
 }
 
-/* ---- Explore panel + carousel (unchanged) ---- */
+/* ---- Explore: floating hamburger + centered header+carousel constrained to header ---- */
 function ExplorePanel() {
   const [menuOpen, setMenuOpen] = useState(false);
+
   const CONTENT_MAX = 560;
   const titleSpanRef = useRef(null);
   const [measuredWidth, setMeasuredWidth] = useState(CONTENT_MAX);
+
   const CHROME_HEIGHT = 28, TOPBAR_TOP = 10, SIDE_PAD = 10;
+
   useEffect(() => {
     const sync = () => {
       const spanW = titleSpanRef.current?.getBoundingClientRect?.().width || CONTENT_MAX;
@@ -228,9 +259,12 @@ function ExplorePanel() {
     window.addEventListener("resize", sync);
     return () => window.removeEventListener("resize", sync);
   }, []);
+
   return (
     <section id="explore-panel" aria-label="Project overview" style={{ border: "1px solid #27272a", borderRadius: 12, padding: 20, marginBottom: 12, background: "#0a0a0a", color: "#f4f4f5", position: "relative", overflow: "visible" }}>
+      {/* Absolute top bar */}
       <div style={{ position: "absolute", top: TOPBAR_TOP, left: SIDE_PAD, right: SIDE_PAD, height: CHROME_HEIGHT, display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 5, pointerEvents: "none" }}>
+        {/* Hoverable hamburger */}
         <div onMouseEnter={() => setMenuOpen(true)} onMouseLeave={() => setMenuOpen(false)} style={{ position: "relative", pointerEvents: "auto", display: "flex", alignItems: "center" }}>
           <button type="button" aria-label="Open menu" aria-controls="explore-menu" aria-haspopup="menu" aria-expanded={menuOpen ? "true" : "false"} onClick={() => setMenuOpen((v) => !v)} title="Menu" style={{ width: 34, height: CHROME_HEIGHT, borderRadius: 10, border: "1px solid rgba(148,163,184,0.35)", background: "rgba(17,24,39,0.6)", display: "grid", placeItems: "center", cursor: "pointer", boxShadow: "0 10px 24px rgba(0,0,0,0.35)", backdropFilter: "saturate(140%) blur(4px)", WebkitBackdropFilter: "saturate(140%) blur(4px)", transition: "transform 180ms ease, background 180ms ease, border-color 180ms ease" }}>
             <div style={{ display: "grid", gap: 4 }}>
@@ -247,45 +281,127 @@ function ExplorePanel() {
             </nav>
           ) : null}
         </div>
+
+        {/* CTA same row */}
         <a href="/signin" style={{ height: CHROME_HEIGHT, display: "inline-flex", alignItems: "center", padding: "0 10px", borderRadius: 8, border: "1px solid transparent", background: "transparent", color: "#cbd5e1", textDecoration: "none", fontWeight: 600, fontSize: 13, lineHeight: `${CHROME_HEIGHT}px`, pointerEvents: "auto" }} aria-label="Sign up or sign in" title="Sign up / Sign In">Sign Up / Sign In</a>
       </div>
-      <div style={{ width: "100%", maxWidth: 560, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
+
+      {/* Centered content */}
+      <div style={{ width: "100%", maxWidth: CONTENT_MAX, margin: "0 auto", textAlign: "center", boxSizing: "border-box" }}>
         <h2 style={{ margin: "56px 0 0", fontSize: 36, textAlign: "center" }}>
           <span ref={titleSpanRef} style={{ display: "inline-block" }}>The Scope of Morgellons</span>
         </h2>
         <div style={{ height: 48 }} />
-        <CarouselRow maxWidth={560} />
+        <CarouselRow maxWidth={measuredWidth} />
         <div style={{ height: 280 }} />
       </div>
     </section>
   );
 }
-function CarouselRow({ maxWidth = 560 }) { /* unchanged */ const [urls, setUrls] = useState([]); useEffect(() => { let cancelled = false; (async () => { if (!supabase) { if (!cancelled) setUrls([]); return; } try { const { data, error } = await supabase.from("public_gallery").select("public_path, created_at").order("created_at", { ascending: false }).limit(60); if (error) throw error; const bucket = "public-thumbs"; const list = (data || []).map((r) => { try { const res = supabase.storage.from(bucket).getPublicUrl(r.public_path); return res?.data?.publicUrl || res?.data?.publicURL || ""; } catch { return ""; } }).filter(Boolean); if (!cancelled) setUrls(list); } catch (e) { console.error("Carousel fetch error:", e); if (!cancelled) setUrls([]); } })(); return () => { cancelled = true; }; }, []); const cols = useMemo(() => { const base = [[], [], []]; urls.forEach((u, i) => base[i % 3].push(u)); if (urls.length >= 2) { for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]]; } if (urls.length === 1) { for (let c = 0; c < 3; c++) base[c] = [urls[0], urls[0]]; } return base; }, [urls]); const FADE_MS = 2800; const PAUSE_MS = 1300; const [kicks, setKicks] = useState([0, 0, 0]); useEffect(() => { let alive = true; let idx = 0; const run = () => { if (!alive) return; setKicks((k) => { const a = k.slice(); a[idx] = a[idx] + 1; return a; }); setTimeout(() => { if (!alive) return; setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS); }, FADE_MS * 2); }; const start = setTimeout(run, 200); return () => { alive = false; clearTimeout(start); }; }, []); return (<div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20, boxSizing: "border-box" }}>{cols.map((images, idx) => (<SequencedSlot key={idx} images={images} fadeMs={FADE_MS} kick={kicks[idx]} />))}</div>); }
-function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) { const len = images?.length || 0; const [idx, setIdx] = useState(0); const [visible, setVisible] = useState(true); useEffect(() => { setIdx(0); setVisible(true); }, [len]); useEffect(() => { if (!len) return; let tOut; setVisible(false); tOut = setTimeout(() => { setIdx((p) => (p + 1) % len); setVisible(true); }, fadeMs); return () => { if (tOut) clearTimeout(tOut); }; }, [kick, len, fadeMs]); const url = len ? images[idx] : ""; return (<div aria-label="Anonymized image carousel" style={{ position: "relative", height: 140, borderRadius: 12, border: "1px solid #27272a", overflow: "hidden", background: "#000" }}><img src={url} alt="Anonymized project image" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: visible ? 1 : 0, transition: `opacity ${fadeMs}ms ease-in-out`, willChange: "opacity", pointerEvents: "none" }} /></div>); }
 
-/* ---------- Beta gate screen ---------- */
-function BetaGateScreen({ email }) {
+/* ---------- Carousel: global one-by-one sequencer with 1.3s pauses ---------- */
+function CarouselRow({ maxWidth = 560 }) {
+  const [urls, setUrls] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!supabase) { if (!cancelled) setUrls([]); return; }
+      try {
+        const { data, error } = await supabase
+          .from("public_gallery")
+          .select("public_path, created_at")
+          .order("created_at", { ascending: false })
+          .limit(60);
+        if (error) throw error;
+        const bucket = "public-thumbs";
+        const list = (data || []).map((r) => {
+          try {
+            const res = supabase.storage.from(bucket).getPublicUrl(r.public_path);
+            return res?.data?.publicUrl || res?.data?.publicURL || "";
+          } catch { return ""; }
+        }).filter(Boolean);
+        if (!cancelled) setUrls(list);
+      } catch (e) {
+        console.error("Carousel fetch error:", e);
+        if (!cancelled) setUrls([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const cols = useMemo(() => {
+    const base = [[], [], []];
+    urls.forEach((u, i) => base[i % 3].push(u));
+    if (urls.length >= 2) {
+      for (let c = 0; c < 3; c++) if (base[c].length < 2) base[c] = [...base[c], urls[(c + 1) % urls.length]];
+    }
+    if (urls.length === 1) {
+      for (let c = 0; c < 3; c++) base[c] = [urls[0], urls[0]];
+    }
+    return base;
+  }, [urls]);
+
+  const FADE_MS = 2800;
+  const PAUSE_MS = 1300; // -100ms from 1.4s
+  const [kicks, setKicks] = useState([0, 0, 0]);
+
+  useEffect(() => {
+    let alive = true;
+    let idx = 0;
+    const run = () => {
+      if (!alive) return;
+      setKicks((k) => { const a = k.slice(); a[idx] = a[idx] + 1; return a; });
+      setTimeout(() => {
+        if (!alive) return;
+        setTimeout(() => { idx = (idx + 1) % 3; run(); }, PAUSE_MS);
+      }, FADE_MS * 2);
+    };
+    const start = setTimeout(run, 200);
+    return () => { alive = false; clearTimeout(start); };
+  }, []);
+
   return (
-    <main id="main" tabIndex={-1} style={{ maxWidth: 980, margin: "0 auto", padding: 24 }}>
-      <h1 style={{ marginTop: 0 }}>Beta access</h1>
-      <p style={{ marginTop: 8 }}>
-        We are admitting a few beta testers. Your account{email ? ` (${email})` : ""} is not on the list yet.
-      </p>
-      <p style={{ marginTop: 8 }}>
-        If you should have access, please <a href={gmailComposeHref()} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline" }}>email us</a> from the address you want whitelisted.
-      </p>
-      <nav aria-label="Links" style={{ display: "flex", gap: 12, marginTop: 12 }}>
-        <a href="/" style={{ textDecoration: "none" }}>Back to landing</a>
-        <a href="/signin" style={{ textDecoration: "underline" }}>Sign out and switch account</a>
-      </nav>
-    </main>
+    <div style={{ width: maxWidth, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 20, boxSizing: "border-box" }}>
+      {cols.map((images, idx) => (
+        <SequencedSlot key={idx} images={images} fadeMs={FADE_MS} kick={kicks[idx]} />
+      ))}
+    </div>
+  );
+}
+
+function SequencedSlot({ images, fadeMs = 2800, kick = 0 }) {
+  const len = images?.length || 0;
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => { setIdx(0); setVisible(true); }, [len]);
+
+  useEffect(() => {
+    if (!len) return;
+    let tOut;
+    setVisible(false);
+    tOut = setTimeout(() => {
+      setIdx((p) => (p + 1) % len);
+      setVisible(true);
+    }, fadeMs);
+    return () => { if (tOut) clearTimeout(tOut); };
+  }, [kick, len, fadeMs]);
+
+  const url = len ? images[idx] : "";
+
+  return (
+    <div aria-label="Anonymized image carousel" style={{ position: "relative", height: 140, borderRadius: 12, border: "1px solid #27272a", overflow: "hidden", background: "#000" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="Anonymized project image" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: visible ? 1 : 0, transition: `opacity ${fadeMs}ms ease-in-out`, willChange: "opacity", pointerEvents: "none" }} />
+    </div>
   );
 }
 
 /* ---------- App root ---------- */
 export default function MyApp({ Component, pageProps }) {
   const router = useRouter();
-  const { signedIn, user, checking } = useAuthPresence();
+  const { signedIn, checking } = useAuthPresence();
 
   const isResetPath = router?.pathname?.startsWith?.("/auth/reset") || false;
   const [resetMode, setResetMode] = useState(isResetPath);
@@ -316,10 +432,8 @@ export default function MyApp({ Component, pageProps }) {
   }
 
   const path = router?.pathname || "/";
-  const asPath = router?.asPath || "/";
-  const email = user?.email?.toLowerCase?.() || "";
-
   const loggedOut = !signedIn;
+
   if (loggedOut) {
     if (path === "/signin") {
       return (
@@ -335,18 +449,6 @@ export default function MyApp({ Component, pageProps }) {
         <BuildBadge />
       </>
     );
-  }
-
-  if (BETA_GATE_ENABLED && isProtectedRoute(path, asPath)) {
-    const allowed = email && ALLOW_TESTERS.map((e) => e.toLowerCase()).includes(email);
-    if (!allowed) {
-      return (
-        <>
-          <BetaGateScreen email={email} />
-          <BuildBadge />
-        </>
-      );
-    }
   }
 
   return (
