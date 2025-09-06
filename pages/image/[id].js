@@ -1,6 +1,11 @@
 // pages/image/[id].js
 // Build: 36.12_2025-08-20 + landing feature toggle (storage API fix)
 // Adds "Feature on landing" (public thumbnail pipeline) using public_gallery + public-thumbs.
+// Microburst B-1 (0906): Per-image category editor with multi-select.
+// - Renders a "Categories" checkbox list (same set as Uploads; 'Lesions' + 'Other' last)
+// - Saves BOTH: categories[] (if column exists) and legacy category (first selected or null)
+// - Owner-only update via existing RLS (eq user_id)
+// - Clear status messages; no page reload
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -9,6 +14,28 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Shared category list (kept in sync with Uploads)
+const CATEGORIES = [
+  "Blebs (clear to brown)",
+  "Biofilm",
+  "Spiky Biofilm",
+  "Fiber Bundles",
+  "Embedded Fibers",
+  "Fibers",
+  "Fire Hair",
+  "Hexagons",
+  "Crystalline Structures",
+  "Feathers",
+  "Hairs",
+  "Skin",
+  "Fire Skin",
+  "Sparkle Skin",
+  "Lesions",
+  "Embedded Artifacts",
+  "Spiral Artifacts",
+  "Other", // keep at bottom
+];
 
 function prettyDate(s) {
   try {
@@ -39,6 +66,11 @@ export default function ImageDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // New: multi-category editor state
+  const [selectedCats, setSelectedCats] = useState([]); // array of strings
+  const [catsSupported, setCatsSupported] = useState(null); // null = unknown, true/false once checked
+  const [savingCats, setSavingCats] = useState(false);
+
   // Landing feature state
   const [featured, setFeatured] = useState(false);
   const [featureBusy, setFeatureBusy] = useState(false);
@@ -54,7 +86,7 @@ export default function ImageDetailPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Load row
+  // Load row (base fields)
   useEffect(() => {
     if (!user?.id || !id) return;
     let canceled = false;
@@ -82,6 +114,31 @@ export default function ImageDetailPage() {
       setRow(data);
       setNotes(data?.notes || "");
       setStatus("");
+
+      // Try to read optional categories[] column without breaking the main load
+      let initialCats = [];
+      try {
+        const { data: catRow, error: catErr } = await supabase
+          .from("image_metadata")
+          .select("categories")
+          .eq("user_id", user.id)
+          .eq("id", data.id)
+          .maybeSingle();
+        if (catErr) {
+          setCatsSupported(false);
+          // Fallback to legacy single category
+          initialCats = data?.category ? [data.category] : [];
+        } else {
+          setCatsSupported(true);
+          const arr = Array.isArray(catRow?.categories) ? catRow.categories.filter(Boolean) : [];
+          initialCats = arr.length ? arr : (data?.category ? [data.category] : []);
+        }
+      } catch {
+        setCatsSupported(false);
+        initialCats = data?.category ? [data.category] : [];
+      }
+      setSelectedCats(initialCats);
+
       setLoading(false);
 
       // Check if featured
@@ -124,6 +181,53 @@ export default function ImageDetailPage() {
     setStatus("Notes saved.");
     setSaving(false);
     setTimeout(() => setStatus(""), 1500);
+  }
+
+  // New: Save categories (multi-select)
+  async function saveCategories(e) {
+    e?.preventDefault?.();
+    if (!user?.id || !row?.id) return;
+    setSavingCats(true);
+    setStatus("Saving categories...");
+
+    // unique + trimmed selection
+    const clean = Array.from(new Set((selectedCats || []).map((s) => (s || "").trim()).filter(Boolean)));
+    const primary = clean[0] || null;
+
+    // First attempt: update both fields (categories + legacy category)
+    try {
+      const updateObj = catsSupported ? { categories: clean, category: primary } : { category: primary };
+      const { error } = await supabase
+        .from("image_metadata")
+        .update(updateObj)
+        .eq("id", row.id)
+        .eq("user_id", user.id);
+      if (error) {
+        // If the error indicates missing column, retry with legacy-only
+        const missingCol = /column .*categories.* does not exist/i.test(error.message || "");
+        if (missingCol) {
+          setCatsSupported(false);
+          const { error: fallbackErr } = await supabase
+            .from("image_metadata")
+            .update({ category: primary })
+            .eq("id", row.id)
+            .eq("user_id", user.id);
+          if (fallbackErr) throw fallbackErr;
+          setRow((prev) => ({ ...prev, category: primary }));
+          setStatus("Saved primary category. To enable multiple, add a 'categories text[]' column.");
+        } else {
+          throw error;
+        }
+      } else {
+        setRow((prev) => ({ ...prev, category: primary }));
+        setStatus("Categories saved.");
+      }
+    } catch (err) {
+      setStatus(`Save error: ${err?.message || "Unknown error"}`);
+    } finally {
+      setSavingCats(false);
+      setTimeout(() => setStatus(""), 1500);
+    }
   }
 
   // --- Landing "Feature" actions (public thumbnail pipeline) ---
@@ -246,12 +350,26 @@ export default function ImageDetailPage() {
     }, 200);
   }
 
+  function firstCategoryForBadges() {
+    if (selectedCats && selectedCats.length) return selectedCats[0];
+    return row?.category || null;
+  }
+
   function colorBadge() {
-    if (!row) return null;
-    if (row.category === "Blebs (clear to brown)" && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
-    if (row.category === "Fiber Bundles" && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
-    if (row.category === "Fibers" && row.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
+    const first = firstCategoryForBadges();
+    if (!first) return null;
+    if (first === "Blebs (clear to brown)" && row?.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
+    if (first === "Fiber Bundles" && row?.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
+    if (first === "Fibers" && row?.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
     return null;
+  }
+
+  function toggleCat(cat) {
+    setSelectedCats((prev) => {
+      const has = prev.includes(cat);
+      if (has) return prev.filter((c) => c !== cat);
+      return [...prev, cat];
+    });
   }
 
   return (
@@ -321,7 +439,7 @@ export default function ImageDetailPage() {
                 }}
               >
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                  <Badge>{row.category || "Uncategorized"}</Badge>
+                  {selectedCats.length ? selectedCats.map((c) => <Badge key={c}>{c}</Badge>) : <Badge>Uncategorized</Badge>}
                   {colorBadge()}
                 </div>
 
@@ -396,6 +514,74 @@ export default function ImageDetailPage() {
                 </div>
               </div>
 
+              {/* Categories editor */}
+              <form
+                onSubmit={saveCategories}
+                aria-labelledby="cats-heading"
+                style={{
+                  border: "1px solid #e5e5e5",
+                  borderRadius: 10,
+                  background: "#fff",
+                  padding: 12,
+                }}
+              >
+                <h2 id="cats-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>
+                  Categories
+                </h2>
+
+                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Categories</div>
+                <div
+                  role="group"
+                  aria-labelledby="cats-heading"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 8,
+                    marginBottom: 10,
+                  }}
+                >
+                  {CATEGORIES.map((c) => (
+                    <label key={c} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCats.includes(c)}
+                        onChange={() => toggleCat(c)}
+                        aria-label={c}
+                      />
+                      <span>{c}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {catsSupported === false ? (
+                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
+                    Multiple categories will save the first one only until a <code>categories</code> text[] column exists.
+                  </div>
+                ) : null}
+
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    type="submit"
+                    disabled={savingCats}
+                    aria-label="Save categories"
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: "1px solid #0f766e",
+                      background: savingCats ? "#8dd3cd" : "#14b8a6",
+                      color: "white",
+                      fontWeight: 600,
+                      cursor: savingCats ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {savingCats ? "Saving..." : "Save Categories"}
+                  </button>
+                  <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+                    {status && !deleting ? status : ""}
+                  </span>
+                </div>
+              </form>
+
               {/* Notes */}
               <form
                 onSubmit={saveNotes}
@@ -468,5 +654,3 @@ export default function ImageDetailPage() {
     </main>
   );
 }
-
-
