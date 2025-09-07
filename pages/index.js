@@ -23,7 +23,7 @@ function feedbackHref(contextLabel = "Profile") {
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.204";
+const INDEX_BUILD = "idx-36.205";
 
 function prettyDate(s) {
   try {
@@ -721,14 +721,6 @@ export default function HomePage() {
   }
 
   // ---------- Logged-in Home ----------
-  const srOnly = {
-    position: "absolute",
-    left: -9999,
-    top: "auto",
-    width: 1,
-    height: 1,
-    overflow: "hidden",
-  };
 
   // Helpers for the “chip” look
   function Chip({ active, children }) {
@@ -811,28 +803,46 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* Top links above header */}
+      {/* Top links above header, with Sign out top-right and feedback under it */}
       <nav
         aria-label="Page links"
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
           gap: 12,
-          marginBottom: 10
+          marginBottom: 22 /* more space before Welcome */,
         }}
       >
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           <Link href="/upload" style={{ textDecoration: "none", fontWeight: 700 }}>Back to Uploads</Link>
           <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 700 }}>Go to My Story</Link>
         </div>
-        <a
-          href={feedbackHref("Profile")}
-          aria-label="Send feedback about the Profile page"
-          style={{ textDecoration: "underline", fontSize: 12 }}
-        >
-          Send feedback
-        </a>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <button
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            style={{
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #cbd5e1",
+              background: "#f8fafc",
+              cursor: "pointer",
+              fontWeight: 600,
+              whiteSpace: "nowrap",
+            }}
+            title="Sign out"
+          >
+            Sign out
+          </button>
+          <a
+            href={feedbackHref("Profile")}
+            aria-label="Send feedback about the Profile page"
+            style={{ textDecoration: "underline", fontSize: 12 }}
+          >
+            Send feedback
+          </a>
+        </div>
       </nav>
 
       {/* Header */}
@@ -841,48 +851,19 @@ export default function HomePage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
-          marginBottom: 8,
+          marginBottom: 4 /* less space under Welcome */,
         }}
       >
         <h1 style={{ fontSize: 28, margin: 0 }}>
           {firstName ? `Welcome to Your Profile, ${firstName}` : "Welcome to Your Profile"}
         </h1>
       </header>
-      {/* Thin divider under header */}
+      {/* Thin divider under header with tighter spacing */}
       <div
         role="separator"
         aria-hidden="true"
-        style={{ height: 1, background: "#e5e7eb", margin: "8px 0 16px" }}
+        style={{ height: 1, background: "#e5e7eb", margin: "4px 0 8px" }}
       />
-
-      {/* Actions row (right side only) */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          marginBottom: 12,
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <button
-          onClick={handleSignOut}
-          aria-label="Sign out"
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e1",
-            background: "#f8fafc",
-            cursor: "pointer",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-          }}
-          title="Sign out"
-        >
-          Sign out
-        </button>
-      </div>
 
       {/* Mini-heading: Profile */}
       <h2 id="profile-form-heading" style={{ fontSize: 14, margin: "8px 0 6px", opacity: 0.85 }}>
@@ -996,11 +977,11 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* One-line inputs */}
+        {/* One-line inputs (now with visible labels above fields) */}
         <div
           style={{
             display: "flex",
-            gap: 8,
+            gap: 12,
             alignItems: "flex-end",
             whiteSpace: "nowrap",
             overflowX: "auto",
@@ -1011,10 +992,9 @@ export default function HomePage() {
         >
           {/* First name */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="first_name" style={srOnly}>First name</label>
+            <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>First name</label>
             <input
               id="first_name"
-              placeholder="First"
               value={firstNameField}
               onChange={(e) => setFirstNameField(e.target.value)}
               style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
@@ -1023,10 +1003,9 @@ export default function HomePage() {
 
           {/* Last name */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="last_name" style={srOnly}>Last name</label>
+            <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Last name</label>
             <input
               id="last_name"
-              placeholder="Last"
               value={lastNameField}
               onChange={(e) => setLastNameField(e.target.value)}
               style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
@@ -1035,10 +1014,9 @@ export default function HomePage() {
 
           {/* Initials */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="initials" style={srOnly}>Initials</label>
+            <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Initials</label>
             <input
               id="initials"
-              placeholder="INI"
               value={initials}
               maxLength={3}
               onChange={(e) => {
@@ -1060,12 +1038,11 @@ export default function HomePage() {
 
           {/* Age */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="age" style={srOnly}>Age</label>
+            <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Age</label>
             <input
               id="age"
               type="number"
               inputMode="numeric"
-              placeholder="Age"
               value={age}
               onChange={(e) => setAge(e.target.value)}
               title="Age"
@@ -1082,10 +1059,9 @@ export default function HomePage() {
 
           {/* City */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="city" style={srOnly}>Location (City)</label>
+            <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>City</label>
             <input
               id="city"
-              placeholder="City"
               value={city}
               onChange={(e) => setCity(e.target.value)}
               style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 90, maxWidth: 140 }}
@@ -1094,7 +1070,7 @@ export default function HomePage() {
 
           {/* State dropdown */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="state" style={srOnly}>State</label>
+            <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>State</label>
             <select
               id="state"
               value={stateAbbr}
@@ -1117,10 +1093,9 @@ export default function HomePage() {
 
           {/* Country */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="country" style={srOnly}>Country</label>
+            <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Country</label>
             <input
               id="country"
-              placeholder="Country"
               value={country}
               onChange={(e) => setCountry(e.target.value)}
               style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 100 }}
