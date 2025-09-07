@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.203";
+const INDEX_BUILD = "idx-36.204";
 
 function prettyDate(s) {
   try {
@@ -380,6 +380,24 @@ export default function HomePage() {
   function showToast(msg) {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
+  }
+
+  // Gentle “My Story” nudge (dismissible)
+  const [showStoryNudge, setShowStoryNudge] = useState(false);
+  useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem("myStoryNudgeDismissed") === "1";
+      const visited = localStorage.getItem("visited_questionnaire") === "1";
+      setShowStoryNudge(!dismissed && !visited);
+    } catch {}
+  }, []);
+  function dismissStoryNudge() {
+    try { localStorage.setItem("myStoryNudgeDismissed", "1"); } catch {}
+    setShowStoryNudge(false);
+  }
+  function markQuestionnaireVisited() {
+    try { localStorage.setItem("visited_questionnaire", "1"); } catch {}
+    setShowStoryNudge(false);
   }
 
   // Deleted toast via query param
@@ -802,6 +820,67 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {/* My Story nudge (dismissible) */}
+      {showStoryNudge ? (
+        <div
+          role="region"
+          aria-label="My Story reminder"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: 10,
+            marginBottom: 12,
+            border: "1px solid #99f6e4",
+            background: "#ecfeff",
+            borderRadius: 10,
+          }}
+        >
+          <div style={{ fontSize: 14 }}>
+            Haven’t told your story yet? It helps others understand the patterns.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href="/questionnaire"
+              onClick={markQuestionnaireVisited}
+              style={{
+                textDecoration: "none",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #0f766e",
+                background: "#14b8a6",
+                color: "white",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+                fontSize: 12,
+              }}
+              aria-label="Go to My Story"
+              title="Go to My Story"
+            >
+              Go to My Story
+            </Link>
+            <button
+              onClick={dismissStoryNudge}
+              aria-label="Dismiss My Story reminder"
+              title="Dismiss"
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #cbd5e1",
+                background: "#f8fafc",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Top links + right cluster */}
       <div
         style={{
@@ -817,7 +896,7 @@ export default function HomePage() {
           <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
             Go to Uploads
           </Link>
-          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }}>
+          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }} onClick={markQuestionnaireVisited}>
             Go to My Story
           </Link>
         </div>
