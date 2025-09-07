@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.185_2025-09-07
+// Build 36.186_2025-09-07
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.185_2025-09-07";
+export const BUILD_VERSION = "Build 36.186_2025-09-07";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -53,7 +53,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/* ---------- Build badge (menu: Gmail / Outlook / Default email / Copy) ---------- */
+/* ---------- Build badge (menu: Gmail / Outlook / Default email) ---------- */
 const SUPPORT_EMAIL = "girlsaidwhat@gmail.com";
 
 function currentPageUrl() {
@@ -63,14 +63,12 @@ function currentPathname() {
   try { return typeof window !== "undefined" ? window.location.pathname : "/"; } catch { return "/"; }
 }
 function pageLabelFromPath(path) {
-  // Normalize and derive a friendly page label for the email subject
   if (!path || path === "/") return "Profile Page";
   if (path === "/upload") return "Uploads Page";
   if (path.startsWith("/image/")) return "Image Detail Page";
   if (path === "/questionnaire") return "My Story Page";
   if (path === "/signin") return "Sign In Page";
   if (path === "/auth/reset") return "Reset Password Page";
-  // Add other simple routes here if needed
   return "Site";
 }
 function enc(s) { return encodeURIComponent(s); }
@@ -108,18 +106,6 @@ function BuildBadge() {
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, []);
-
-  const copyReport = async () => {
-    const { subject, body } = makeMailBits();
-    try {
-      await navigator.clipboard.writeText(
-        `To: ${SUPPORT_EMAIL}\nSubject: ${subject}\n\n${body}`
-      );
-      alert("Copied prefilled report to clipboard.");
-    } catch {
-      alert("Could not copy. You can select and copy manually.");
-    }
-  };
 
   return (
     <div
@@ -182,9 +168,6 @@ function BuildBadge() {
           <a role="menuitem" href={mailto} style={{ color: "#cbd5e1", textDecoration: "underline" }}>
             Use default email app
           </a>
-          <button role="menuitem" type="button" onClick={copyReport} style={{ textAlign: "left", color: "#e5e7eb", background: "#111827", border: "1px solid #374151", borderRadius: 6, padding: "6px 8px", cursor: "pointer" }}>
-            Copy prefilled report
-          </button>
         </div>
       ) : null}
     </div>
