@@ -1,7 +1,7 @@
 // pages/image/[id].js
-// Build: 36.21_blebprompt_2025-09-07
-// Adds: Category chips editor + auto "Bleb color" prompt when Blebs is selected.
-// Keeps: preview, notes, delete, landing feature toggle, uploader snapshot.
+// Build: 36.22_catbadge_2025-09-07
+// Change: De-duplicate category badges (use a single unique list).
+// Keeps: preview, notes, delete, landing feature toggle, multi-category editor, Bleb color prompt.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -139,7 +139,6 @@ export default function ImageDetailPage() {
       const incomingCats = Array.isArray(data?.categories)
         ? data.categories
         : (data?.category ? [data.category] : []);
-      // filter to known labels to avoid stray strings
       const normalized = incomingCats.filter((c) => CATEGORY_LABELS.includes(c));
       setCategories(normalized);
 
@@ -275,7 +274,6 @@ export default function ImageDetailPage() {
     setStatus("Deleting...");
 
     try {
-      // delete public copy first
       const ext = (row.ext || "").replace(/^\./, "") || "jpg";
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
       await supabase.storage.from("public-thumbs").remove([targetPath]);
@@ -313,11 +311,7 @@ export default function ImageDetailPage() {
     setCategories((prev) => {
       const has = prev.includes(label);
       const next = has ? prev.filter((c) => c !== label) : [...prev, label];
-
-      // If Blebs was just added and no color set, open prompt
-      if (!has && label === BLEBS_LABEL && !blebColor) {
-        setShowBlebPrompt(true);
-      }
+      if (!has && label === BLEBS_LABEL && !blebColor) setShowBlebPrompt(true);
       return next;
     });
   }
@@ -327,15 +321,10 @@ export default function ImageDetailPage() {
     setCatBusy(true);
     setCatMsg("Saving categories...");
 
-    // Prefer updating "categories" (array/jsonb), but tolerate missing column.
-    // Also set legacy single "category" to first selected for back-compat.
     const payloads = [];
-
-    // Try modern multi first
-    payloads.push({ try: { categories }, desc: "categories" });
-    // Legacy primary
+    payloads.push({ try: { categories }, desc: "categories" }); // multi
     const primary = categories[0] || null;
-    payloads.push({ try: { category: primary }, desc: "category" });
+    payloads.push({ try: { category: primary }, desc: "category" }); // legacy
 
     let lastErr = null;
     for (const step of payloads) {
@@ -367,7 +356,6 @@ export default function ImageDetailPage() {
       return;
     }
 
-    // reflect primary into row for badges
     setRow((r) => (r ? { ...r, category: primary, categories: [...categories] } : r));
     setCatMsg("Saved.");
     setCatBusy(false);
@@ -398,14 +386,31 @@ export default function ImageDetailPage() {
     }
   }
 
+  // ---------- Display helpers (de-dup badges) ----------
+
+  // Prefer local editor state if present; else use DB fields.
+  const displayCategories = useMemo(() => {
+    const source = (Array.isArray(categories) && categories.length > 0)
+      ? categories
+      : (Array.isArray(row?.categories) && row.categories.length > 0)
+      ? row.categories
+      : (row?.category ? [row.category] : []);
+    const uniq = Array.from(new Set(source)).filter(Boolean);
+    return uniq;
+  }, [categories, row?.categories, row?.category]);
+
   function colorBadge() {
-    const cats = Array.isArray(row?.categories) ? row.categories : (row?.category ? [row.category] : []);
-    const hasBlebs = cats.includes(BLEBS_LABEL);
-    if (hasBlebs && (blebColor || row?.bleb_color)) {
-      return <Badge>Color: {blebColor || row?.bleb_color}</Badge>;
+    const hasBlebs = displayCategories.includes(BLEBS_LABEL);
+    const colorVal = blebColor || row?.bleb_color || "";
+    if (hasBlebs && colorVal) {
+      // Normalize to Title Case visually
+      const norm = String(colorVal).replace(/\b\w/g, (m) => m.toUpperCase());
+      return <Badge>Color: {norm}</Badge>;
     }
-    if (row?.category === "Fiber Bundles" && row?.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
-    if (row?.category === "Fibers" && row?.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
+    const hasBundles = displayCategories.includes("Fiber Bundles");
+    if (hasBundles && row?.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
+    const hasFibers = displayCategories.includes("Fibers");
+    if (hasFibers && row?.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
     return null;
   }
 
@@ -478,14 +483,9 @@ export default function ImageDetailPage() {
                   padding: 12,
                 }}
               >
-                {/* Badges row */}
+                {/* Badges row (deduped) */}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                  {/* Show primary category badge (legacy) */}
-                  {row.category ? <Badge>{row.category}</Badge> : null}
-                  {/* If multi present, show each (small) */}
-                  {Array.isArray(row?.categories)
-                    ? row.categories.map((c) => <Badge key={c}>{c}</Badge>)
-                    : null}
+                  {displayCategories.map((c) => <Badge key={c}>{c}</Badge>)}
                   {colorBadge()}
                 </div>
 
@@ -777,7 +777,7 @@ export default function ImageDetailPage() {
                         fontSize: 12,
                       }}
                     >
-                      Keep “{blebColor}”
+                      Keep “{String(blebColor).replace(/\b\w/g, (m) => m.toUpperCase())}”
                     </button>
                   ) : null}
                 </div>
