@@ -1,6 +1,7 @@
 // pages/image/[id].js
-// Build: 36.25_bleb-multi-safe_2025-09-07
-// Change: SAFE load (select "*"), tolerate missing columns, keep multi Bleb colors & multi-category editor.
+// Build: 36.26_bleb-popup-multi_2025-09-07
+// Change: When selecting "Blebs (clear to brown)", open a multi-select color modal immediately.
+//         No separate "Edit Bleb colors" button. Safe loader (select "*") maintained.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -33,7 +34,7 @@ const CATEGORY_LABELS = [
   "Other",
 ];
 
-// Bleb Color options
+// Bleb Color options (multi-select)
 const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 
 function prettyDate(s) {
@@ -86,7 +87,7 @@ export default function ImageDetailPage() {
   const [catMsg, setCatMsg] = useState("");
 
   // Bleb colors (multiple)
-  const [blebColors, setBlebColors] = useState([]); // array of strings from BLEB_COLOR_OPTIONS
+  const [blebColors, setBlebColors] = useState([]); // array of strings
   const [showBlebPrompt, setShowBlebPrompt] = useState(false);
   const [modalSel, setModalSel] = useState([]); // working selection in modal
   const firstChkRef = useRef(null);
@@ -102,14 +103,14 @@ export default function ImageDetailPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Load row (SAFE: select("*") so missing columns don't break)
+  // Load row (SAFE: select("*"))
   useEffect(() => {
     if (!user?.id || !id) return;
     let canceled = false;
     setLoading(true);
     setStatus("Loading...");
     (async () => {
-      const idValue = /^\d+$/.test(String(id)) ? Number(id) : id; // tolerate numeric PKs
+      const idValue = /^\d+$/.test(String(id)) ? Number(id) : id;
       const { data, error } = await supabase
         .from("image_metadata")
         .select("*")
@@ -137,7 +138,7 @@ export default function ImageDetailPage() {
       setStatus("");
       setLoading(false);
 
-      // Categories (prefer array if present; else wrap legacy)
+      // Categories (prefer array; else wrap legacy)
       const incomingCats = Array.isArray(data?.categories)
         ? data.categories
         : (data?.category ? [data.category] : []);
@@ -313,10 +314,11 @@ export default function ImageDetailPage() {
   function toggleCategory(label) {
     setCategories((prev) => {
       const has = prev.includes(label);
-      const next = has ? prev.filter((c) => c !== label) : [...prev, label];
-      // When adding Blebs and no color yet, prompt for colors
-      if (!has && label === BLEBS_LABEL && (blebColors?.length || 0) === 0) {
-        setModalSel([]); // start empty
+      let next = has ? prev.filter((c) => c !== label) : [...prev, label];
+      // If adding Blebs → open modal immediately for multi-color selection
+      if (!has && label === BLEBS_LABEL) {
+        // prefill with current blebColors (if any)
+        setModalSel([...(blebColors || [])]);
         setShowBlebPrompt(true);
       }
       return next;
@@ -358,23 +360,15 @@ export default function ImageDetailPage() {
 
     if (lastErr) {
       setCatMsg(`Some fields failed: ${lastErr.message}`);
-      setCatBusy(false);
-      setTimeout(() => setCatMsg(""), 2000);
-      return;
+    } else {
+      setRow((r) => (r ? { ...r, category: primary, categories: [...categories] } : r));
+      setCatMsg("Saved.");
+      setTimeout(() => setCatMsg(""), 1200);
     }
-
-    setRow((r) => (r ? { ...r, category: primary, categories: [...categories] } : r));
-    setCatMsg("Saved.");
     setCatBusy(false);
-    setTimeout(() => setCatMsg(""), 1200);
   }
 
   // ---------- Bleb color helpers ----------
-
-  function openBlebModal(prefillFromState = true) {
-    setModalSel(prefillFromState ? [...(blebColors || [])] : []);
-    setShowBlebPrompt(true);
-  }
 
   function toggleModalColor(opt) {
     setModalSel((prev) => (prev.includes(opt) ? prev.filter((v) => v !== opt) : [...prev, opt]));
@@ -386,7 +380,7 @@ export default function ImageDetailPage() {
 
     const updates = [
       { try: { bleb_colors: newColors }, desc: "bleb_colors[]" }, // preferred (text[] or jsonb)
-      { try: { bleb_color: (newColors[0] || null) }, desc: "bleb_color (legacy)" }, // legacy single
+      { try: { bleb_color: (newColors[0] || null) }, desc: "bleb_color (legacy)" }, // legacy single fallback
     ];
 
     let lastErr = null;
@@ -635,34 +629,6 @@ export default function ImageDetailPage() {
                     );
                   })}
                 </div>
-
-                {/* Bleb color editor affordance when Blebs is selected */}
-                {categories.includes(BLEBS_LABEL) ? (
-                  <div style={{ marginTop: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => openBlebModal(true)}
-                      aria-label="Edit bleb colors"
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #0f766e",
-                        background: "#14b8a6",
-                        color: "white",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      Edit Bleb colors
-                    </button>
-                    {blebColors.length ? (
-                      <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.85 }}>
-                        Current: {blebColors.join(", ")}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
                   <button
