@@ -12,18 +12,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
-// Feedback email for Profile page
-const FEEDBACK_TO = "girlsaidwhat@gmail.com";
-function feedbackHref(contextLabel = "Profile") {
-  const subject = `${contextLabel} Page Issue`;
-  const page = typeof window !== "undefined" ? window.location.href : "/";
-  const body = `Page: ${page}\n\nWhat happened:\n`;
-  return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-}
-
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.205";
+const INDEX_BUILD = "idx-36.203";
 
 function prettyDate(s) {
   try {
@@ -721,6 +712,14 @@ export default function HomePage() {
   }
 
   // ---------- Logged-in Home ----------
+  const srOnly = {
+    position: "absolute",
+    left: -9999,
+    top: "auto",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+  };
 
   // Helpers for the “chip” look
   function Chip({ active, children }) {
@@ -803,22 +802,27 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* Top links above header, with Sign out top-right and feedback under it */}
-      <nav
-        aria-label="Page links"
+      {/* Top links + right cluster */}
+      <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          gap: 12,
-          marginBottom: 22 /* more space before Welcome */,
+          marginBottom: 8,
+          gap: 8,
+          flexWrap: "wrap",
         }}
       >
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/upload" style={{ textDecoration: "none", fontWeight: 700 }}>Back to Uploads</Link>
-          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 700 }}>Go to My Story</Link>
+          <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
+            Go to Uploads
+          </Link>
+          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }}>
+            Go to My Story
+          </Link>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <button
             onClick={handleSignOut}
             aria-label="Sign out"
@@ -836,14 +840,16 @@ export default function HomePage() {
             Sign out
           </button>
           <a
-            href={feedbackHref("Profile")}
-            aria-label="Send feedback about the Profile page"
-            style={{ textDecoration: "underline", fontSize: 12 }}
+            href={`mailto:girlsaidwhat@gmail.com?subject=${encodeURIComponent("Profile Page Issue")}&body=${encodeURIComponent(
+              `Page: ${typeof window !== "undefined" ? window.location.href : "Profile"}\n\nWhat happened:\n`
+            )}`}
+            style={{ fontSize: 12, textDecoration: "underline", color: "#334155" }}
+            aria-label="Send feedback about this page"
           >
             Send feedback
           </a>
         </div>
-      </nav>
+      </div>
 
       {/* Header */}
       <header
@@ -851,24 +857,19 @@ export default function HomePage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
-          marginBottom: 4 /* less space under Welcome */,
+          marginBottom: 6, // reduced as requested
         }}
       >
         <h1 style={{ fontSize: 28, margin: 0 }}>
           {firstName ? `Welcome to Your Profile, ${firstName}` : "Welcome to Your Profile"}
         </h1>
       </header>
-      {/* Thin divider under header with tighter spacing */}
+      {/* Thin divider under header */}
       <div
         role="separator"
         aria-hidden="true"
-        style={{ height: 1, background: "#e5e7eb", margin: "4px 0 8px" }}
+        style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }} // less space below header
       />
-
-      {/* Mini-heading: Profile */}
-      <h2 id="profile-form-heading" style={{ fontSize: 14, margin: "8px 0 6px", opacity: 0.85 }}>
-        Profile
-      </h2>
 
       {/* Profile form */}
       <form
@@ -967,7 +968,7 @@ export default function HomePage() {
             setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
           }
         }}
-        aria-labelledby="profile-form-heading"
+        aria-label="Profile form"
         style={{
           padding: 18,
           border: "1px solid #e2e8f0",
@@ -977,11 +978,11 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* One-line inputs (now with visible labels above fields) */}
+        {/* One-line inputs with visible labels */}
         <div
           style={{
             display: "flex",
-            gap: 12,
+            gap: 8,
             alignItems: "flex-end",
             whiteSpace: "nowrap",
             overflowX: "auto",
@@ -992,7 +993,9 @@ export default function HomePage() {
         >
           {/* First name */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>First name</label>
+            <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              First name
+            </label>
             <input
               id="first_name"
               value={firstNameField}
@@ -1003,7 +1006,9 @@ export default function HomePage() {
 
           {/* Last name */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Last name</label>
+            <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              Last name
+            </label>
             <input
               id="last_name"
               value={lastNameField}
@@ -1014,7 +1019,9 @@ export default function HomePage() {
 
           {/* Initials */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Initials</label>
+            <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              Initials
+            </label>
             <input
               id="initials"
               value={initials}
@@ -1038,7 +1045,9 @@ export default function HomePage() {
 
           {/* Age */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Age</label>
+            <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              Age
+            </label>
             <input
               id="age"
               type="number"
@@ -1059,7 +1068,9 @@ export default function HomePage() {
 
           {/* City */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>City</label>
+            <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              City
+            </label>
             <input
               id="city"
               value={city}
@@ -1070,7 +1081,9 @@ export default function HomePage() {
 
           {/* State dropdown */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>State</label>
+            <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              State (US)
+            </label>
             <select
               id="state"
               value={stateAbbr}
@@ -1093,7 +1106,9 @@ export default function HomePage() {
 
           {/* Country */}
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>Country</label>
+            <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+              Country
+            </label>
             <input
               id="country"
               value={country}
@@ -1110,7 +1125,7 @@ export default function HomePage() {
         >
           <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Person who has Morgellons" />
+            <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
             <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
             <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
             <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
