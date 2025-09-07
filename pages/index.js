@@ -12,9 +12,18 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 );
 
+// Feedback email for Profile page
+const FEEDBACK_TO = "girlsaidwhat@gmail.com";
+function feedbackHref(contextLabel = "Profile") {
+  const subject = `${contextLabel} Page Issue`;
+  const page = typeof window !== "undefined" ? window.location.href : "/";
+  const body = `Page: ${page}\n\nWhat happened:\n`;
+  return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.203";
+const INDEX_BUILD = "idx-36.204";
 
 function prettyDate(s) {
   try {
@@ -802,6 +811,30 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {/* Top links above header */}
+      <nav
+        aria-label="Page links"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 10
+        }}
+      >
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link href="/upload" style={{ textDecoration: "none", fontWeight: 700 }}>Back to Uploads</Link>
+          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 700 }}>Go to My Story</Link>
+        </div>
+        <a
+          href={feedbackHref("Profile")}
+          aria-label="Send feedback about the Profile page"
+          style={{ textDecoration: "underline", fontSize: 12 }}
+        >
+          Send feedback
+        </a>
+      </nav>
+
       {/* Header */}
       <header
         style={{
@@ -812,7 +845,7 @@ export default function HomePage() {
         }}
       >
         <h1 style={{ fontSize: 28, margin: 0 }}>
-          {firstName ? `Welcome, ${firstName}` : "Welcome"}
+          {firstName ? `Welcome to Your Profile, ${firstName}` : "Welcome to Your Profile"}
         </h1>
       </header>
       {/* Thin divider under header */}
@@ -822,44 +855,33 @@ export default function HomePage() {
         style={{ height: 1, background: "#e5e7eb", margin: "8px 0 16px" }}
       />
 
-      {/* Actions row */}
+      {/* Actions row (right side only) */}
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           alignItems: "center",
           marginBottom: 12,
           gap: 8,
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
-            Go to Uploads
-          </Link>
-          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }}>
-            Go to My Story
-          </Link>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "100%" }}>
-          <button
-            onClick={handleSignOut}
-            aria-label="Sign out"
-            style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-              background: "#f8fafc",
-              cursor: "pointer",
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-            }}
-            title="Sign out"
-          >
-            Sign out
-          </button>
-        </div>
+        <button
+          onClick={handleSignOut}
+          aria-label="Sign out"
+          style={{
+            padding: "8px 12px",
+            borderRadius: 8,
+            border: "1px solid #cbd5e1",
+            background: "#f8fafc",
+            cursor: "pointer",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+          }}
+          title="Sign out"
+        >
+          Sign out
+        </button>
       </div>
 
       {/* Mini-heading: Profile */}
@@ -1113,7 +1135,7 @@ export default function HomePage() {
         >
           <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
+            <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Person who has Morgellons" />
             <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
             <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
             <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
