@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.183_2025-09-07
+// Build 36.181_2025-09-06
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.183_2025-09-07";
+export const BUILD_VERSION = "Build 36.181_2025-09-06";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -53,123 +53,28 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-/* ---------- Build badge (menu: Gmail / Outlook / Default email / Copy) ---------- */
+/* ---------- Build badge (opens user mail app with page prefilled) ---------- */
 const SUPPORT_EMAIL = "girlsaidwhat@gmail.com";
-function currentPageUrl() {
-  try { return typeof window !== "undefined" ? window.location.href : "/"; } catch { return "/"; }
-}
-function enc(s) { return encodeURIComponent(s); }
-function makeMailBits() {
-  const page = currentPageUrl();
-  const subject = "Scope feedback";
-  const body = `Page: ${page}\n\nWhat happened:\n`;
-  return { page, subject, body };
-}
-function gmailHref() {
-  const { subject, body } = makeMailBits();
-  return `https://mail.google.com/mail/?view=cm&fs=1&to=${enc(SUPPORT_EMAIL)}&su=${enc(subject)}&body=${enc(body)}`;
-}
-function outlookHref() {
-  const { subject, body } = makeMailBits();
-  return `https://outlook.live.com/mail/0/deeplink/compose?to=${enc(SUPPORT_EMAIL)}&subject=${enc(subject)}&body=${enc(body)}`;
-}
-function mailtoHref() {
-  const { subject, body } = makeMailBits();
-  return `mailto:${SUPPORT_EMAIL}?subject=${enc(subject)}&body=${enc(body)}`;
+function makeMailtoHref() {
+  try {
+    const page = typeof window !== "undefined" ? window.location.href : "/";
+    const params = new URLSearchParams();
+    params.set("subject", "Scope feedback");
+    params.set("body", `Page: ${page}\n\nWhat happened:\n`);
+    return `mailto:${SUPPORT_EMAIL}?${params.toString()}`;
+  } catch {
+    return `mailto:${SUPPORT_EMAIL}`;
+  }
 }
 function BuildBadge() {
-  const [open, setOpen] = useState(false);
-  const [mailto, setMailto] = useState(`mailto:${SUPPORT_EMAIL}`);
-  const menuRef = useRef(null);
-
-  useEffect(() => { setMailto(mailtoHref()); }, []);
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
-  }, []);
-
-  const copyReport = async () => {
-    const { subject, body } = makeMailBits();
-    try {
-      await navigator.clipboard.writeText(
-        `To: ${SUPPORT_EMAIL}\nSubject: ${subject}\n\n${body}`
-      );
-      alert("Copied prefilled report to clipboard.");
-    } catch {
-      alert("Could not copy. You can select and copy manually.");
-    }
-  };
-
+  const [href, setHref] = useState(`mailto:${SUPPORT_EMAIL}`);
+  useEffect(() => { setHref(makeMailtoHref()); }, []);
   return (
-    <div
-      ref={menuRef}
-      aria-label="Build version"
-      style={{
-        position: "fixed",
-        right: 8,
-        bottom: 0,
-        zIndex: 2147483647,
-        fontSize: 12,
-        padding: "4px 10px",
-        borderRadius: 8,
-        color: "#fff",
-        background: "#111",
-        border: "1px solid #000",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.25)",
-        pointerEvents: "auto",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
+    <div aria-label="Build version" style={{ position: "fixed", right: 8, bottom: 0, zIndex: 2147483647, fontSize: 12, padding: "4px 10px", borderRadius: 8, color: "#fff", background: "#111", border: "1px solid #000", boxShadow: "0 2px 6px rgba(0,0,0,0.25)", pointerEvents: "auto", display: "flex", alignItems: "center", gap: 8 }}>
       <span>{BUILD_VERSION}</span>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open ? "true" : "false"}
-        aria-controls="report-menu"
-        title="Report an issue"
-        style={{ padding: "2px 8px", borderRadius: 6, border: "1px solid #334155", background: "#1f2937", color: "#e5e7eb", cursor: "pointer" }}
-      >
-        Report an issue ▾
-      </button>
-      {open ? (
-        <div
-          id="report-menu"
-          role="menu"
-          style={{
-            position: "absolute",
-            bottom: 30,
-            right: 8,
-            background: "#0b0f19",
-            border: "1px solid #2c3444",
-            borderRadius: 8,
-            boxShadow: "0 12px 24px rgba(0,0,0,0.35)",
-            padding: 8,
-            minWidth: 220,
-            display: "grid",
-            gap: 6,
-          }}
-        >
-          <a role="menuitem" href={gmailHref()} target="_blank" rel="noopener noreferrer" style={{ color: "#cbd5e1", textDecoration: "underline" }}>
-            Open Gmail (web)
-          </a>
-          <a role="menuitem" href={outlookHref()} target="_blank" rel="noopener noreferrer" style={{ color: "#cbd5e1", textDecoration: "underline" }}>
-            Open Outlook (web)
-          </a>
-          <a role="menuitem" href={mailto} style={{ color: "#cbd5e1", textDecoration: "underline" }}>
-            Use default email app
-          </a>
-          <button role="menuitem" type="button" onClick={copyReport} style={{ textAlign: "left", color: "#e5e7eb", background: "#111827", border: "1px solid #374151", borderRadius: 6, padding: "6px 8px", cursor: "pointer" }}>
-            Copy prefilled report
-          </button>
-        </div>
-      ) : null}
+      <a href={href} style={{ color: "#cbd5e1", textDecoration: "underline" }} aria-label="Report an issue via your email app" title="Opens your default email app">
+        Report an issue
+      </a>
     </div>
   );
 }
@@ -270,7 +175,7 @@ function AuthScreen() {
             <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>{mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}</button>
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
           </div>
-          <p aria-live="polite" style={{ fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 }}>{msg}</p>
+          <p aria-live="polite" style={statusStyle}>{msg}</p>
           {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
         </form>
       </section>
@@ -290,6 +195,7 @@ function ResetPasswordScreen({ onDone }) {
   const pageWrap = { maxWidth: 980, margin: "24px auto", padding: "0 12px", display: "flex", flexDirection: "column", alignItems: "center" };
   const formStyle = { display: "grid", gap: 10, width: "100%", maxWidth: 360, margin: "0 auto" };
   const input = { width: 300, padding: "10px 12px", border: "1px solid #ccc", borderRadius: 8, fontSize: 14 };
+  const statusStyle = { fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 };
 
   async function handleSubmit(e) {
     e.preventDefault?.(); setErr("");
@@ -312,7 +218,7 @@ function ResetPasswordScreen({ onDone }) {
         <label><span style={{ display: "block", marginBottom: 6 }}>New password</span><input ref={passRef} type="password" value={p1} onChange={(e) => setP1(e.target.value)} autoComplete="new-password" required style={input} /></label>
         <label><span style={{ display: "block", marginBottom: 6 }}>Confirm new password</span><input type="password" value={p2} onChange={(e) => setP2(e.target.value)} autoComplete="new-password" required style={input} /></label>
         <button type="submit" style={btn} aria-label="Update password">Update password</button>
-        <p aria-live="polite" style={{ fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 }}>{msg}</p>
+        <p aria-live="polite" style={statusStyle}>{msg}</p>
         {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
       </form>
     </main>
@@ -437,7 +343,7 @@ function CarouselRow({ maxWidth = 560 }) {
   }, [urls]);
 
   const FADE_MS = 2800;
-  const PAUSE_MS = 1300;
+  const PAUSE_MS = 1300; // -100ms from 1.4s
   const [kicks, setKicks] = useState([0, 0, 0]);
 
   useEffect(() => {
@@ -526,7 +432,7 @@ export default function MyApp({ Component, pageProps }) {
   }
 
   const path = router?.pathname || "/";
-  the const loggedOut = !signedIn;
+  const loggedOut = !signedIn;
 
   if (loggedOut) {
     if (path === "/signin") {
