@@ -1,7 +1,7 @@
 // pages/image/[id].js
-// Build: 36.22_catbadge_2025-09-07
-// Change: De-duplicate category badges (use a single unique list).
-// Keeps: preview, notes, delete, landing feature toggle, multi-category editor, Bleb color prompt.
+// Build: 36.24_bleb-multi_2025-09-07
+// Change: Support multiple Bleb colors (bleb_colors[] with legacy bleb_color fallback).
+// Also: De-duped category badges, category editor, notes, delete, landing feature toggle kept.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
@@ -11,7 +11,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ---- Category constants (matches Upload page list & your revisions) ----
+// ---- Category constants ----
 const BLEBS_LABEL = "Blebs (clear to brown)";
 const CATEGORY_LABELS = [
   BLEBS_LABEL,
@@ -31,10 +31,10 @@ const CATEGORY_LABELS = [
   "Embedded Fibers",
   "Embedded Artifacts",
   "Spiral Artifacts",
-  "Other", // keep last
+  "Other",
 ];
 
-// Color options (same set used on Upload)
+// Bleb Color options
 const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 
 function prettyDate(s) {
@@ -86,10 +86,11 @@ export default function ImageDetailPage() {
   const [catBusy, setCatBusy] = useState(false);
   const [catMsg, setCatMsg] = useState("");
 
-  // Bleb color prompt
-  const [blebColor, setBlebColor] = useState(""); // single selection
+  // Bleb colors (multiple)
+  const [blebColors, setBlebColors] = useState([]); // array of strings from BLEB_COLOR_OPTIONS
   const [showBlebPrompt, setShowBlebPrompt] = useState(false);
-  const firstColorBtnRef = useRef(null);
+  const [modalSel, setModalSel] = useState([]); // working selection in modal
+  const firstChkRef = useRef(null);
 
   // Auth
   useEffect(() => {
@@ -102,7 +103,7 @@ export default function ImageDetailPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Load row (tolerant: pulls both legacy "category" and new "categories")
+  // Load row (tolerant select includes both legacy and new fields)
   useEffect(() => {
     if (!user?.id || !id) return;
     let canceled = false;
@@ -113,7 +114,8 @@ export default function ImageDetailPage() {
         .from("image_metadata")
         .select(`
           id, user_id, path, storage_path, filename, ext, mime_type,
-          category, categories, bleb_color, fiber_bundles_color, fibers_color,
+          category, categories, bleb_color, bleb_colors,
+          fiber_bundles_color, fibers_color,
           created_at, notes,
           uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in
         `)
@@ -135,17 +137,20 @@ export default function ImageDetailPage() {
       setStatus("");
       setLoading(false);
 
-      // Set category editor state from row (prefer array if present)
+      // Categories
       const incomingCats = Array.isArray(data?.categories)
         ? data.categories
         : (data?.category ? [data.category] : []);
       const normalized = incomingCats.filter((c) => CATEGORY_LABELS.includes(c));
       setCategories(normalized);
 
-      // Bleb color
-      setBlebColor(data?.bleb_color || "");
+      // Bleb colors: prefer array; else wrap legacy single
+      const bc = Array.isArray(data?.bleb_colors)
+        ? data.bleb_colors
+        : (data?.bleb_color ? [data.bleb_color] : []);
+      setBlebColors(bc.filter((v) => BLEB_COLOR_OPTIONS.includes(v)));
 
-      // Check if featured on landing
+      // Featured?
       const { data: pg, error: pgErr } = await supabase
         .from("public_gallery")
         .select("id")
@@ -163,11 +168,9 @@ export default function ImageDetailPage() {
     return pub?.publicUrl || "";
   }, [row?.path]);
 
-  // Focus first option when prompt opens
+  // Focus first checkbox when modal opens
   useEffect(() => {
-    if (showBlebPrompt) {
-      setTimeout(() => firstColorBtnRef.current?.focus?.(), 0);
-    }
+    if (showBlebPrompt) setTimeout(() => firstChkRef.current?.focus?.(), 0);
   }, [showBlebPrompt]);
 
   async function saveNotes(e) {
@@ -311,7 +314,11 @@ export default function ImageDetailPage() {
     setCategories((prev) => {
       const has = prev.includes(label);
       const next = has ? prev.filter((c) => c !== label) : [...prev, label];
-      if (!has && label === BLEBS_LABEL && !blebColor) setShowBlebPrompt(true);
+      // When adding Blebs and no color yet, prompt for colors
+      if (!has && label === BLEBS_LABEL && blebColors.length === 0) {
+        setModalSel([]); // start empty
+        setShowBlebPrompt(true);
+      }
       return next;
     });
   }
@@ -362,33 +369,66 @@ export default function ImageDetailPage() {
     setTimeout(() => setCatMsg(""), 1200);
   }
 
-  // ---------- Bleb color prompt handlers ----------
+  // ---------- Bleb color helpers ----------
 
-  async function saveBlebColor(newColor) {
+  function openBlebModal(prefillFromState = true) {
+    setModalSel(prefillFromState ? [...blebColors] : []);
+    setShowBlebPrompt(true);
+  }
+
+  function toggleModalColor(opt) {
+    setModalSel((prev) => (prev.includes(opt) ? prev.filter((v) => v !== opt) : [...prev, opt]));
+  }
+
+  async function saveBlebColors(newColors) {
     if (!user?.id || !row?.id) return;
-    setStatus("Saving color...");
-    try {
-      const { error } = await supabase
-        .from("image_metadata")
-        .update({ bleb_color: newColor || null })
-        .eq("id", row.id)
-        .eq("user_id", user.id);
-      if (error) throw error;
+    setStatus("Saving colors...");
 
-      setBlebColor(newColor || "");
-      setRow((r) => (r ? { ...r, bleb_color: newColor || null } : r));
-      setStatus("Color saved.");
-      setTimeout(() => setStatus(""), 1200);
-    } catch (e) {
-      setStatus(`Save error: ${e?.message || "Unknown error"}`);
-    } finally {
-      setShowBlebPrompt(false);
+    const updates = [
+      { try: { bleb_colors: newColors }, desc: "bleb_colors[]" }, // preferred (text[] or jsonb)
+      { try: { bleb_color: newColors[0] || null }, desc: "bleb_color (legacy)" }, // legacy single for back-compat
+    ];
+
+    let lastErr = null;
+    for (const step of updates) {
+      try {
+        const { error } = await supabase
+          .from("image_metadata")
+          .update(step.try)
+          .eq("id", row.id)
+          .eq("user_id", user.id);
+        if (error) {
+          const raw = (error.message || "").toLowerCase();
+          const ignorable =
+            raw.includes("does not exist") ||
+            raw.includes("unknown column") ||
+            raw.includes("could not find") ||
+            raw.includes("schema cache") ||
+            (raw.includes("column") && raw.includes("not found"));
+          if (!ignorable) throw error;
+        }
+      } catch (e) {
+        lastErr = e;
+      }
     }
+
+    if (lastErr) {
+      setStatus(`Save error: ${lastErr.message}`);
+      setShowBlebPrompt(false);
+      return;
+    }
+
+    setBlebColors([...newColors]);
+    setRow((r) =>
+      r ? { ...r, bleb_colors: [...newColors], bleb_color: newColors[0] || null } : r
+    );
+    setStatus("Color(s) saved.");
+    setShowBlebPrompt(false);
+    setTimeout(() => setStatus(""), 1200);
   }
 
   // ---------- Display helpers (de-dup badges) ----------
 
-  // Prefer local editor state if present; else use DB fields.
   const displayCategories = useMemo(() => {
     const source = (Array.isArray(categories) && categories.length > 0)
       ? categories
@@ -401,12 +441,9 @@ export default function ImageDetailPage() {
 
   function colorBadge() {
     const hasBlebs = displayCategories.includes(BLEBS_LABEL);
-    const colorVal = blebColor || row?.bleb_color || "";
-    if (hasBlebs && colorVal) {
-      // Normalize to Title Case visually
-      const norm = String(colorVal).replace(/\b\w/g, (m) => m.toUpperCase());
-      return <Badge>Color: {norm}</Badge>;
-    }
+    const list = blebColors.length ? blebColors : (Array.isArray(row?.bleb_colors) ? row.bleb_colors : (row?.bleb_color ? [row.bleb_color] : []));
+    const clean = (list || []).filter(Boolean).map((c) => String(c).replace(/\b\w/g, (m) => m.toUpperCase()));
+    if (hasBlebs && clean.length) return <Badge>Colors: {clean.join(", ")}</Badge>;
     const hasBundles = displayCategories.includes("Fiber Bundles");
     if (hasBundles && row?.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
     const hasFibers = displayCategories.includes("Fibers");
@@ -596,6 +633,35 @@ export default function ImageDetailPage() {
                     );
                   })}
                 </div>
+
+                {/* Bleb color editor affordance when Blebs is selected */}
+                {categories.includes(BLEBS_LABEL) ? (
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => openBlebModal(true)}
+                      aria-label="Edit bleb colors"
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: 8,
+                        border: "1px solid #0f766e",
+                        background: "#14b8a6",
+                        color: "white",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      Edit Bleb colors
+                    </button>
+                    {blebColors.length ? (
+                      <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.85 }}>
+                        Current: {blebColors.join(", ")}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
+
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10 }}>
                   <button
                     type="button"
@@ -686,7 +752,7 @@ export default function ImageDetailPage() {
             </div>
           </div>
 
-          {/* ---- Bleb color modal ---- */}
+          {/* ---- Bleb color modal (multi-select) ---- */}
           {showBlebPrompt ? (
             <div
               role="dialog"
@@ -704,7 +770,7 @@ export default function ImageDetailPage() {
             >
               <div
                 style={{
-                  width: "min(92vw, 440px)",
+                  width: "min(92vw, 480px)",
                   background: "#fff",
                   border: "1px solid #e5e7eb",
                   borderRadius: 12,
@@ -713,41 +779,34 @@ export default function ImageDetailPage() {
                 }}
               >
                 <h2 id="bleb-dialog-title" style={{ margin: "0 0 6px", fontSize: 18 }}>
-                  Pick a Bleb color
+                  Pick Bleb color(s)
                 </h2>
                 <p id="bleb-dialog-desc" style={{ margin: "0 0 12px", fontSize: 13, opacity: 0.8 }}>
-                  You selected “Blebs (clear to brown)”. Choose the closest color for this image.
+                  You selected “Blebs (clear to brown)”. Choose all colors that appear in this image.
                 </p>
 
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {BLEB_COLOR_OPTIONS.map((opt, i) => (
-                    <button
-                      key={opt}
-                      ref={i === 0 ? firstColorBtnRef : undefined}
-                      type="button"
-                      onClick={() => saveBlebColor(opt)}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 999,
-                        border: "1px solid #0f766e",
-                        background: "#14b8a6",
-                        color: "white",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+                <div style={{ display: "grid", gap: 8 }}>
+                  {BLEB_COLOR_OPTIONS.map((opt, i) => {
+                    const checked = modalSel.includes(opt);
+                    return (
+                      <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <input
+                          ref={i === 0 ? firstChkRef : undefined}
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleModalColor(opt)}
+                        />
+                        <span>{opt}</span>
+                      </label>
+                    );
+                  })}
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
                   <button
                     type="button"
                     onClick={() => setShowBlebPrompt(false)}
-                    aria-label="Skip color for now"
-                    title="Skip"
+                    aria-label="Cancel without saving"
                     style={{
                       padding: "8px 12px",
                       borderRadius: 8,
@@ -760,26 +819,23 @@ export default function ImageDetailPage() {
                   >
                     Not now
                   </button>
-                  {blebColor ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowBlebPrompt(false)}
-                      aria-label="Keep current color"
-                      title="Keep current color"
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #0f766e",
-                        background: "#14b8a6",
-                        color: "white",
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        fontSize: 12,
-                      }}
-                    >
-                      Keep “{String(blebColor).replace(/\b\w/g, (m) => m.toUpperCase())}”
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => saveBlebColors(modalSel)}
+                    aria-label="Save selected colors"
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #0f766e",
+                      background: "#14b8a6",
+                      color: "white",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                      fontSize: 12,
+                    }}
+                  >
+                    Save colors
+                  </button>
                 </div>
               </div>
             </div>
