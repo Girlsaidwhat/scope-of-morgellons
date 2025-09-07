@@ -1,10 +1,7 @@
-// Build: 36.7g_2025-08-19
-// Rename category label to 'Blebs (clear to brown)'; colors/notes behavior unchanged
-// Writes to image_metadata.path and saves optional notes/colors
-// Small additions: overall upload status, "saving" step, 12s "Still waiting..." hint
-// NEW: Tiny "Send feedback" mailto link in header (top-right)
-// Microburst A-2 (0906): Top button text = **Back to My Profile** (bold); add new categories; rename "Miscellaneous" -> "Other" and place it last
-// Microburst A-3 (0906): Rename "Wounds" -> "Lesions" in category list
+// pages/upload.js
+// Build: 36.20-catmap
+// Multi-category tagging at upload time (image_category_map), back-compat sets primary image_metadata.category.
+// Keeps 10MB limit, faux progress, notes, color options, and per-file status.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -13,86 +10,80 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Feedback email (change if you prefer a different address)
+// Feedback email
 const FEEDBACK_TO = "girlsaidwhat@gmail.com";
 function feedbackHref(contextLabel = "Upload") {
-  const subject = `${contextLabel} - Scope feedback`;
+  const subject = `${contextLabel} – Report`;
   const page = typeof window !== "undefined" ? window.location.href : "/upload";
   const body = `Page: ${page}\n\nWhat happened:\n`;
   return `mailto:${FEEDBACK_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-// Categories
+// Taxonomy (requested names/order; “Other” last)
 const CATEGORIES = [
   "Blebs (clear to brown)",
-  "Biofilm",
   "Spiky Biofilm",
+  "Biofilm",
   "Fiber Bundles",
-  "Embedded Fibers",
   "Fibers",
-  "Fire Hair",
   "Hexagons",
   "Crystalline Structures",
   "Feathers",
   "Hairs",
   "Skin",
-  "Fire Skin",
-  "Sparkle Skin",
   "Lesions",
+  "Embedded Fibers",
   "Embedded Artifacts",
   "Spiral Artifacts",
-  "Other", // keep at bottom
+  "Fire Hair",
+  "Fire Skin",
+  "Sparkle Skin",
+  "Other",
 ];
 
 const BLEBS_LABEL = "Blebs (clear to brown)";
-
-// Color options
+const MAX_BYTES = 10 * 1024 * 1024;
 const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 const FIBER_COLOR_OPTIONS = ["white/clear", "blue", "black", "red", "other"];
 
-// File size limit in bytes (10 MB)
-const MAX_BYTES = 10 * 1024 * 1024;
-
-// Helpers
 function extFromName(name = "") {
   const idx = name.lastIndexOf(".");
   return idx >= 0 ? name.slice(idx + 1).toLowerCase() : "";
 }
-
 function isValidImageType(file) {
   return file && (file.type === "image/jpeg" || file.type === "image/png");
 }
-
 function prettyBytes(n) {
   if (n < 1024) return `${n} B`;
-  const kb = n / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  const mb = kb / 1024;
-  return `${mb.toFixed(2)} MB`;
+  const kb = n / 1024; if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024; return `${mb.toFixed(2)} MB`;
 }
 
 export default function UploadPage() {
   const [user, setUser] = useState(null);
   const [profileSnap, setProfileSnap] = useState(null);
 
-  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
+  // Multi-category
+  const [selectedCats, setSelectedCats] = useState([CATEGORIES[0]]);
+  const isBlebs = selectedCats.includes(BLEBS_LABEL);
+  const isBundles = selectedCats.includes("Fiber Bundles");
+  const isFibers  = selectedCats.includes("Fibers");
+
+  // Optional colors + notes (applied to each file in batch)
   const [blebColor, setBlebColor] = useState("");
   const [fiberBundlesColor, setFiberBundlesColor] = useState("");
   const [fibersColor, setFibersColor] = useState("");
   const [notes, setNotes] = useState("");
 
   const [files, setFiles] = useState([]); // [{file, url}]
-  const [rows, setRows] = useState([]); // per-file status rows
+  const [rows, setRows] = useState([]);   // status rows
   const [isUploading, setIsUploading] = useState(false);
-
-  // Overall status + "stuck" hint
   const [overallMsg, setOverallMsg] = useState("");
   const [hint, setHint] = useState("");
   const stuckTimerRef = useRef(null);
-
   const fileInputRef = useRef(null);
 
-  // Load auth user
+  // Auth
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -100,12 +91,10 @@ export default function UploadPage() {
       if (!mounted) return;
       setUser(data?.user ?? null);
     })();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
-  // Load profile snapshot
+  // Profile snapshot
   useEffect(() => {
     if (!user?.id) return;
     let canceled = false;
@@ -113,36 +102,21 @@ export default function UploadPage() {
       const { data, error } = await supabase
         .from("user_profile")
         .select("initials, age, location, contact_opt_in")
-        .eq("id", user.id) // keeping your existing key usage
+        .eq("id", user.id)
         .maybeSingle();
       if (canceled) return;
       if (!error) setProfileSnap(data || null);
     })();
-    return () => {
-      canceled = true;
-    };
+    return () => { canceled = true; };
   }, [user?.id]);
 
-  // Clean up object URLs
-  useEffect(() => {
-    return () => {
-      files.forEach((f) => URL.revokeObjectURL(f.url));
-    };
-  }, [files]);
-
-  const isBlebs = selectedCategory === BLEBS_LABEL;
-  const isFiberBundles = selectedCategory === "Fiber Bundles";
-  const isFibers = selectedCategory === "Fibers";
+  // Clean up URLs
+  useEffect(() => () => { files.forEach((f) => URL.revokeObjectURL(f.url)); }, [files]);
 
   function resetStatuses(newFiles) {
     const newRows = newFiles.map((f) => ({
-      name: f.file.name,
-      size: f.file.size,
-      type: f.file.type,
-      url: f.url,
-      progress: 0,
-      state: "pending",
-      message: "Ready to upload - click Upload",
+      name: f.file.name, size: f.file.size, type: f.file.type, url: f.url,
+      progress: 0, state: "pending", message: "Ready to upload - click Upload",
     }));
     setRows(newRows);
     setOverallMsg(newFiles.length ? "Ready. Click Upload to begin." : "");
@@ -162,130 +136,84 @@ export default function UploadPage() {
     return null;
   }
 
-  // Faux progress tickers
+  // Faux progress
   const tickerRefs = useRef({});
-
   function startFauxProgress(idx) {
     stopFauxProgress(idx);
     tickerRefs.current[idx] = setInterval(() => {
       setRows((prev) => {
-        const copy = [...prev];
-        const r = { ...copy[idx] };
+        const copy = [...prev]; const r = { ...copy[idx] };
         if (r.progress < 90) r.progress += 1;
-        copy[idx] = r;
-        return copy;
+        copy[idx] = r; return copy;
       });
     }, 70);
   }
-
   function stopFauxProgress(idx) {
     const id = tickerRefs.current[idx];
-    if (id) {
-      clearInterval(id);
-      delete tickerRefs.current[idx];
-    }
+    if (id) { clearInterval(id); delete tickerRefs.current[idx]; }
   }
 
-  // Stuck detector for long waits during upload/saving
   function startStuckTimer() {
     clearStuckTimer();
     stuckTimerRef.current = setTimeout(() => {
       setHint("Still waiting... Often a slow connection, a file over 10 MB, or a sign-in or session issue.");
     }, 12000);
   }
-  function clearStuckTimer() {
-    if (stuckTimerRef.current) {
-      clearTimeout(stuckTimerRef.current);
-      stuckTimerRef.current = null;
-    }
+  function clearStuckTimer() { if (stuckTimerRef.current) { clearTimeout(stuckTimerRef.current); stuckTimerRef.current = null; } }
+
+  function toggleCat(c) {
+    setSelectedCats((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]);
+    if (c === BLEBS_LABEL && selectedCats.includes(BLEBS_LABEL)) setBlebColor("");
+    if (c === "Fiber Bundles" && selectedCats.includes("Fiber Bundles")) setFiberBundlesColor("");
+    if (c === "Fibers" && selectedCats.includes("Fibers")) setFibersColor("");
   }
 
   async function handleUpload(ev) {
     ev.preventDefault();
-    if (!user?.id) {
-      alert("Please sign in first.");
-      return;
-    }
-    if (files.length === 0) {
-      alert("Choose at least one file.");
-      return;
-    }
+    if (!user?.id) { alert("Please sign in first."); return; }
+    if (files.length === 0) { alert("Choose at least one file."); return; }
 
-    // Client-side checks per file
+    // Client checks
     let anyRejected = false;
     const nextRowsA = rows.map((r, idx) => {
       const err = validateClientSide(files[idx].file);
-      if (err) {
-        anyRejected = true;
-        return { ...r, state: "rejected", message: err, progress: 0 };
-      }
+      if (err) { anyRejected = true; return { ...r, state: "rejected", message: err, progress: 0 }; }
       return { ...r, state: "pending", message: "Starting..." };
     });
     setRows(nextRowsA);
     if (anyRejected && nextRowsA.every((r) => r.state === "rejected")) {
-      setOverallMsg("All files were rejected by checks.");
-      setHint("");
-      return;
+      setOverallMsg("All files were rejected by checks."); setHint(""); return;
     }
 
-    setIsUploading(true);
-    setOverallMsg("Uploading...");
-    setHint("");
-    startStuckTimer();
+    setIsUploading(true); setOverallMsg("Uploading..."); setHint(""); startStuckTimer();
 
-    // Map allowed rows once so we don't rely on a stale state snapshot
     const allowed = nextRowsA.map((r) => r.state !== "rejected");
+    const trimmedCats = Array.from(new Set(selectedCats.map((c) => (c || "").trim()).filter(Boolean)));
+    const primaryCategory = trimmedCats[0] || null;
 
-    // Upload each file sequentially
     for (let i = 0; i < files.length; i++) {
       if (!allowed[i]) continue;
-
       const f = files[i].file;
 
-      // Start faux progress
       startFauxProgress(i);
-      setRows((prev) => {
-        const copy = [...prev];
-        copy[i] = { ...copy[i], state: "uploading", message: "Uploading..." };
-        return copy;
-      });
+      setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], state: "uploading", message: "Uploading..." }; return copy; });
 
       const path = `${user.id}/${f.name}`;
-
-      // Upload to Storage
-      const { error: upErr } = await supabase.storage
-        .from("images")
-        .upload(path, f, {
-          cacheControl: "3600",
-          upsert: false,
-          contentType: f.type,
-        });
-
+      const { error: upErr } = await supabase.storage.from("images").upload(path, f, { cacheControl: "3600", upsert: false, contentType: f.type });
       if (upErr) {
         stopFauxProgress(i);
         const conflict =
-          upErr?.statusCode === 409 ||
-          upErr?.status === 409 ||
-          /already exists|resource already exists|duplicate/i.test(upErr?.message || "");
+          upErr?.statusCode === 409 || upErr?.status === 409 || /already exists|resource already exists|duplicate/i.test(upErr?.message || "");
         const friendly = conflict
           ? `A file named "${f.name}" already exists in your folder. Rename the file and try again. Nothing was uploaded for this file.`
           : `Upload failed: ${upErr.message || "Unknown error"}`;
-        setRows((prev) => {
-          const copy = [...prev];
-          copy[i] = { ...copy[i], state: "error", message: friendly, progress: 0 };
-          return copy;
-        });
+        setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], state: "error", message: friendly, progress: 0 }; return copy; });
         continue;
       }
 
-      // Show "saving" step
-      setRows((prev) => {
-        const copy = [...prev];
-        copy[i] = { ...copy[i], state: "saving", message: "Saving metadata..." };
-        return copy;
-      });
+      setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], state: "saving", message: "Saving metadata..." }; return copy; });
 
-      // Insert metadata row
+      // Insert metadata and get id
       const meta = {
         user_id: user.id,
         path,
@@ -293,9 +221,9 @@ export default function UploadPage() {
         ext: extFromName(f.name),
         mime_type: f.type,
         size: f.size,
-        category: selectedCategory,
+        category: primaryCategory, // back-compat
         bleb_color: isBlebs ? (blebColor || null) : null,
-        fiber_bundles_color: isFiberBundles ? (fiberBundlesColor || null) : null,
+        fiber_bundles_color: isBundles ? (fiberBundlesColor || null) : null,
         fibers_color: isFibers ? (fibersColor || null) : null,
         notes: notes.trim() ? notes.trim() : null,
         uploader_initials: profileSnap?.initials ?? null,
@@ -304,7 +232,7 @@ export default function UploadPage() {
         uploader_contact_opt_in: profileSnap?.contact_opt_in ?? null,
       };
 
-      const { error: insErr } = await supabase.from("image_metadata").insert(meta);
+      const { data: insData, error: insErr } = await supabase.from("image_metadata").insert(meta).select("id").single();
       if (insErr) {
         stopFauxProgress(i);
         const missingPath = /column .*path.* does not exist/i.test(insErr.message || "");
@@ -323,90 +251,54 @@ export default function UploadPage() {
           };
           return copy;
         });
-        // Safe cleanup
         await supabase.storage.from("images").remove([path]);
         continue;
       }
 
-      // Success
+      // Insert category mappings (ignore table-missing errors gracefully)
+      try {
+        if (trimmedCats.length) {
+          const payload = trimmedCats.map((c) => ({ image_id: insData.id, user_id: user.id, category: c }));
+          const { error: mapErr } = await supabase.from("image_category_map").insert(payload);
+          if (mapErr && !(mapErr.message || "").toLowerCase().includes("does not exist")) {
+            console.warn("image_category_map insert error:", mapErr.message);
+          }
+        }
+      } catch (e) {
+        console.warn("image_category_map insert exception:", e?.message || e);
+      }
+
       stopFauxProgress(i);
-      setRows((prev) => {
-        const copy = [...prev];
-        copy[i] = { ...copy[i], state: "success", message: "Uploaded and saved metadata.", progress: 100 };
-        return copy;
-      });
+      setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], state: "success", message: "Uploaded and saved metadata.", progress: 100 }; return copy; });
     }
 
-    // Finish
     setIsUploading(false);
     clearStuckTimer();
 
-    const ok = (r) => r.state === "success";
-    const bad = (r) => r.state === "error" || r.state === "rejected";
     setRows((final) => {
-      const s = final.filter(ok).length;
-      const b = final.filter(bad).length;
-      setOverallMsg(`Done. Success: ${s} - Issues: ${b}`);
+      const s = final.filter((r) => r.state === "success").length;
+      const b = final.filter((r) => r.state === "error" || r.state === "rejected").length;
+      setOverallMsg(`Done. Success: ${s} • Issues: ${b}`);
       if (s === 0) setHint("If none succeeded, try a smaller JPEG or PNG, and confirm you are signed in.");
       return final;
     });
   }
 
-  // Overall status derived on every change
-  useEffect(() => {
-    if (!rows.length) return;
-    const uploading = rows.filter((r) => r.state === "uploading").length;
-    const saving = rows.filter((r) => r.state === "saving").length;
-    const success = rows.filter((r) => r.state === "success").length;
-    const error = rows.filter((r) => r.state === "error" || r.state === "rejected").length;
-
-    if (isUploading) {
-      if (saving > 0) setOverallMsg(`Saving metadata (${saving})...`);
-      else if (uploading > 0) setOverallMsg(`Uploading (${uploading})...`);
-    } else if (success + error > 0) {
-      setOverallMsg(`Done. Success: ${success} - Issues: ${error}`);
-    }
-    if (success + error > 0) clearStuckTimer();
-  }, [rows, isUploading]);
-
   const totalCountText = useMemo(() => {
     const ok = rows.filter((r) => r.state === "success").length;
     const fail = rows.filter((r) => r.state === "error" || r.state === "rejected").length;
-    return ok + fail > 0 ? `Done. Success: ${ok} - Issues: ${fail}` : "";
+    return ok + fail > 0 ? `Done. Success: ${ok} • Issues: ${fail}` : "";
   }, [rows]);
 
   return (
     <div style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
-      {/* Top toolbar */}
-      <nav aria-label="Uploads page navigation" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <a
-          href="/"
-          aria-label="Back to My Profile"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, border: "1px solid #e5e5e5", textDecoration: "none" }}
-        >
-          <span aria-hidden="true">←</span>
-          <span style={{ fontWeight: 700 }}><strong>Back to My Profile</strong></span>
-        </a>
-        <a
-          href="/browse"
-          aria-label="Browse Gallery"
-          style={{ fontSize: 14, textDecoration: "underline" }}
-        >
-          Browse Gallery
-        </a>
-      </nav>
-
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>Uploads</h1>
+        <a href="/" style={{ textDecoration: "none" }}>← <strong>Back to Profile</strong></a>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <a
-            href={feedbackHref("Uploads")}
-            aria-label="Send feedback about the Uploads page"
-            style={{ fontSize: 12, textDecoration: "underline" }}
-          >
+          <a href={feedbackHref("Upload")} aria-label="Send feedback about the Upload page" style={{ fontSize: 12, textDecoration: "underline" }}>
             Send feedback
           </a>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.7g_2025-08-19</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Build: 36.20-catmap</div>
         </div>
       </header>
 
@@ -416,57 +308,37 @@ export default function UploadPage() {
         </div>
       ) : (
         <form onSubmit={handleUpload}>
-          {/* Category */}
-          <label style={{ display: "block", marginBottom: 8 }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Category</span>
-            <select
-              value={selectedCategory}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedCategory(val);
-                if (val !== BLEBS_LABEL) setBlebColor("");
-                if (val !== "Fiber Bundles") setFiberBundlesColor("");
-                if (val !== "Fibers") setFibersColor("");
-              }}
-              style={{ width: "100%", padding: "8px" }}
-            >
+          {/* Categories (multi) */}
+          <fieldset style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: 12, background: "#fff", marginBottom: 12 }}>
+            <legend style={{ fontWeight: 600 }}>Categories</legend>
+            <div role="group" aria-label="Select categories" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
               {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <label key={c} style={{ display: "flex", gap: 8, alignItems: "center", border: "1px solid #e5e7eb", borderRadius: 8, padding: "6px 8px", background: "#f9fafb" }}>
+                  <input type="checkbox" checked={selectedCats.includes(c)} onChange={() => toggleCat(c)} aria-label={c} />
+                  <span style={{ fontSize: 13 }}>{c}</span>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+            <p style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>You can select more than one. The first selected is used as the primary category for now.</p>
+          </fieldset>
 
-          {/* Color pickers */}
+          {/* Optional color pickers for relevant categories */}
           {isBlebs && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Bleb Color (optional)</span>
-              <select
-                value={blebColor}
-                onChange={(e) => setBlebColor(e.target.value)}
-                style={{ width: "100%", padding: "8px" }}
-              >
+              <select value={blebColor} onChange={(e) => setBlebColor(e.target.value)} style={{ width: "100%", padding: "8px" }}>
                 <option value="">Choose color (optional)</option>
-                {BLEB_COLOR_OPTIONS.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
+                {BLEB_COLOR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </label>
           )}
 
-          {isFiberBundles && (
+          {isBundles && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Fiber Bundles Color (optional)</span>
-              <select
-                value={fiberBundlesColor}
-                onChange={(e) => setFiberBundlesColor(e.target.value)}
-                style={{ width: "100%", padding: "8px" }}
-              >
+              <select value={fiberBundlesColor} onChange={(e) => setFiberBundlesColor(e.target.value)} style={{ width: "100%", padding: "8px" }}>
                 <option value="">Choose color (optional)</option>
-                {FIBER_COLOR_OPTIONS.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
+                {FIBER_COLOR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </label>
           )}
@@ -474,96 +346,42 @@ export default function UploadPage() {
           {isFibers && (
             <label style={{ display: "block", marginBottom: 8 }}>
               <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Fibers Color (optional)</span>
-              <select
-                value={fibersColor}
-                onChange={(e) => setFibersColor(e.target.value)}
-                style={{ width: "100%", padding: "8px" }}
-              >
+              <select value={fibersColor} onChange={(e) => setFibersColor(e.target.value)} style={{ width: "100%", padding: "8px" }}>
                 <option value="">Choose color (optional)</option>
-                {FIBER_COLOR_OPTIONS.map((o) => (
-                  <option key={o} value={o}>{o}</option>
-                ))}
+                {FIBER_COLOR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </label>
           )}
 
           {/* Notes */}
           <label style={{ display: "block", marginBottom: 16 }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-              Notes (optional) - saved to each file in this batch
-            </span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              placeholder="Any details about this batch. Example: microscope settings, date taken, lighting, context."
-              style={{ width: "100%", padding: "8px", resize: "vertical" }}
-            />
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Notes (optional) - saved to each file in this batch</span>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Any details about this batch. Example: microscope settings, date taken, lighting, context." style={{ width: "100%", padding: "8px", resize: "vertical" }} />
           </label>
 
           {/* File input */}
           <label style={{ display: "block", marginBottom: 8 }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-              Select images (JPEG or PNG, up to 10 MB each)
-            </span>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              multiple
-              onChange={(e) => onChooseFiles(e)}
-            />
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Select images (JPEG or PNG, up to 10 MB each)</span>
+            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" multiple onChange={(e) => onChooseFiles(e)} />
           </label>
 
-          {/* Overall status line */}
-          <p aria-live="polite" style={{ margin: "6px 0 12px", minHeight: 18, fontSize: 13 }}>
-            {overallMsg}
-          </p>
+          {/* Overall status + hint */}
+          <p aria-live="polite" style={{ margin: "6px 0 12px", minHeight: 18, fontSize: 13 }}>{overallMsg}</p>
           {hint ? <p style={{ margin: "-6px 0 12px", fontSize: 12, color: "#6b7280" }}>{hint}</p> : null}
 
           {/* Selected files list */}
           {files.length > 0 && (
             <div style={{ marginTop: 12 }}>
               {rows.map((r, idx) => (
-                <div key={idx} style={{
-                  display: "grid",
-                  gridTemplateColumns: "64px 1fr",
-                  gap: 12,
-                  alignItems: "center",
-                  padding: 10,
-                  border: "1px solid #e5e5e5",
-                  borderRadius: 8,
-                  marginBottom: 8,
-                }}>
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "64px 1fr", gap: 12, alignItems: "center", padding: 10, border: "1px solid #e5e5e5", borderRadius: 8, marginBottom: 8 }}>
                   <img src={r.url} alt={r.name} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 6, border: "1px solid #ddd" }} />
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 2 }}>{r.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
-                      {r.type} • {prettyBytes(r.size)}
+                    <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>{r.type} • {prettyBytes(r.size)}</div>
+                    <div style={{ height: 6, background: "#f3f3f3", borderRadius: 4, overflow: "hidden", marginBottom: 6 }} aria-label="Upload progress">
+                      <div style={{ width: `${r.progress}%`, height: "100%", background: r.state === "success" ? "#22c55e" : "#3b82f6", transition: "width 120ms linear" }} />
                     </div>
-                    <div style={{
-                      height: 6,
-                      background: "#f3f3f3",
-                      borderRadius: 4,
-                      overflow: "hidden",
-                      marginBottom: 6,
-                    }} aria-label="Upload progress">
-                      <div style={{
-                        width: `${r.progress}%`,
-                        height: "100%",
-                        background: r.state === "success" ? "#22c55e" : "#3b82f6",
-                        transition: "width 120ms linear",
-                      }} />
-                    </div>
-                    <div style={{
-                      fontSize: 13,
-                      color:
-                        r.state === "error" || r.state === "rejected"
-                          ? "#b91c1c"
-                          : r.state === "success"
-                          ? "#065f46"
-                          : "#374151",
-                    }}>
+                    <div style={{ fontSize: 13, color: (r.state === "error" || r.state === "rejected") ? "#b91c1c" : (r.state === "success" ? "#065f46" : "#374151") }}>
                       {r.message}
                     </div>
                   </div>
@@ -572,49 +390,21 @@ export default function UploadPage() {
             </div>
           )}
 
+          {/* Buttons */}
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              type="submit"
-              disabled={!user || files.length === 0 || isUploading}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid #0f766e",
-                background: isUploading ? "#8dd3cd" : "#14b8a6",
-                color: "white",
-                cursor: isUploading ? "not-allowed" : "pointer",
-                fontWeight: 600,
-              }}
-            >
+            <button type="submit" disabled={!user || files.length === 0 || isUploading} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #0f766e", background: isUploading ? "#8dd3cd" : "#14b8a6", color: "white", cursor: isUploading ? "not-allowed" : "pointer", fontWeight: 600 }}>
               {isUploading ? "Uploading..." : "Upload"}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                fileInputRef.current?.value && (fileInputRef.current.value = "");
-                files.forEach((f) => URL.revokeObjectURL(f.url));
-                setFiles([]);
-                setRows([]);
-                setOverallMsg("");
-                setHint("");
-              }}
-              disabled={isUploading}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid #e5e5e5",
-                background: "white",
-                cursor: isUploading ? "not-allowed" : "pointer",
-                fontWeight: 600,
-              }}
-            >
+            <button type="button" onClick={() => {
+              fileInputRef.current?.value && (fileInputRef.current.value = "");
+              files.forEach((f) => URL.revokeObjectURL(f.url));
+              setFiles([]); setRows([]); setOverallMsg(""); setHint("");
+            }} disabled={isUploading} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #e5e5e5", background: "white", cursor: isUploading ? "not-allowed" : "pointer", fontWeight: 600 }}>
               Clear
             </button>
           </div>
 
-          {totalCountText && (
-            <div style={{ marginTop: 12, fontSize: 13, color: "#374151" }}>{totalCountText}</div>
-          )}
+          {totalCountText && <div style={{ marginTop: 12, fontSize: 13, color: "#374151" }}>{totalCountText}</div>}
         </form>
       )}
     </div>

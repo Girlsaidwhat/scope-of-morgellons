@@ -1,11 +1,7 @@
 // pages/image/[id].js
-// Build: 36.12_2025-08-20 + landing feature toggle (storage API fix)
-// Adds "Feature on landing" (public thumbnail pipeline) using public_gallery + public-thumbs.
-// Microburst B-1 (0906): Per-image category editor with multi-select.
-// - Renders a "Categories" checkbox list (same set as Uploads; 'Lesions' + 'Other' last)
-// - Saves BOTH: categories[] (if column exists) and legacy category (first selected or null)
-// - Owner-only update via existing RLS (eq user_id)
-// - Clear status messages; no page reload
+// Build: 36.20-catmap
+// Adds multi-category editor backed by image_category_map (RLS: user_id=auth.uid()).
+// Keeps “Feature on landing”, delete, notes, and preview.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -15,35 +11,34 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Shared category list (kept in sync with Uploads)
+// Taxonomy (requested names/order; “Other” last)
 const CATEGORIES = [
   "Blebs (clear to brown)",
-  "Biofilm",
   "Spiky Biofilm",
+  "Biofilm",
   "Fiber Bundles",
-  "Embedded Fibers",
   "Fibers",
-  "Fire Hair",
   "Hexagons",
   "Crystalline Structures",
   "Feathers",
   "Hairs",
   "Skin",
-  "Fire Skin",
-  "Sparkle Skin",
   "Lesions",
+  "Embedded Fibers",
   "Embedded Artifacts",
   "Spiral Artifacts",
-  "Other", // keep at bottom
+  "Fire Hair",
+  "Fire Skin",
+  "Sparkle Skin",
+  "Other",
 ];
 
+const BLEBS_LABEL = "Blebs (clear to brown)";
+const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
+const FIBER_COLOR_OPTIONS = ["white/clear", "blue", "black", "red", "other"];
+
 function prettyDate(s) {
-  try {
-    const d = new Date(s);
-    return d.toLocaleString();
-  } catch {
-    return s || "";
-  }
+  try { return new Date(s).toLocaleString(); } catch { return s || ""; }
 }
 
 function Badge({ children }) {
@@ -66,14 +61,18 @@ export default function ImageDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // New: multi-category editor state
-  const [selectedCats, setSelectedCats] = useState([]); // array of strings
-  const [catsSupported, setCatsSupported] = useState(null); // null = unknown, true/false once checked
-  const [savingCats, setSavingCats] = useState(false);
-
   // Landing feature state
   const [featured, setFeatured] = useState(false);
   const [featureBusy, setFeatureBusy] = useState(false);
+
+  // Categories editor state
+  const [categories, setCategories] = useState([]); // strings
+  const [catBusy, setCatBusy] = useState(false);
+  const [catHint, setCatHint] = useState("");
+
+  const isBlebs = useMemo(() => categories.includes(BLEBS_LABEL) || row?.category === BLEBS_LABEL, [categories, row?.category]);
+  const isBundles = useMemo(() => categories.includes("Fiber Bundles") || row?.category === "Fiber Bundles", [categories, row?.category]);
+  const isFibers  = useMemo(() => categories.includes("Fibers") || row?.category === "Fibers", [categories, row?.category]);
 
   // Auth
   useEffect(() => {
@@ -86,7 +85,7 @@ export default function ImageDetailPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Load row (base fields)
+  // Load row + categories
   useEffect(() => {
     if (!user?.id || !id) return;
     let canceled = false;
@@ -95,9 +94,7 @@ export default function ImageDetailPage() {
     (async () => {
       const { data, error } = await supabase
         .from("image_metadata")
-        .select(
-          "id, user_id, path, storage_path, filename, ext, category, bleb_color, fiber_bundles_color, fibers_color, created_at, notes, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in"
-        )
+        .select("id, user_id, path, storage_path, filename, ext, category, bleb_color, fiber_bundles_color, fibers_color, created_at, notes, uploader_initials, uploader_age, uploader_location, uploader_contact_opt_in")
         .eq("user_id", user.id)
         .eq("id", id)
         .single();
@@ -114,43 +111,41 @@ export default function ImageDetailPage() {
       setRow(data);
       setNotes(data?.notes || "");
       setStatus("");
-
-      // Try to read optional categories[] column without breaking the main load
-      let initialCats = [];
-      try {
-        const { data: catRow, error: catErr } = await supabase
-          .from("image_metadata")
-          .select("categories")
-          .eq("user_id", user.id)
-          .eq("id", data.id)
-          .maybeSingle();
-        if (catErr) {
-          setCatsSupported(false);
-          // Fallback to legacy single category
-          initialCats = data?.category ? [data.category] : [];
-        } else {
-          setCatsSupported(true);
-          const arr = Array.isArray(catRow?.categories) ? catRow.categories.filter(Boolean) : [];
-          initialCats = arr.length ? arr : (data?.category ? [data.category] : []);
-        }
-      } catch {
-        setCatsSupported(false);
-        initialCats = data?.category ? [data.category] : [];
-      }
-      setSelectedCats(initialCats);
-
       setLoading(false);
 
-      // Check if featured
+      // Featured?
       const { data: pg, error: pgErr } = await supabase
         .from("public_gallery")
         .select("id")
         .eq("image_id", data.id)
         .limit(1);
-
       if (!pgErr) setFeatured((pg && pg.length > 0) || false);
-    })();
 
+      // Categories mapping
+      try {
+        const { data: m, error: mapErr } = await supabase
+          .from("image_category_map")
+          .select("category")
+          .eq("user_id", user.id)
+          .eq("image_id", data.id)
+          .order("category");
+        if (mapErr) {
+          const msg = (mapErr.message || "").toLowerCase();
+          if (msg.includes("relation") && msg.includes("does not exist")) {
+            setCatHint('Category table not found. Run the provided SQL to create "image_category_map".');
+          } else {
+            setCatHint(mapErr.message || "Could not load categories.");
+          }
+          setCategories(data.category ? [data.category] : []);
+        } else {
+          const arr = Array.isArray(m) ? m.map((r) => r.category) : [];
+          setCategories(arr.length ? arr : (data.category ? [data.category] : []));
+        }
+      } catch {
+        setCatHint("Could not load categories.");
+        setCategories(data.category ? [data.category] : []);
+      }
+    })();
     return () => { canceled = true; };
   }, [user?.id, id]);
 
@@ -165,72 +160,16 @@ export default function ImageDetailPage() {
     if (!user?.id || !row?.id) return;
     setSaving(true);
     setStatus("Saving...");
-
     const { error } = await supabase
       .from("image_metadata")
       .update({ notes: notes || null })
       .eq("id", row.id)
       .eq("user_id", user.id);
-
-    if (error) {
-      setStatus(`Save error: ${error.message}`);
-      setSaving(false);
-      return;
-    }
-
-    setStatus("Notes saved.");
-    setSaving(false);
-    setTimeout(() => setStatus(""), 1500);
+    if (error) { setStatus(`Save error: ${error.message}`); setSaving(false); return; }
+    setStatus("Notes saved."); setSaving(false); setTimeout(() => setStatus(""), 1500);
   }
 
-  // New: Save categories (multi-select)
-  async function saveCategories(e) {
-    e?.preventDefault?.();
-    if (!user?.id || !row?.id) return;
-    setSavingCats(true);
-    setStatus("Saving categories...");
-
-    // unique + trimmed selection
-    const clean = Array.from(new Set((selectedCats || []).map((s) => (s || "").trim()).filter(Boolean)));
-    const primary = clean[0] || null;
-
-    // First attempt: update both fields (categories + legacy category)
-    try {
-      const updateObj = catsSupported ? { categories: clean, category: primary } : { category: primary };
-      const { error } = await supabase
-        .from("image_metadata")
-        .update(updateObj)
-        .eq("id", row.id)
-        .eq("user_id", user.id);
-      if (error) {
-        // If the error indicates missing column, retry with legacy-only
-        const missingCol = /column .*categories.* does not exist/i.test(error.message || "");
-        if (missingCol) {
-          setCatsSupported(false);
-          const { error: fallbackErr } = await supabase
-            .from("image_metadata")
-            .update({ category: primary })
-            .eq("id", row.id)
-            .eq("user_id", user.id);
-          if (fallbackErr) throw fallbackErr;
-          setRow((prev) => ({ ...prev, category: primary }));
-          setStatus("Saved primary category. To enable multiple, add a 'categories text[]' column.");
-        } else {
-          throw error;
-        }
-      } else {
-        setRow((prev) => ({ ...prev, category: primary }));
-        setStatus("Categories saved.");
-      }
-    } catch (err) {
-      setStatus(`Save error: ${err?.message || "Unknown error"}`);
-    } finally {
-      setSavingCats(false);
-      setTimeout(() => setStatus(""), 1500);
-    }
-  }
-
-  // --- Landing "Feature" actions (public thumbnail pipeline) ---
+  // Feature / Unfeature
   function extToMime(ext) {
     const e = (ext || "").toLowerCase();
     if (e === "jpg" || e === "jpeg") return "image/jpeg";
@@ -242,134 +181,106 @@ export default function ImageDetailPage() {
     if (!user?.id || !row?.id) return;
     setFeatureBusy(true);
     setStatus("Featuring on landing...");
-
     try {
-      // 1) Download original from private bucket
       const sourcePath = row.path || row.storage_path;
       const { data: blob, error: dlErr } = await supabase.storage.from("images").download(sourcePath);
       if (dlErr) throw dlErr;
-
-      // 2) Upload to public-thumbs under auth.uid()/image-<id>.<ext>
       const ext = (row.ext || "").replace(/^\./, "") || "jpg";
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("public-thumbs")
-        .upload(targetPath, blob, { upsert: true, contentType: extToMime(ext) });
+      const { error: upErr } = await supabase.storage.from("public-thumbs").upload(targetPath, blob, { upsert: true, contentType: extToMime(ext) });
       if (upErr) throw upErr;
-
-      // 3) Insert into public_gallery
-      const { error: insErr } = await supabase
-        .from("public_gallery")
-        .insert({ image_id: row.id, public_path: targetPath });
+      const { error: insErr } = await supabase.from("public_gallery").insert({ image_id: row.id, public_path: targetPath });
       if (insErr) throw insErr;
-
-      setFeatured(true);
-      setStatus("Added to landing.");
-      setTimeout(() => setStatus(""), 1500);
+      setFeatured(true); setStatus("Added to landing."); setTimeout(() => setStatus(""), 1500);
     } catch (err) {
       setStatus(`Feature error: ${err?.message || "Unknown error"}`);
-    } finally {
-      setFeatureBusy(false);
-    }
+    } finally { setFeatureBusy(false); }
   }
 
   async function handleUnfeature() {
     if (!user?.id || !row?.id) return;
     setFeatureBusy(true);
     setStatus("Removing from landing...");
-
     try {
       const ext = (row.ext || "").replace(/^\./, "") || "jpg";
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
-
-      // 1) Delete storage object (safe delete order)
-      const { error: delObjErr } = await supabase.storage
-        .from("public-thumbs")
-        .remove([targetPath]);
-      if (delObjErr && !/Not Found|does not exist/i.test(delObjErr.message)) {
-        throw delObjErr;
-      }
-
-      // 2) Delete DB row
-      const { error: delRowErr } = await supabase
-        .from("public_gallery")
-        .delete()
-        .eq("image_id", row.id);
+      const { error: delObjErr } = await supabase.storage.from("public-thumbs").remove([targetPath]);
+      if (delObjErr && !/Not Found|does not exist/i.test(delObjErr.message)) throw delObjErr;
+      const { error: delRowErr } = await supabase.from("public_gallery").delete().eq("image_id", row.id);
       if (delRowErr) throw delRowErr;
-
-      setFeatured(false);
-      setStatus("Removed from landing.");
-      setTimeout(() => setStatus(""), 1500);
+      setFeatured(false); setStatus("Removed from landing."); setTimeout(() => setStatus(""), 1500);
     } catch (err) {
       setStatus(`Remove error: ${err?.message || "Unknown error"}`);
-    } finally {
-      setFeatureBusy(false);
-    }
+    } finally { setFeatureBusy(false); }
   }
 
   async function handleDelete() {
     if (!user?.id || !row?.id) return;
     const ok = window.confirm(`Delete this image and its metadata?\n\n${row.filename}\n\nThis cannot be undone.`);
     if (!ok) return;
-
     setDeleting(true);
     setStatus("Deleting...");
-
-    // 1) Delete any public copy first
     try {
+      // public copy cleanup
       const ext = (row.ext || "").replace(/^\./, "") || "jpg";
       const targetPath = `${user.id}/image-${row.id}.${ext}`;
       await supabase.storage.from("public-thumbs").remove([targetPath]);
       await supabase.from("public_gallery").delete().eq("image_id", row.id);
     } catch {}
 
-    // 2) Storage delete
     const removeRes = await supabase.storage.from("images").remove([row.path]);
     if (removeRes.error && !/Not Found|does not exist/i.test(removeRes.error.message)) {
-      setStatus(`Storage delete error: ${removeRes.error.message}`);
-      setDeleting(false);
-      return;
+      setStatus(`Storage delete error: ${removeRes.error.message}`); setDeleting(false); return;
     }
-
-    // 3) Row delete
-    const { error: dbErr } = await supabase
-      .from("image_metadata")
-      .delete()
-      .eq("id", row.id)
-      .eq("user_id", user.id);
-
-    if (dbErr) {
-      setStatus(`Database delete error: ${dbErr.message}`);
-      setDeleting(false);
-      return;
-    }
-
-    setStatus("Deleted.");
-    setTimeout(() => {
-      router.push("/?deleted=1");
-    }, 200);
+    const { error: dbErr } = await supabase.from("image_metadata").delete().eq("id", row.id).eq("user_id", user.id);
+    if (dbErr) { setStatus(`Database delete error: ${dbErr.message}`); setDeleting(false); return; }
+    setStatus("Deleted."); setTimeout(() => { router.push("/?deleted=1"); }, 200);
   }
 
-  function firstCategoryForBadges() {
-    if (selectedCats && selectedCats.length) return selectedCats[0];
-    return row?.category || null;
+  // Category editor
+  function toggleCategory(cat) {
+    setCategories((prev) => prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]);
+  }
+
+  async function saveCategories() {
+    if (!user?.id || !row?.id) return;
+    setCatBusy(true);
+    setStatus("Saving categories...");
+    try {
+      // delete existing
+      const { error: delErr } = await supabase.from("image_category_map").delete().eq("user_id", user.id).eq("image_id", row.id);
+      if (delErr && !/does not exist|relation .* does not exist/i.test(delErr.message || "")) throw delErr;
+
+      const trimmed = Array.from(new Set(categories.map((c) => (c || "").trim()).filter(Boolean)));
+      if (trimmed.length) {
+        const payload = trimmed.map((c) => ({ image_id: row.id, user_id: user.id, category: c }));
+        const { error: insErr } = await supabase.from("image_category_map").insert(payload);
+        if (insErr) throw insErr;
+      }
+
+      // legacy primary category (first)
+      const primary = trimmed[0] || null;
+      const { error: updErr } = await supabase.from("image_metadata").update({ category: primary }).eq("id", row.id).eq("user_id", user.id);
+      if (updErr) throw updErr;
+
+      setRow((r) => (r ? { ...r, category: primary } : r));
+      setStatus("Categories saved."); setTimeout(() => setStatus(""), 1500);
+      setCatHint("");
+    } catch (e) {
+      const msg = e?.message || "Unknown error";
+      setStatus(`Save categories error: ${msg}`);
+      if ((msg.toLowerCase().includes("relation") && msg.toLowerCase().includes("does not exist"))) {
+        setCatHint('Category table not found. Run the provided SQL to create "image_category_map".');
+      }
+    } finally { setCatBusy(false); }
   }
 
   function colorBadge() {
-    const first = firstCategoryForBadges();
-    if (!first) return null;
-    if (first === "Blebs (clear to brown)" && row?.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
-    if (first === "Fiber Bundles" && row?.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
-    if (first === "Fibers" && row?.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
+    if (!row) return null;
+    if (isBlebs && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
+    if (isBundles && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
+    if (isFibers && row.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
     return null;
-  }
-
-  function toggleCat(cat) {
-    setSelectedCats((prev) => {
-      const has = prev.includes(cat);
-      if (has) return prev.filter((c) => c !== cat);
-      return [...prev, cat];
-    });
   }
 
   return (
@@ -378,15 +289,9 @@ export default function ImageDetailPage() {
         <button
           onClick={() => (typeof window !== "undefined" ? window.history.back() : (router.push("/"), null))}
           aria-label="Go back"
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #cbd5e1",
-            background: "#f8fafc",
-            cursor: "pointer",
-          }}
+          style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontWeight: 600 }}
         >
-          ← Back
+          ← <strong>Back to Profile</strong>
         </button>
         <h1 style={{ fontSize: 22, margin: 0 }}>Image Detail</h1>
       </header>
@@ -398,93 +303,47 @@ export default function ImageDetailPage() {
           {status || "Loading..."}
         </div>
       ) : !row ? (
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-          Not found or not accessible.
-        </div>
+        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>Not found or not accessible.</div>
       ) : (
         <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.3fr 1fr",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, alignItems: "start" }}>
             {/* Large preview */}
-            <div
-              style={{
-                border: "1px solid #e5e5e5",
-                borderRadius: 10,
-                overflow: "hidden",
-                background: "#fff",
-              }}
-            >
+            <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={publicUrl}
-                alt={row.filename}
-                style={{ display: "block", width: "100%", height: "auto", maxHeight: 700, objectFit: "contain" }}
-              />
+              <img src={publicUrl} alt={row.filename} style={{ display: "block", width: "100%", height: "auto", maxHeight: 700, objectFit: "contain" }} />
             </div>
 
-            {/* Metadata + actions */}
+            {/* Right column: details */}
             <div style={{ display: "grid", gap: 12 }}>
-              <div
-                style={{
-                  border: "1px solid #e5e5e5",
-                  borderRadius: 10,
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
+              {/* Meta block */}
+              <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, background: "#fff", padding: 12 }}>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
-                  {selectedCats.length ? selectedCats.map((c) => <Badge key={c}>{c}</Badge>) : <Badge>Uncategorized</Badge>}
+                  {categories.map((c) => <Badge key={c}>{c}</Badge>)}
                   {colorBadge()}
                 </div>
-
                 <div style={{ fontSize: 14, lineHeight: 1.6 }}>
                   <div><strong>Filename:</strong> {row.filename}</div>
-                  <div><strong>Type:</strong> {row.ext?.toUpperCase() || "—"}</div>
+                  <div><strong>Type:</strong> {row.ext?.toUpperCase() || ""}</div>
                   <div><strong>Uploaded:</strong> {prettyDate(row.created_at)}</div>
                   <div><strong>Storage path:</strong> {row.path}</div>
                 </div>
-
-                {/* Actions */}
                 <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <button
                     onClick={handleDelete}
                     disabled={deleting}
                     aria-label="Delete this image"
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: 8,
-                      border: "1px solid #991b1b",
-                      background: deleting ? "#fca5a5" : "#ef4444",
-                      color: "white",
-                      fontWeight: 700,
-                      cursor: deleting ? "not-allowed" : "pointer",
-                    }}
+                    style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #991b1b", background: deleting ? "#fca5a5" : "#ef4444", color: "white", fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer" }}
                   >
                     {deleting ? "Deleting..." : "Delete image"}
                   </button>
 
-                  {/* Feature toggle */}
                   {!featured ? (
                     <button
                       onClick={handleFeature}
                       disabled={featureBusy}
                       aria-label="Feature this image on the landing page"
                       title="Copy a public thumbnail and show it on the landing page"
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #1e293b",
-                        background: featureBusy ? "#94a3b8" : "#111827",
-                        color: "white",
-                        fontWeight: 700,
-                        cursor: featureBusy ? "not-allowed" : "pointer",
-                      }}
+                      style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #1e293b", background: featureBusy ? "#94a3b8" : "#111827", color: "white", fontWeight: 700, cursor: featureBusy ? "not-allowed" : "pointer" }}
                     >
                       {featureBusy ? "Featuring…" : "Feature on landing"}
                     </button>
@@ -494,15 +353,7 @@ export default function ImageDetailPage() {
                       disabled={featureBusy}
                       aria-label="Remove this image from the landing page"
                       title="Remove the public thumbnail and entry"
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: 8,
-                        border: "1px solid #334155",
-                        background: featureBusy ? "#94a3b8" : "#475569",
-                        color: "white",
-                        fontWeight: 700,
-                        cursor: featureBusy ? "not-allowed" : "pointer",
-                      }}
+                      style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #334155", background: featureBusy ? "#94a3b8" : "#475569", color: "white", fontWeight: 700, cursor: featureBusy ? "not-allowed" : "pointer" }}
                     >
                       {featureBusy ? "Removing…" : "Remove from landing"}
                     </button>
@@ -515,113 +366,33 @@ export default function ImageDetailPage() {
               </div>
 
               {/* Categories editor */}
-              <form
-                onSubmit={saveCategories}
-                aria-labelledby="cats-heading"
-                style={{
-                  border: "1px solid #e5e5e5",
-                  borderRadius: 10,
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
-                <h2 id="cats-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>
-                  Categories
-                </h2>
-
-                <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Categories</div>
-                <div
-                  role="group"
-                  aria-labelledby="cats-heading"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                    marginBottom: 10,
-                  }}
-                >
+              <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, background: "#fff", padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                  <strong>Categories</strong>
+                  {catHint ? <span style={{ fontSize: 12, color: "#6b7280" }}>{catHint}</span> : null}
+                </div>
+                <div role="group" aria-label="Select categories" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
                   {CATEGORIES.map((c) => (
-                    <label key={c} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <input
-                        type="checkbox"
-                        checked={selectedCats.includes(c)}
-                        onChange={() => toggleCat(c)}
-                        aria-label={c}
-                      />
-                      <span>{c}</span>
+                    <label key={c} style={{ display: "flex", gap: 8, alignItems: "center", border: "1px solid #e5e7eb", borderRadius: 8, padding: "6px 8px", background: "#f9fafb" }}>
+                      <input type="checkbox" checked={categories.includes(c)} onChange={() => toggleCategory(c)} aria-label={c} />
+                      <span style={{ fontSize: 13 }}>{c}</span>
                     </label>
                   ))}
                 </div>
-
-                {catsSupported === false ? (
-                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
-                    Multiple categories will save the first one only until a <code>categories</code> text[] column exists.
-                  </div>
-                ) : null}
-
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <button
-                    type="submit"
-                    disabled={savingCats}
-                    aria-label="Save categories"
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 8,
-                      border: "1px solid #0f766e",
-                      background: savingCats ? "#8dd3cd" : "#14b8a6",
-                      color: "white",
-                      fontWeight: 600,
-                      cursor: savingCats ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {savingCats ? "Saving..." : "Save Categories"}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button onClick={saveCategories} disabled={catBusy} aria-label="Save categories" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #0f766e", background: catBusy ? "#8dd3cd" : "#14b8a6", color: "white", fontWeight: 600, cursor: catBusy ? "not-allowed" : "pointer" }}>
+                    {catBusy ? "Saving..." : "Save Categories"}
                   </button>
-                  <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-                    {status && !deleting ? status : ""}
-                  </span>
                 </div>
-              </form>
+              </div>
 
               {/* Notes */}
-              <form
-                onSubmit={saveNotes}
-                aria-labelledby="notes-heading"
-                style={{
-                  border: "1px solid #e5e5e5",
-                  borderRadius: 10,
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
-                <h2 id="notes-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>
-                  Notes
-                </h2>
-                <label htmlFor="notes" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>
-                  Notes (optional)
-                </label>
-                <textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add notes about this image…"
-                  rows={6}
-                  style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
-                />
+              <form onSubmit={saveNotes} aria-labelledby="notes-heading" style={{ border: "1px solid #e5e5e5", borderRadius: 10, background: "#fff", padding: 12 }}>
+                <h2 id="notes-heading" style={{ position: "absolute", left: -9999, top: "auto", width: 1, height: 1, overflow: "hidden" }}>Notes</h2>
+                <label htmlFor="notes" style={{ fontSize: 12, display: "block", marginBottom: 6 }}>Notes (optional)</label>
+                <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add notes about this image…" rows={6} style={{ width: "100%", padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    aria-label="Save notes"
-                    style={{
-                      padding: "10px 14px",
-                      borderRadius: 8,
-                      border: "1px solid #0f766e",
-                      background: saving ? "#8dd3cd" : "#14b8a6",
-                      color: "white",
-                      fontWeight: 600,
-                      cursor: saving ? "not-allowed" : "pointer",
-                    }}
-                  >
+                  <button type="submit" disabled={saving} aria-label="Save notes" style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #0f766e", background: saving ? "#8dd3cd" : "#14b8a6", color: "white", fontWeight: 600, cursor: saving ? "not-allowed" : "pointer" }}>
                     {saving ? "Saving..." : "Save Notes"}
                   </button>
                   <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
@@ -631,14 +402,7 @@ export default function ImageDetailPage() {
               </form>
 
               {/* Uploader snapshot */}
-              <div
-                style={{
-                  border: "1px solid #e5e5e5",
-                  borderRadius: 10,
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
+              <div style={{ border: "1px solid #e5e5e5", borderRadius: 10, background: "#fff", padding: 12 }}>
                 <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 14 }}>Uploader snapshot</div>
                 <div style={{ fontSize: 14, lineHeight: 1.6 }}>
                   <div><strong>Initials:</strong> {row.uploader_initials || "—"}</div>
