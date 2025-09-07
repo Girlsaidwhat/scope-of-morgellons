@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.184_2025-09-07
+// Build 36.185_2025-09-07
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.184_2025-09-07";
+export const BUILD_VERSION = "Build 36.185_2025-09-07";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -55,13 +55,30 @@ class ErrorBoundary extends React.Component {
 
 /* ---------- Build badge (menu: Gmail / Outlook / Default email / Copy) ---------- */
 const SUPPORT_EMAIL = "girlsaidwhat@gmail.com";
+
 function currentPageUrl() {
   try { return typeof window !== "undefined" ? window.location.href : "/"; } catch { return "/"; }
+}
+function currentPathname() {
+  try { return typeof window !== "undefined" ? window.location.pathname : "/"; } catch { return "/"; }
+}
+function pageLabelFromPath(path) {
+  // Normalize and derive a friendly page label for the email subject
+  if (!path || path === "/") return "Profile Page";
+  if (path === "/upload") return "Uploads Page";
+  if (path.startsWith("/image/")) return "Image Detail Page";
+  if (path === "/questionnaire") return "My Story Page";
+  if (path === "/signin") return "Sign In Page";
+  if (path === "/auth/reset") return "Reset Password Page";
+  // Add other simple routes here if needed
+  return "Site";
 }
 function enc(s) { return encodeURIComponent(s); }
 function makeMailBits() {
   const page = currentPageUrl();
-  const subject = "Scope feedback";
+  const path = currentPathname();
+  const label = pageLabelFromPath(path);
+  const subject = `${label} Issue`;
   const body = `Page: ${page}\n\nWhat happened:\n`;
   return { page, subject, body };
 }
@@ -270,7 +287,7 @@ function AuthScreen() {
             <button type="button" onClick={() => setMode((m) => (m === "sign_in" ? "sign_up" : "sign_in"))} aria-label="Toggle sign in or sign up" style={linkBtn}>{mode === "sign_in" ? "Need an account? Sign up" : "Have an account? Sign in"}</button>
             <button type="button" onClick={handleForgot} aria-label="Forgot password?" style={linkBtn}>Forgot password?</button>
           </div>
-          <p aria-live="polite" style={statusStyle}>{msg}</p>
+          <p aria-live="polite" style={{ fontSize: 13, color: "#555", marginTop: 10, minHeight: 18 }}>{msg}</p>
           {err ? <div role="alert" style={{ color: "#b00020", fontWeight: 600 }}>{err}</div> : null}
         </form>
       </section>
