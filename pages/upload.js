@@ -428,12 +428,12 @@ export default function UploadPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: 16,
+          marginBottom: 24, // more space before the form (Uploads → Select images)
           gap: 12,
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 /* more space Back → Uploads */ }}>
           <a href="/" style={{ textDecoration: "none" }}>
             ← <strong>Back to Profile</strong>
           </a>
@@ -476,7 +476,7 @@ export default function UploadPage() {
       ) : (
         <form onSubmit={handleUpload} aria-label="Upload images">
           {/* File input FIRST, so uploading is the primary visual */}
-          <label style={{ display: "block", marginBottom: 12 }}>
+          <label style={{ display: "block", marginBottom: 16 }}>
             <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
               Select images (JPEG or PNG, up to 10 MB each)
             </span>
@@ -526,7 +526,7 @@ export default function UploadPage() {
           ) : null}
 
           {/* Notes */}
-          <label style={{ display: "block", marginTop: 12, marginBottom: 16 }}>
+          <label style={{ display: "block", marginTop: 12, marginBottom: 10 }}>
             <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
               Notes (optional) — saved to each file (or batch)
             </span>
@@ -539,8 +539,31 @@ export default function UploadPage() {
             />
           </label>
 
+          {/* Buttons moved up to sit right under Notes */}
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <button
+              type="submit"
+              disabled={!user || files.length === 0 || isUploading}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #0f766e", background: isUploading ? "#8dd3cd" : "#14b8a6", color: "white", cursor: isUploading ? "not-allowed" : "pointer", fontWeight: 600 }}
+            >
+              {isUploading ? "Uploading..." : "Upload"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (fileInputRef.current) fileInputRef.current.value = "";
+                files.forEach((f) => URL.revokeObjectURL(f.url));
+                setFiles([]); setRows([]); setOverallMsg(""); setHint("");
+              }}
+              disabled={isUploading}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #e5e5e5", background: "white", cursor: isUploading ? "not-allowed" : "pointer", fontWeight: 600 }}
+            >
+              Clear
+            </button>
+          </div>
+
           {/* Overall status + hint */}
-          <p aria-live="polite" style={{ margin: "6px 0 12px", minHeight: 18, fontSize: 13 }}>{overallMsg}</p>
+          <p aria-live="polite" style={{ margin: "10px 0 12px", minHeight: 18, fontSize: 13 }}>{overallMsg}</p>
           {hint ? <p style={{ margin: "-6px 0 12px", fontSize: 12, color: "#6b7280" }}>{hint}</p> : null}
 
           {/* Selected files list */}
@@ -564,29 +587,6 @@ export default function UploadPage() {
               ))}
             </div>
           )}
-
-          {/* Buttons */}
-          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-            <button
-              type="submit"
-              disabled={!user || files.length === 0 || isUploading}
-              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #0f766e", background: isUploading ? "#8dd3cd" : "#14b8a6", color: "white", cursor: isUploading ? "not-allowed" : "pointer", fontWeight: 600 }}
-            >
-              {isUploading ? "Uploading..." : "Upload"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (fileInputRef.current) fileInputRef.current.value = "";
-                files.forEach((f) => URL.revokeObjectURL(f.url));
-                setFiles([]); setRows([]); setOverallMsg(""); setHint("");
-              }}
-              disabled={isUploading}
-              style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #e5e5e5", background: "white", cursor: isUploading ? "not-allowed" : "pointer", fontWeight: 600 }}
-            >
-              Clear
-            </button>
-          </div>
 
           {totalCountText && <div style={{ marginTop: 12, fontSize: 13, color: "#374151" }}>{totalCountText}</div>}
         </form>
