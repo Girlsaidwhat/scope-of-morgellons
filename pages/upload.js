@@ -1,5 +1,5 @@
 // pages/upload.js
-// Compact multi-select dropdowns for Category and Colors; no primary category is written.
+// Compact multi-select dropdowns; show color pickers for Blebs, Fiber Bundles, and Fibers when selected.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -40,11 +40,15 @@ const CATEGORIES = [
 ];
 
 const BLEBS_LABEL = "Blebs (clear to brown)";
+const BUNDLES_LABEL = "Fiber Bundles";
 const FIBERS_LABEL = "Fibers";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const BLEB_COLOR_OPTIONS = ["Clear", "Yellow", "Orange", "Red", "Brown"];
 const FIBER_COLOR_OPTIONS = ["white/clear", "blue", "black", "red", "other"];
+
+// For bundles we reuse the fiber palette for now
+const BUNDLE_COLOR_OPTIONS = FIBER_COLOR_OPTIONS.slice();
 
 function extFromName(name = "") {
   const idx = name.lastIndexOf(".");
@@ -164,10 +168,12 @@ export default function UploadPage() {
   // Category multi-select (compact dropdown)
   const [selectedCats, setSelectedCats] = useState([]);
   const isBlebs = selectedCats.includes(BLEBS_LABEL);
+  const isBundles = selectedCats.includes(BUNDLES_LABEL);
   const isFibers = selectedCats.includes(FIBERS_LABEL);
 
   // Multi-select colors when relevant (compact dropdowns)
   const [blebColors, setBlebColors] = useState([]);
+  const [bundleColors, setBundleColors] = useState([]);
   const [fiberColors, setFiberColors] = useState([]);
 
   // Notes (applied to each file in batch)
@@ -317,8 +323,9 @@ export default function UploadPage() {
         mime_type: f.type,
         size: f.size,
         // category: null, // no primary written
-        bleb_color: isBlebs ? (blebColors[0] || null) : null, // legacy single color (first)
-        fibers_color: isFibers ? (fiberColors.join(", ") || null) : null, // legacy single field
+        bleb_color: isBlebs ? (blebColors[0] || null) : null,                      // legacy single color (first)
+        fiber_bundles_color: isBundles ? (bundleColors.join(", ") || null) : null, // legacy single field
+        fibers_color: isFibers ? (fiberColors.join(", ") || null) : null,          // legacy single field
         notes: notes.trim() ? notes.trim() : null,
         uploader_initials: profileSnap?.initials ?? null,
         uploader_age: profileSnap?.age ?? null,
@@ -384,12 +391,8 @@ export default function UploadPage() {
         } catch {}
       }
 
-      if (isBlebs && blebColors.length) {
-        await tolerantUpdate("bleb_colors", blebColors); // array column if present
-      }
-      if (trimmedCats.length) {
-        await tolerantUpdate("categories", trimmedCats); // array column if present
-      }
+      if (isBlebs && blebColors.length) await tolerantUpdate("bleb_colors", blebColors); // array column if present
+      if (trimmedCats.length) await tolerantUpdate("categories", trimmedCats);           // array column if present
 
       stopFauxProgress(i);
       setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], state: "success", message: "Uploaded and saved metadata.", progress: 100 }; return copy; });
@@ -422,18 +425,18 @@ export default function UploadPage() {
 
   return (
     <main id="main" style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
-      {/* Header: back link (original style) on top-left, Uploads header directly under it; right side feedback + sign out under it */}
+      {/* Header: back link top-left, Uploads header below, with extra spacing; right side feedback + sign out under it */}
       <header
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: 24, // more space before the form (Uploads → Select images)
+          marginBottom: 28, // extra space before the form
           gap: 12,
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 /* more space Back → Uploads */ }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 /* more space Back → Uploads */ }}>
           <a href="/" style={{ textDecoration: "none" }}>
             ← <strong>Back to Profile</strong>
           </a>
@@ -475,7 +478,7 @@ export default function UploadPage() {
         </div>
       ) : (
         <form onSubmit={handleUpload} aria-label="Upload images">
-          {/* File input FIRST, so uploading is the primary visual */}
+          {/* File input FIRST */}
           <label style={{ display: "block", marginBottom: 16 }}>
             <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
               Select images (JPEG or PNG, up to 10 MB each)
@@ -513,6 +516,18 @@ export default function UploadPage() {
             </div>
           ) : null}
 
+          {isBundles ? (
+            <div style={{ margin: "10px 0" }}>
+              <MultiSelectDropdown
+                label="Fiber Bundles Color (optional)"
+                options={BUNDLE_COLOR_OPTIONS}
+                values={bundleColors}
+                setValues={setBundleColors}
+                buttonAriaLabel="Choose one or more fiber bundle colors (optional)"
+              />
+            </div>
+          ) : null}
+
           {isFibers ? (
             <div style={{ margin: "10px 0" }}>
               <MultiSelectDropdown
@@ -539,7 +554,7 @@ export default function UploadPage() {
             />
           </label>
 
-          {/* Buttons moved up to sit right under Notes */}
+          {/* Buttons right under Notes */}
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button
               type="submit"
