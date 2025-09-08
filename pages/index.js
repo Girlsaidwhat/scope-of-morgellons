@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.207";
+const INDEX_BUILD = "idx-36.209";
 
 function prettyDate(s) {
   try {
@@ -901,7 +901,17 @@ export default function HomePage() {
           </Link>
         </div>
 
+        {/* RE-ORDERED: feedback ABOVE sign out */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <a
+            href={`mailto:girlsaidwhat@gmail.com?subject=${encodeURIComponent("Profile Page Issue")}&body=${encodeURIComponent(
+              `Page: ${typeof window !== "undefined" ? window.location.href : "Profile"}\n\nWhat happened:\n`
+            )}`}
+            style={{ fontSize: 12, textDecoration: "underline", color: "#334155" }}
+            aria-label="Send feedback about this page"
+          >
+            Send feedback
+          </a>
           <button
             onClick={handleSignOut}
             aria-label="Sign out"
@@ -918,15 +928,6 @@ export default function HomePage() {
           >
             Sign out
           </button>
-          <a
-            href={`mailto:girlsaidwhat@gmail.com?subject=${encodeURIComponent("Profile Page Issue")}&body=${encodeURIComponent(
-              `Page: ${typeof window !== "undefined" ? window.location.href : "Profile"}\n\nWhat happened:\n`
-            )}`}
-            style={{ fontSize: 12, textDecoration: "underline", color: "#334155" }}
-            aria-label="Send feedback about this page"
-          >
-            Send feedback
-          </a>
         </div>
       </div>
 
@@ -1268,14 +1269,14 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* RIGHT: image placeholder (starts at role row, ends at save row; aligned with fieldset tops) */}
+          {/* RIGHT: image placeholder */}
           <aside
             role="complementary"
             aria-label="Profile image placeholder"
             style={{
               gridArea: "aside",
-              marginTop: 16,           // align top with fieldsets so it isn't higher than "I am a"
-              alignSelf: "stretch",    // fill from role through save rows
+              marginTop: 16,
+              alignSelf: "stretch",
               height: "100%",
               border: "1px dashed #cbd5e1",
               background: "#f8fafc",
@@ -1340,7 +1341,7 @@ export default function HomePage() {
               padding: "6px 10px",
               borderRadius: 8,
               border: "1px solid #1f2937",
-              background: "#ffffff",     // lighter so the heading has more visual weight
+              background: "#ffffff",
               color: "#1f2937",
               cursor: csvBusy ? "wait" : "pointer",
               fontWeight: 600,
