@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.205";
+const INDEX_BUILD = "idx-36.206";
 
 function prettyDate(s) {
   try {
@@ -1057,20 +1057,23 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* Two-column profile layout: left form, right placeholder */}
+        {/* Grid with named areas to control where the placeholder starts/ends */}
         <div
           data-profile-grid
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
+            gridTemplateAreas: `"fields fields"
+                                "role aside"
+                                "contact aside"
+                                "save aside"`,
             gap: 12,
             alignItems: "start",
           }}
           aria-label="Profile layout"
         >
-          {/* LEFT: fields + fieldsets + save */}
-          <div>
-            {/* One-line inputs with visible labels */}
+          {/* BASIC FIELDS ROW */}
+          <div style={{ gridArea: "fields" }}>
             <div
               style={{
                 display: "flex",
@@ -1209,71 +1212,71 @@ export default function HomePage() {
                 />
               </div>
             </div>
-
-            {/* Role: I am a ... */}
-            <fieldset
-              aria-label="I am a"
-              style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
-            >
-              <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
-                <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
-                <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
-                <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
-                <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
-              </div>
-            </fieldset>
-
-            {/* Who can contact me */}
-            <fieldset
-              aria-label="Who can contact me"
-              style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
-            >
-              <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
-                <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
-                <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
-                <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
-                <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
-              </div>
-            </fieldset>
-
-            {/* Save */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
-              <button
-                type="submit"
-                aria-label="Save profile"
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #0f766e",
-                  background: "#14b8a6",
-                  color: "white",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontSize: 12,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Save Profile
-              </button>
-              <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-                {profileStatus}
-              </span>
-            </div>
           </div>
 
-          {/* RIGHT: image placeholder (1/3 width) */}
+          {/* ROLE FIELDSET */}
+          <fieldset
+            aria-label="I am a"
+            style={{ gridArea: "role", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
+          >
+            <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
+              <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
+              <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
+              <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
+              <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
+            </div>
+          </fieldset>
+
+          {/* CONTACT FIELDSET */}
+          <fieldset
+            aria-label="Who can contact me"
+            style={{ gridArea: "contact", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
+          >
+            <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
+              <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
+              <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
+              <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
+              <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
+            </div>
+          </fieldset>
+
+          {/* SAVE ROW */}
+          <div style={{ gridArea: "save", display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+            <button
+              type="submit"
+              aria-label="Save profile"
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #0f766e",
+                background: "#14b8a6",
+                color: "white",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Save Profile
+            </button>
+            <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+              {profileStatus}
+            </span>
+          </div>
+
+          {/* RIGHT: image placeholder (starts at role row, ends at save row) */}
           <aside
             role="complementary"
             aria-label="Profile image placeholder"
             style={{
+              gridArea: "aside",
               border: "1px dashed #cbd5e1",
               background: "#f8fafc",
               borderRadius: 10,
-              minHeight: 360,
               padding: 12,
               display: "flex",
               alignItems: "center",
@@ -1287,34 +1290,30 @@ export default function HomePage() {
               style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4 }}
             >
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Profile image</div>
-              <div style={{ fontSize: 12 }}>Placeholder (1/3 width)</div>
+              <div style={{ fontSize: 12 }}>Placeholder (right column)</div>
             </div>
           </aside>
         </div>
       </form>
 
-      {/* Mini-heading: Your gallery */}
-      <h2 id="your-gallery-heading" style={{ fontSize: 18, margin: "12px 0 10px", opacity: 0.9 }}>
-        Your Gallery
-      </h2>
-
-      {/* Gallery toolbar: Total items (top-right) with Export CSV beneath */}
+      {/* Gallery header row: title at left, total+CSV at right (same level) */}
       <div
         role="region"
-        aria-label="Gallery tools"
+        aria-label="Gallery header"
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "flex-start",
+          alignItems: "center",
           padding: "6px 0",
-          margin: "4px 0 10px",
+          margin: "8px 0 10px",
           borderBottom: "1px solid #e5e7eb",
-          gap: 8,
+          gap: 12,
           flexWrap: "wrap",
         }}
       >
-        <div /> {/* left side intentionally blank for visual weight on heading */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+        <h2 id="your-gallery-heading" style={{ fontSize: 20, margin: 0, opacity: 0.95 }}>Your Gallery</h2>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div
             role="status"
             aria-live="polite"
@@ -1546,6 +1545,12 @@ export default function HomePage() {
         @media (max-width: 880px) {
           main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] {
             grid-template-columns: 1fr !important;
+            grid-template-areas:
+              "fields"
+              "role"
+              "contact"
+              "save"
+              "aside" !important;
           }
         }
       `}</style>
