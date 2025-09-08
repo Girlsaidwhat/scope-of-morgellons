@@ -422,7 +422,7 @@ export default function UploadPage() {
 
   return (
     <main id="main" style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
-      {/* Header: big title left; right column has feedback with sign out directly under it */}
+      {/* Header: back link (original style) on top-left, Uploads header directly under it; right side feedback + sign out under it */}
       <header
         style={{
           display: "flex",
@@ -433,11 +433,11 @@ export default function UploadPage() {
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <h1 style={{ margin: 0, fontSize: 28 }}>Uploads</h1>
-          <a href="/" style={{ textDecoration: "none", fontSize: 13, color: "#334155" }}>
-            ← Back to Profile
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <a href="/" style={{ textDecoration: "none" }}>
+            ← <strong>Back to Profile</strong>
           </a>
+          <h1 style={{ margin: 0, fontSize: 28 }}>Uploads</h1>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
