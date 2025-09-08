@@ -1,6 +1,5 @@
 // pages/upload.js
-// Multi-category upload with multi-select Category and conditional multi-select Colors for Blebs/Fibers.
-// Keeps 10MB limit, faux progress, notes, and per-file status. Sign out sits under Send feedback.
+// Compact multi-select dropdowns for Category and Colors; no primary category is written.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -60,18 +59,116 @@ function prettyBytes(n) {
   const mb = kb / 1024; return `${mb.toFixed(2)} MB`;
 }
 
+/** Simple, accessible-ish multi-select dropdown with checkboxes. */
+function MultiSelectDropdown({ label, options, values, setValues, buttonAriaLabel }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (!ref.current) return;
+      if (!ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
+  function toggle(val) {
+    setValues((prev) => (prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]));
+  }
+
+  const summary =
+    values.length === 0
+      ? "None selected"
+      : values.length <= 3
+      ? values.join(", ")
+      : `${values.length} selected`;
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block", minWidth: 260 }}>
+      <label style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>{label}</label>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open ? "true" : "false"}
+        aria-label={buttonAriaLabel || label}
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          width: "100%",
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #cbd5e1",
+          background: "#fff",
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+        title={summary}
+      >
+        <span style={{ opacity: values.length ? 1 : 0.7 }}>{summary}</span>
+        <span style={{ float: "right", opacity: 0.7 }}>▾</span>
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-multiselectable="true"
+          style={{
+            position: "absolute",
+            zIndex: 20,
+            top: "calc(100% + 6px)",
+            left: 0,
+            width: "100%",
+            maxHeight: 220,
+            overflowY: "auto",
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            background: "#fff",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
+            padding: 6,
+          }}
+        >
+          {options.map((opt) => {
+            const active = values.includes(opt);
+            return (
+              <label
+                key={opt}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  background: active ? "#ecfeff" : "transparent",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={() => toggle(opt)}
+                  aria-label={opt}
+                />
+                <span>{opt}</span>
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function UploadPage() {
   const [user, setUser] = useState(null);
   const [profileSnap, setProfileSnap] = useState(null);
 
-  // Category multi-select
+  // Category multi-select (compact dropdown)
   const [selectedCats, setSelectedCats] = useState([]);
   const isBlebs = selectedCats.includes(BLEBS_LABEL);
   const isFibers = selectedCats.includes(FIBERS_LABEL);
 
-  // Multi-select colors when relevant
-  const [blebColors, setBlebColors] = useState([]);     // array of strings
-  const [fiberColors, setFiberColors] = useState([]);   // array of strings
+  // Multi-select colors when relevant (compact dropdowns)
+  const [blebColors, setBlebColors] = useState([]);
+  const [fiberColors, setFiberColors] = useState([]);
 
   // Notes (applied to each file in batch)
   const [notes, setNotes] = useState("");
@@ -162,21 +259,6 @@ export default function UploadPage() {
   }
   function clearStuckTimer() { if (stuckTimerRef.current) { clearTimeout(stuckTimerRef.current); stuckTimerRef.current = null; } }
 
-  function onChangeMultiSelect(setter) {
-    return (e) => {
-      const opts = Array.from(e.target.selectedOptions || []).map((o) => o.value);
-      setter(opts);
-    };
-  }
-
-  function onChangeCategories(e) {
-    const opts = Array.from(e.target.selectedOptions || []).map((o) => o.value);
-    setSelectedCats(opts);
-    // Clear colors if category deselected
-    if (!opts.includes(BLEBS_LABEL)) setBlebColors([]);
-    if (!opts.includes(FIBERS_LABEL)) setFiberColors([]);
-  }
-
   async function handleUpload(ev) {
     ev.preventDefault();
     if (!user?.id) { alert("Please sign in first."); return; }
@@ -198,7 +280,6 @@ export default function UploadPage() {
 
     const allowed = nextRowsA.map((r) => r.state !== "rejected");
     const trimmedCats = Array.from(new Set(selectedCats.map((c) => (c || "").trim()).filter(Boolean)));
-    const primaryCategory = trimmedCats[0] || null;
 
     for (let i = 0; i < files.length; i++) {
       if (!allowed[i]) continue;
@@ -226,18 +307,18 @@ export default function UploadPage() {
 
       setRows((prev) => { const copy = [...prev]; copy[i] = { ...copy[i], state: "saving", message: "Saving metadata..." }; return copy; });
 
-      // Insert metadata (legacy-safe); arrays/colors updated after insert (tolerant)
+      // Insert metadata (no primary category)
       const meta = {
         user_id: user.id,
-        storage_path: storagePath, // prefer "storage_path"
-        path: storagePath,         // legacy fallback if only "path" exists
+        storage_path: storagePath, // preferred
+        path: storagePath,         // legacy fallback
         filename: f.name,
         ext: extFromName(f.name),
         mime_type: f.type,
         size: f.size,
-        category: primaryCategory, // back-compat single category
+        // category: null, // no primary written
         bleb_color: isBlebs ? (blebColors[0] || null) : null, // legacy single color (first)
-        fibers_color: isFibers ? (fiberColors.join(", ") || null) : null, // legacy single field with joined values
+        fibers_color: isFibers ? (fiberColors.join(", ") || null) : null, // legacy single field
         notes: notes.trim() ? notes.trim() : null,
         uploader_initials: profileSnap?.initials ?? null,
         uploader_age: profileSnap?.age ?? null,
@@ -269,14 +350,13 @@ export default function UploadPage() {
           };
           return copy;
         });
-        // Roll back storage object if insert failed
-        await supabase.storage.from("images").remove([storagePath]);
+        await supabase.storage.from("images").remove([storagePath]); // rollback storage
         continue;
       }
 
       const imageId = insData.id;
 
-      // Insert category mappings (ignore table-missing errors gracefully)
+      // Mapping table (tolerant if missing)
       try {
         if (trimmedCats.length) {
           const payload = trimmedCats.map((c) => ({ image_id: imageId, user_id: user.id, category: c }));
@@ -297,20 +377,18 @@ export default function UploadPage() {
             const msg = (error.message || "").toLowerCase();
             const ignorable =
               msg.includes("does not exist") ||
-              msg.includes("unknown") && msg.includes("column") ||
-              msg.includes("column") && msg.includes("not found");
+              (msg.includes("unknown") && msg.includes("column")) ||
+              (msg.includes("column") && msg.includes("not found"));
             if (!ignorable) console.warn(`Update error for ${col}:`, error.message);
           }
-        } catch (e) {
-          // ignore
-        }
+        } catch {}
       }
 
       if (isBlebs && blebColors.length) {
-        await tolerantUpdate("bleb_colors", blebColors); // new array column if present
+        await tolerantUpdate("bleb_colors", blebColors); // array column if present
       }
       if (trimmedCats.length) {
-        await tolerantUpdate("categories", trimmedCats); // new array column if present
+        await tolerantUpdate("categories", trimmedCats); // array column if present
       }
 
       stopFauxProgress(i);
@@ -338,14 +416,13 @@ export default function UploadPage() {
   async function handleSignOut() {
     try {
       await supabase.auth.signOut();
-      // soft redirect home
       if (typeof window !== "undefined") window.location.href = "/";
     } catch {}
   }
 
   return (
     <main id="main" style={{ maxWidth: 980, margin: "0 auto", padding: "24px" }}>
-      {/* Header: Back link left; right column has feedback with sign out directly under it */}
+      {/* Header: big title left; right column has feedback with sign out directly under it */}
       <header
         style={{
           display: "flex",
@@ -356,7 +433,12 @@ export default function UploadPage() {
           flexWrap: "wrap",
         }}
       >
-        <a href="/" style={{ textDecoration: "none" }}>← <strong>Back to Profile</strong></a>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 28 }}>Uploads</h1>
+          <a href="/" style={{ textDecoration: "none", fontSize: 13, color: "#334155" }}>
+            ← Back to Profile
+          </a>
+        </div>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <a
@@ -393,75 +475,8 @@ export default function UploadPage() {
         </div>
       ) : (
         <form onSubmit={handleUpload} aria-label="Upload images">
-          {/* Category (multi-select dropdown) */}
-          <label style={{ display: "block", marginBottom: 10 }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Category</span>
-            <select
-              aria-label="Category"
-              multiple
-              size={Math.min(8, CATEGORIES.length)}
-              value={selectedCats}
-              onChange={onChangeCategories}
-              style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-              You can select more than one. The first selected is used as the primary category for now.
-            </div>
-          </label>
-
-          {/* Conditional color pickers (multi-select) */}
-          {isBlebs && (
-            <label style={{ display: "block", marginBottom: 10 }}>
-              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Bleb Color (optional)</span>
-              <select
-                aria-label="Bleb Color (optional)"
-                multiple
-                size={BLEB_COLOR_OPTIONS.length}
-                value={blebColors}
-                onChange={onChangeMultiSelect(setBlebColors)}
-                style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-              >
-                {BLEB_COLOR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </label>
-          )}
-
-          {isFibers && (
-            <label style={{ display: "block", marginBottom: 10 }}>
-              <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>Fiber Color (optional)</span>
-              <select
-                aria-label="Fiber Color (optional)"
-                multiple
-                size={Math.min(6, FIBER_COLOR_OPTIONS.length)}
-                value={fiberColors}
-                onChange={onChangeMultiSelect(setFiberColors)}
-                style={{ width: "100%", padding: "8px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#fff" }}
-              >
-                {FIBER_COLOR_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </label>
-          )}
-
-          {/* Notes */}
-          <label style={{ display: "block", marginBottom: 16 }}>
-            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
-              Notes (optional) — saved to each file (or batch)
-            </span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={4}
-              placeholder="Any details about this batch. Example: microscope settings, date taken, lighting, context."
-              style={{ width: "100%", padding: "8px", resize: "vertical", borderRadius: 8, border: "1px solid #cbd5e1" }}
-            />
-          </label>
-
-          {/* File input */}
-          <label style={{ display: "block", marginBottom: 8 }}>
+          {/* File input FIRST, so uploading is the primary visual */}
+          <label style={{ display: "block", marginBottom: 12 }}>
             <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
               Select images (JPEG or PNG, up to 10 MB each)
             </span>
@@ -471,6 +486,56 @@ export default function UploadPage() {
               accept="image/jpeg,image/png"
               multiple
               onChange={(e) => onChooseFiles(e)}
+            />
+          </label>
+
+          {/* Category dropdown (multi-select, compact) */}
+          <div style={{ margin: "10px 0" }}>
+            <MultiSelectDropdown
+              label="Category"
+              options={CATEGORIES}
+              values={selectedCats}
+              setValues={setSelectedCats}
+              buttonAriaLabel="Choose one or more categories"
+            />
+          </div>
+
+          {/* Conditional color dropdowns (multi-select, compact) */}
+          {isBlebs ? (
+            <div style={{ margin: "10px 0" }}>
+              <MultiSelectDropdown
+                label="Bleb Color (optional)"
+                options={BLEB_COLOR_OPTIONS}
+                values={blebColors}
+                setValues={setBlebColors}
+                buttonAriaLabel="Choose one or more bleb colors (optional)"
+              />
+            </div>
+          ) : null}
+
+          {isFibers ? (
+            <div style={{ margin: "10px 0" }}>
+              <MultiSelectDropdown
+                label="Fiber Color (optional)"
+                options={FIBER_COLOR_OPTIONS}
+                values={fiberColors}
+                setValues={setFiberColors}
+                buttonAriaLabel="Choose one or more fiber colors (optional)"
+              />
+            </div>
+          ) : null}
+
+          {/* Notes */}
+          <label style={{ display: "block", marginTop: 12, marginBottom: 16 }}>
+            <span style={{ display: "block", fontWeight: 600, marginBottom: 4 }}>
+              Notes (optional) — saved to each file (or batch)
+            </span>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Any details about this batch. Example: microscope settings, date taken, lighting, context."
+              style={{ width: "100%", padding: "8px", resize: "vertical", borderRadius: 8, border: "1px solid #cbd5e1" }}
             />
           </label>
 
