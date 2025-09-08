@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.206";
+const INDEX_BUILD = "idx-36.207";
 
 function prettyDate(s) {
   try {
@@ -1268,12 +1268,15 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* RIGHT: image placeholder (starts at role row, ends at save row) */}
+          {/* RIGHT: image placeholder (starts at role row, ends at save row; aligned with fieldset tops) */}
           <aside
             role="complementary"
             aria-label="Profile image placeholder"
             style={{
               gridArea: "aside",
+              marginTop: 16,           // align top with fieldsets so it isn't higher than "I am a"
+              alignSelf: "stretch",    // fill from role through save rows
+              height: "100%",
               border: "1px dashed #cbd5e1",
               background: "#f8fafc",
               borderRadius: 10,
@@ -1281,29 +1284,30 @@ export default function HomePage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              overflow: "hidden",
             }}
             title="Profile image placeholder"
           >
             <div
               role="img"
               aria-label="Profile image coming soon"
-              style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4 }}
+              style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4, fontSize: 13 }}
             >
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Profile image</div>
-              <div style={{ fontSize: 12 }}>Placeholder (right column)</div>
+              <div>Placeholder (right column)</div>
             </div>
           </aside>
         </div>
       </form>
 
-      {/* Gallery header row: title at left, total+CSV at right (same level) */}
+      {/* Gallery header row: title left; total (top) with CSV beneath on right */}
       <div
         role="region"
         aria-label="Gallery header"
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
           padding: "6px 0",
           margin: "8px 0 10px",
           borderBottom: "1px solid #e5e7eb",
@@ -1311,14 +1315,16 @@ export default function HomePage() {
           flexWrap: "wrap",
         }}
       >
-        <h2 id="your-gallery-heading" style={{ fontSize: 20, margin: 0, opacity: 0.95 }}>Your Gallery</h2>
+        <h2 id="your-gallery-heading" style={{ fontSize: 22, fontWeight: 800, margin: 0, letterSpacing: 0.1 }}>
+          Your Gallery
+        </h2>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <div
             role="status"
             aria-live="polite"
             aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.8 }}
+            style={{ fontSize: 12, opacity: 0.85 }}
           >
             Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
           </div>
@@ -1334,8 +1340,8 @@ export default function HomePage() {
               padding: "6px 10px",
               borderRadius: 8,
               border: "1px solid #1f2937",
-              background: csvBusy ? "#475569" : "#1f2937",
-              color: "white",
+              background: "#ffffff",     // lighter so the heading has more visual weight
+              color: "#1f2937",
               cursor: csvBusy ? "wait" : "pointer",
               fontWeight: 600,
               fontSize: 12,
