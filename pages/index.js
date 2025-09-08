@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.204";
+const INDEX_BUILD = "idx-36.205";
 
 function prettyDate(s) {
   try {
@@ -936,7 +936,7 @@ export default function HomePage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "baseline",
-          marginBottom: 6, // reduced as requested
+          marginBottom: 6,
         }}
       >
         <h1 style={{ fontSize: 28, margin: 0 }}>
@@ -947,7 +947,7 @@ export default function HomePage() {
       <div
         role="separator"
         aria-hidden="true"
-        style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }} // less space below header
+        style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }}
       />
 
       {/* Profile form */}
@@ -1057,214 +1057,255 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* One-line inputs with visible labels */}
+        {/* Two-column profile layout: left form, right placeholder */}
         <div
+          data-profile-grid
           style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "flex-end",
-            whiteSpace: "nowrap",
-            overflowX: "auto",
-            paddingBottom: 2,
-            marginBottom: 16,
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
+            gap: 12,
+            alignItems: "start",
           }}
-          aria-label="Basic profile fields"
+          aria-label="Profile layout"
         >
-          {/* First name */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              First name
-            </label>
-            <input
-              id="first_name"
-              value={firstNameField}
-              onChange={(e) => setFirstNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
-            />
-          </div>
-
-          {/* Last name */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              Last name
-            </label>
-            <input
-              id="last_name"
-              value={lastNameField}
-              onChange={(e) => setLastNameField(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
-            />
-          </div>
-
-          {/* Initials */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              Initials
-            </label>
-            <input
-              id="initials"
-              value={initials}
-              maxLength={3}
-              onChange={(e) => {
-                initialsTouchedRef.current = true;
-                setInitials(e.target.value.toUpperCase());
-              }}
-              title="Your initials (auto-fills from First + Last)"
+          {/* LEFT: fields + fieldsets + save */}
+          <div>
+            {/* One-line inputs with visible labels */}
+            <div
               style={{
-                padding: 8,
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                width: "8ch",
-                minWidth: "8ch",
-                textTransform: "uppercase",
-                textAlign: "center",
+                display: "flex",
+                gap: 8,
+                alignItems: "flex-end",
+                whiteSpace: "nowrap",
+                overflowX: "auto",
+                paddingBottom: 2,
+                marginBottom: 16,
               }}
-            />
-          </div>
-
-          {/* Age */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              Age
-            </label>
-            <input
-              id="age"
-              type="number"
-              inputMode="numeric"
-              value={age}
-              onChange={(e) => setAge(e.target.value)}
-              title="Age"
-              style={{
-                padding: 8,
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                width: "8ch",
-                minWidth: "8ch",
-                textAlign: "center",
-              }}
-            />
-          </div>
-
-          {/* City */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              City
-            </label>
-            <input
-              id="city"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 90, maxWidth: 140 }}
-            />
-          </div>
-
-          {/* State dropdown */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              State (US)
-            </label>
-            <select
-              id="state"
-              value={stateAbbr}
-              onChange={(e) => setStateAbbr(e.target.value)}
-              title="State (US)"
-              style={{
-                padding: 8,
-                border: "1px solid #cbd5e1",
-                borderRadius: 8,
-                minWidth: 80,
-                height: 34,
-              }}
+              aria-label="Basic profile fields"
             >
-              <option value="">State</option>
-              {US_STATES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+              {/* First name */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  First name
+                </label>
+                <input
+                  id="first_name"
+                  value={firstNameField}
+                  onChange={(e) => setFirstNameField(e.target.value)}
+                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
+                />
+              </div>
+
+              {/* Last name */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  Last name
+                </label>
+                <input
+                  id="last_name"
+                  value={lastNameField}
+                  onChange={(e) => setLastNameField(e.target.value)}
+                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
+                />
+              </div>
+
+              {/* Initials */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  Initials
+                </label>
+                <input
+                  id="initials"
+                  value={initials}
+                  maxLength={3}
+                  onChange={(e) => {
+                    initialsTouchedRef.current = true;
+                    setInitials(e.target.value.toUpperCase());
+                  }}
+                  title="Your initials (auto-fills from First + Last)"
+                  style={{
+                    padding: 8,
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    width: "8ch",
+                    minWidth: "8ch",
+                    textTransform: "uppercase",
+                    textAlign: "center",
+                  }}
+                />
+              </div>
+
+              {/* Age */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  Age
+                </label>
+                <input
+                  id="age"
+                  type="number"
+                  inputMode="numeric"
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  title="Age"
+                  style={{
+                    padding: 8,
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    width: "8ch",
+                    minWidth: "8ch",
+                    textAlign: "center",
+                  }}
+                />
+              </div>
+
+              {/* City */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  City
+                </label>
+                <input
+                  id="city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 90, maxWidth: 140 }}
+                />
+              </div>
+
+              {/* State dropdown */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  State (US)
+                </label>
+                <select
+                  id="state"
+                  value={stateAbbr}
+                  onChange={(e) => setStateAbbr(e.target.value)}
+                  title="State (US)"
+                  style={{
+                    padding: 8,
+                    border: "1px solid #cbd5e1",
+                    borderRadius: 8,
+                    minWidth: 80,
+                    height: 34,
+                  }}
+                >
+                  <option value="">State</option>
+                  {US_STATES.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Country */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                  Country
+                </label>
+                <input
+                  id="country"
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 100 }}
+                />
+              </div>
+            </div>
+
+            {/* Role: I am a ... */}
+            <fieldset
+              aria-label="I am a"
+              style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
+            >
+              <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
+                <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
+                <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
+                <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
+                <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
+              </div>
+            </fieldset>
+
+            {/* Who can contact me */}
+            <fieldset
+              aria-label="Who can contact me"
+              style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
+            >
+              <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
+                <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
+                <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
+                <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
+                <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
+              </div>
+            </fieldset>
+
+            {/* Save */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+              <button
+                type="submit"
+                aria-label="Save profile"
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #0f766e",
+                  background: "#14b8a6",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Save Profile
+              </button>
+              <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+                {profileStatus}
+              </span>
+            </div>
           </div>
 
-          {/* Country */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-              Country
-            </label>
-            <input
-              id="country"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 100 }}
-            />
-          </div>
-        </div>
-
-        {/* Role: I am a ... */}
-        <fieldset
-          aria-label="I am a"
-          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
-        >
-          <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
-            <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
-            <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
-            <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
-            <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
-          </div>
-        </fieldset>
-
-        {/* Who can contact me */}
-        <fieldset
-          aria-label="Who can contact me"
-          style={{ border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
-        >
-          <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
-            <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
-            <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
-            <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
-            <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
-          </div>
-        </fieldset>
-
-        {/* Save */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
-          <button
-            type="submit"
-            aria-label="Save profile"
+          {/* RIGHT: image placeholder (1/3 width) */}
+          <aside
+            role="complementary"
+            aria-label="Profile image placeholder"
             style={{
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid #0f766e",
-              background: "#14b8a6",
-              color: "white",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontSize: 12,
-              whiteSpace: "nowrap",
+              border: "1px dashed #cbd5e1",
+              background: "#f8fafc",
+              borderRadius: 10,
+              minHeight: 360,
+              padding: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
+            title="Profile image placeholder"
           >
-            Save Profile
-          </button>
-          <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-            {profileStatus}
-          </span>
+            <div
+              role="img"
+              aria-label="Profile image coming soon"
+              style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4 }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Profile image</div>
+              <div style={{ fontSize: 12 }}>Placeholder (1/3 width)</div>
+            </div>
+          </aside>
         </div>
       </form>
 
       {/* Mini-heading: Your gallery */}
-      <h2 id="your-gallery-heading" style={{ fontSize: 14, margin: "0 0 6px", opacity: 0.85 }}>
-        Your gallery
+      <h2 id="your-gallery-heading" style={{ fontSize: 18, margin: "12px 0 10px", opacity: 0.9 }}>
+        Your Gallery
       </h2>
 
-      {/* Gallery toolbar: CSV + Total items */}
+      {/* Gallery toolbar: Total items (top-right) with Export CSV beneath */}
       <div
         role="region"
         aria-label="Gallery tools"
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "center",
+          alignItems: "flex-start",
           padding: "6px 0",
           margin: "4px 0 10px",
           borderBottom: "1px solid #e5e7eb",
@@ -1272,37 +1313,40 @@ export default function HomePage() {
           flexWrap: "wrap",
         }}
       >
-        <button
-          onClick={exportCSV}
-          aria-label="Export all image metadata to CSV"
-          aria-busy={csvBusy ? "true" : "false"}
-          aria-disabled={csvBusy ? "true" : "false"}
-          disabled={csvBusy}
-          title="Download a CSV of your gallery’s details (filenames, categories, notes, and more)."
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #1f2937",
-            background: csvBusy ? "#475569" : "#1f2937",
-            color: "white",
-            cursor: csvBusy ? "wait" : "pointer",
-            fontWeight: 600,
-            fontSize: 12,
-            whiteSpace: "nowrap",
-            minWidth: 110,
-            opacity: csvBusy ? 0.9 : 1,
-          }}
-        >
-          {csvBusy ? "Preparing…" : "Export CSV"}
-        </button>
+        <div /> {/* left side intentionally blank for visual weight on heading */}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: 12, opacity: 0.8 }}
+          >
+            Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
+          </div>
 
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          style={{ fontSize: 12, opacity: 0.8 }}
-        >
-          Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
+          <button
+            onClick={exportCSV}
+            aria-label="Export all image metadata to CSV"
+            aria-busy={csvBusy ? "true" : "false"}
+            aria-disabled={csvBusy ? "true" : "false"}
+            disabled={csvBusy}
+            title="Download a CSV of your gallery’s details (filenames, categories, notes, and more)."
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #1f2937",
+              background: csvBusy ? "#475569" : "#1f2937",
+              color: "white",
+              cursor: csvBusy ? "wait" : "pointer",
+              fontWeight: 600,
+              fontSize: 12,
+              whiteSpace: "nowrap",
+              minWidth: 110,
+              opacity: csvBusy ? 0.9 : 1,
+            }}
+          >
+            {csvBusy ? "Preparing…" : "Export CSV"}
+          </button>
         </div>
       </div>
 
@@ -1496,6 +1540,13 @@ export default function HomePage() {
         }
         main[data-index-build="${INDEX_BUILD}"] [data-chip][data-active="1"]:hover {
           box-shadow: 0 2px 6px rgba(20,184,166,0.28);
+        }
+
+        /* Responsive stack for the profile grid on smaller screens */
+        @media (max-width: 880px) {
+          main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] {
+            grid-template-columns: 1fr !important;
+          }
         }
       `}</style>
     </main>
