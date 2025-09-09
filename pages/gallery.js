@@ -1,6 +1,8 @@
 // pages/gallery.js
 // Public site-wide Gallery (black background). Uses public_gallery + public-thumbs.
-// Shows recent thumbnails; location chip reserved bottom-left (to be wired later).
+// Top bar: ← Back (left), Send feedback above Sign Up / Sign In (right).
+// Shows recent thumbnails; location chip area reserved bottom-left (wires later).
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -54,7 +56,7 @@ export default function PublicGalleryPage() {
           path: r.public_path,
           url: getPublicUrl(r.public_path),
           created_at: r.created_at,
-          // Placeholder for future wiring: state/country derived safely
+          // Reserved for future: state/country once available
           state: "",
           country: "",
         }));
@@ -102,12 +104,14 @@ export default function PublicGalleryPage() {
               flexWrap: "wrap",
             }}
           >
+            {/* Left: Back (no "Home"/"Landing" wording) */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a href="/" style={{ textDecoration: "none", fontWeight: 600, color: "#e5e7eb" }}>
-                Back to Home
+                ← Back
               </a>
             </div>
 
+            {/* Right: Send feedback (above) + Sign Up / Sign In button */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
               <a
                 href={feedbackHref()}
@@ -118,7 +122,7 @@ export default function PublicGalleryPage() {
               </a>
               <button
                 onClick={() => router.push("/signin")}
-                aria-label="Sign in"
+                aria-label="Sign up or sign in"
                 style={{
                   padding: "8px 12px",
                   borderRadius: 8,
@@ -129,9 +133,9 @@ export default function PublicGalleryPage() {
                   fontWeight: 600,
                   whiteSpace: "nowrap",
                 }}
-                title="Sign in / Sign up"
+                title="Sign up / Sign In"
               >
-                Sign in
+                Sign Up / Sign In
               </button>
             </div>
           </div>
@@ -186,51 +190,56 @@ export default function PublicGalleryPage() {
             >
               {cols.map((column, cIdx) => (
                 <div key={cIdx} style={{ display: "grid", gap: 14 }}>
-                  {column.map((r, i) => (
-                    <div
-                      key={`${cIdx}-${i}`}
-                      role="listitem"
-                      style={{
-                        position: "relative",
-                        borderRadius: 12,
-                        border: "1px solid #27272a",
-                        overflow: "hidden",
-                        background: "#0b0b0b",
-                      }}
-                      title="Anonymized thumbnail"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={r.url}
-                        alt="Anonymized gallery image"
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          height: 220,
-                          objectFit: "cover",
-                        }}
-                      />
-                      {/* bottom-left overlay for location (state, country) */}
+                  {column.map((r, i) => {
+                    const showLoc = (r.state && r.state.trim()) || (r.country && r.country.trim());
+                    const locLabel = [r.state, r.country].filter(Boolean).join(", ");
+                    return (
                       <div
-                        aria-hidden="true"
+                        key={`${cIdx}-${i}`}
+                        role="listitem"
                         style={{
-                          position: "absolute",
-                          left: 8,
-                          bottom: 8,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          background: "rgba(17,24,39,0.7)",
-                          border: "1px solid rgba(148,163,184,0.35)",
-                          color: "#e5e7eb",
-                          fontSize: 12,
-                          fontWeight: 600,
-                          backdropFilter: "blur(4px)",
+                          position: "relative",
+                          borderRadius: 12,
+                          border: "1px solid #27272a",
+                          overflow: "hidden",
+                          background: "#0b0b0b",
                         }}
+                        title="Anonymized thumbnail"
                       >
-                        {r.state && r.country ? `${r.state}, ${r.country}` : "—"}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={r.url}
+                          alt="Anonymized gallery image"
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            height: 220,
+                            objectFit: "cover",
+                          }}
+                        />
+                        {/* bottom-left overlay for location (state, country) */}
+                        {showLoc ? (
+                          <div
+                            aria-label={`Location ${locLabel}`}
+                            style={{
+                              position: "absolute",
+                              left: 8,
+                              bottom: 8,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              background: "rgba(17,24,39,0.75)",
+                              border: "1px solid rgba(51,65,85,0.8)",
+                              color: "#e5e7eb",
+                              fontSize: 12,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {locLabel}
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ))}
             </div>
