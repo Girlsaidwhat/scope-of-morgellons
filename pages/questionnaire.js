@@ -1,5 +1,6 @@
 // pages/questionnaire.js
-// Signed-in top matches Profile: left links, Send feedback above Sign out, same spacing and header size.
+// My Story page: top section unified with Profile via SignedInHeader.
+// Keeps skip link and <main id="main"> for accessibility.
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
@@ -46,7 +47,7 @@ export default function MyStoryPage() {
     }
   }
 
-  // Simple “skip to content” link for a11y
+  // Skip link
   const skipStyle = {
     position: "absolute",
     left: -9999,

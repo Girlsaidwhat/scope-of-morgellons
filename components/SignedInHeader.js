@@ -1,17 +1,21 @@
 // components/SignedInHeader.js
+// Unified signed-in header used across pages to match the Profile page.
+// Layout: left nav links; right column with "Send feedback" ABOVE "Sign out".
+// Spacing and sizes mirror Profile: top links mb=8, h1 size=28, divider margin "6px 0 12px".
+
 import Link from "next/link";
 
 export default function SignedInHeader({
-  title,                          // e.g., "My Story", "Uploads", "Welcome to Your Profile"
-  leftLinks = [],                 // [{ href: "/upload", label: "Go to Uploads" }, ...]
+  title,
+  leftLinks = [],                 // [{ href, label }]
   onSignOut,                      // () => Promise<void>
-  feedbackHref,                   // full mailto: with subject/body prefilled
+  feedbackHref,                   // mailto:...
 }) {
-  // Match the Profile page’s spacing and font sizes
-  const TOP_BAR_MB = 8;      // distance between top links and page header
-  const H1_FS = 28;          // header font size
-  const H1_MB = 6;           // distance below header before thin divider
-  const DIVIDER_M = "6px 0 12px";
+  // Exact spacing and sizes taken from Profile page
+  const TOP_BAR_MB = 8;           // between top links and header
+  const H1_FS = 28;               // header font size
+  const H1_MB = 6;                // below header before divider
+  const DIVIDER_M = "6px 0 12px"; // divider margins
 
   return (
     <>
@@ -28,7 +32,11 @@ export default function SignedInHeader({
       >
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
           {leftLinks.map((l) => (
-            <Link key={l.href + l.label} href={l.href} style={{ textDecoration: "none", fontWeight: 600 }}>
+            <Link
+              key={`${l.href}|${l.label}`}
+              href={l.href}
+              style={{ textDecoration: "none", fontWeight: 600 }}
+            >
               {l.label}
             </Link>
           ))}
@@ -74,7 +82,11 @@ export default function SignedInHeader({
       </header>
 
       {/* Thin divider under header */}
-      <div role="separator" aria-hidden="true" style={{ height: 1, background: "#e5e7eb", margin: DIVIDER_M }} />
+      <div
+        role="separator"
+        aria-hidden="true"
+        style={{ height: 1, background: "#e5e7eb", margin: DIVIDER_M }}
+      />
     </>
   );
 }
