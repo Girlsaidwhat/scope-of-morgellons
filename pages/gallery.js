@@ -1,7 +1,7 @@
 // pages/gallery.js
 // Public site-wide Gallery (black background). Uses public_gallery + public-thumbs.
-// Top bar: ← Back (left), Send feedback above Sign Up / Sign In (right).
-// Shows recent thumbnails; location chip area reserved bottom-left (wires later).
+// Top bar: ← Back (left, to landing), Send feedback above Sign Up / Sign In (right).
+// Header centered, "Morgellons Gallery". Smaller images with a bottom location bar.
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
@@ -56,7 +56,7 @@ export default function PublicGalleryPage() {
           path: r.public_path,
           url: getPublicUrl(r.public_path),
           created_at: r.created_at,
-          // Reserved for future: state/country once available
+          // Location fields reserved for future wiring:
           state: "",
           country: "",
         }));
@@ -104,7 +104,7 @@ export default function PublicGalleryPage() {
               flexWrap: "wrap",
             }}
           >
-            {/* Left: Back (no "Home"/"Landing" wording) */}
+            {/* Left: Back to landing (no "Home"/"Profile" wording) */}
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a href="/" style={{ textDecoration: "none", fontWeight: 600, color: "#e5e7eb" }}>
                 ← Back
@@ -140,16 +140,16 @@ export default function PublicGalleryPage() {
             </div>
           </div>
 
-          {/* Header (match Profile page size & rhythm) */}
+          {/* Header centered to match sizing rhythm across pages */}
           <header
             style={{
               display: "flex",
-              justifyContent: "space-between",
+              justifyContent: "center",
               alignItems: "baseline",
               marginBottom: 6,
             }}
           >
-            <h1 style={{ fontSize: 28, margin: 0 }}>Gallery</h1>
+            <h1 style={{ fontSize: 28, margin: 0, textAlign: "center" }}>Morgellons Gallery</h1>
           </header>
 
           <div
@@ -185,14 +185,14 @@ export default function PublicGalleryPage() {
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-                gap: 14,
+                gap: 12,
               }}
             >
               {cols.map((column, cIdx) => (
-                <div key={cIdx} style={{ display: "grid", gap: 14 }}>
+                <div key={cIdx} style={{ display: "grid", gap: 12 }}>
                   {column.map((r, i) => {
-                    const showLoc = (r.state && r.state.trim()) || (r.country && r.country.trim());
                     const locLabel = [r.state, r.country].filter(Boolean).join(", ");
+                    const showLoc = !!locLabel;
                     return (
                       <div
                         key={`${cIdx}-${i}`}
@@ -213,25 +213,28 @@ export default function PublicGalleryPage() {
                           style={{
                             display: "block",
                             width: "100%",
-                            height: 220,
+                            height: 150, // smaller tiles
                             objectFit: "cover",
                           }}
                         />
-                        {/* bottom-left overlay for location (state, country) */}
+
+                        {/* Bottom bar for location info */}
                         {showLoc ? (
                           <div
                             aria-label={`Location ${locLabel}`}
                             style={{
                               position: "absolute",
-                              left: 8,
-                              bottom: 8,
-                              padding: "2px 8px",
-                              borderRadius: 999,
-                              background: "rgba(17,24,39,0.75)",
-                              border: "1px solid rgba(51,65,85,0.8)",
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              padding: "6px 10px",
+                              background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.75) 100%)",
                               color: "#e5e7eb",
                               fontSize: 12,
                               fontWeight: 600,
+                              display: "flex",
+                              alignItems: "flex-end",
+                              minHeight: 28,
                             }}
                           >
                             {locLabel}
