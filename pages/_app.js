@@ -1,11 +1,11 @@
 ﻿// pages/_app.js
-// Build 36.186_2025-09-07
+// Build 36.190_2025-09-07
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import "../styles/globals.css";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-export const BUILD_VERSION = "Build 36.186_2025-09-07";
+export const BUILD_VERSION = "Build 36.190_2025-09-07";
 
 /* ---------- Shared styles ---------- */
 const linkMenu = { display: "block", padding: "8px 2px", fontSize: 15, lineHeight: 1.55, textDecoration: "underline", color: "#f4f4f5", marginBottom: 10 };
@@ -103,13 +103,21 @@ function BuildBadge() {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(e.target)) setOpen(false);
     };
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
 
   return (
     <div
       ref={menuRef}
+      data-buildbadge
       aria-label="Build version"
       style={{
         position: "fixed",
@@ -170,6 +178,16 @@ function BuildBadge() {
           </a>
         </div>
       ) : null}
+
+      {/* Scoped focus-visible ring just for the badge UI */}
+      <style jsx>{`
+        [data-buildbadge] button:focus-visible,
+        [data-buildbadge] a:focus-visible {
+          outline: 2px solid rgba(20, 184, 166, 0.55);
+          outline-offset: 2px;
+          box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+        }
+      `}</style>
     </div>
   );
 }
