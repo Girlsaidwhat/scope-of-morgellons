@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.209";
+const INDEX_BUILD = "idx-36.590";
 
 function prettyDate(s) {
   try {
@@ -901,7 +901,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* RE-ORDERED: feedback ABOVE sign out */}
+        {/* Send feedback ABOVE Sign out */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <a
             href={`mailto:girlsaidwhat@gmail.com?subject=${encodeURIComponent("Profile Page Issue")}&body=${encodeURIComponent(
@@ -1058,7 +1058,7 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* Grid with named areas to control where the placeholder starts/ends */}
+        {/* Grid with named areas; RIGHT column uses a fixed placeholder box */}
         <div
           data-profile-grid
           style={{
@@ -1269,34 +1269,31 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* RIGHT: image placeholder */}
+          {/* RIGHT: PLACEHOLDER (no image allowed) */}
           <aside
             role="complementary"
-            aria-label="Profile image placeholder"
+            aria-label="Profile image area"
             style={{
               gridArea: "aside",
-              marginTop: 16,
-              alignSelf: "stretch",
-              height: "100%",
+              marginTop: 16,        // aligned below the one-line fields
+              alignSelf: "start",   // fixed height box; does not stretch
               border: "1px dashed #cbd5e1",
-              background: "#f8fafc",
+              background: "#ffffff",
               borderRadius: 10,
-              padding: 12,
+              padding: 0,
+              width: 315,
+              height: 429,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              color: "#64748b",
+              fontSize: 12,
+              textAlign: "center",
               overflow: "hidden",
             }}
-            title="Profile image placeholder"
+            title="Placeholder"
           >
-            <div
-              role="img"
-              aria-label="Profile image coming soon"
-              style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4, fontSize: 13 }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>Profile image</div>
-              <div>Placeholder (right column)</div>
-            </div>
+            Your image placeholder
           </aside>
         </div>
       </form>
@@ -1476,39 +1473,18 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* Load more / end-of-list / empty */}
-      <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-        {items.length === 0 && !galleryStatus ? (
-          <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.7 }}>
-            No items yet.
-          </div>
-        ) : hasMore ? (
-          <button
-            onClick={loadMore}
-            disabled={loading}
-            aria-label="Load more images"
-            aria-busy={loading ? "true" : "false"}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 8,
-              border: "1px solid #0f766e",
-              background: loading ? "#8dd3cd" : "#14b8a6",
-              color: "white",
-              cursor: loading ? "not-allowed" : "pointer",
-              fontWeight: 600,
-            }}
-          >
-            {loading ? "Loading..." : "Load more"}
-          </button>
-        ) : items.length > 0 ? (
-          <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.7 }}>
-            No more items.
-          </div>
-        ) : null}
-      </div>
-
       {/* Unified input tone + consistent heights/radii + chip hover (scoped) */}
       <style jsx global>{`
+        /* BROAD KILL-SWITCH: hide any image (or background image) inside the profile aside,
+           regardless of src, tag, or query string. This neutralizes stale bundles. */
+        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside img,
+        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside picture,
+        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside [style*="background-image"],
+        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside [class*="next-image"] {
+          display: none !important;
+          background: none !important;
+        }
+
         main[data-index-build="${INDEX_BUILD}"] input,
         main[data-index-build="${INDEX_BUILD}"] select {
           border-color: #cbd5e1 !important;
