@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.590";
+const INDEX_BUILD = "idx-36.700";
 
 function prettyDate(s) {
   try {
@@ -729,16 +729,6 @@ export default function HomePage() {
     return <Landing />;
   }
 
-  // ---------- Logged-in Home ----------
-  const srOnly = {
-    position: "absolute",
-    left: -9999,
-    top: "auto",
-    width: 1,
-    height: 1,
-    overflow: "hidden",
-  };
-
   // Helpers for the “chip” look
   function Chip({ active, children }) {
     return (
@@ -785,7 +775,7 @@ export default function HomePage() {
   function legacyPrefFromWho(who) {
     if (who === "members") return "members_only";
     if (who === "researchers") return "researchers_only";
-    return "researchers_and_members"; // widest legacy set
+    return "researchers_and_members";
   }
 
   return (
@@ -820,67 +810,6 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* My Story nudge (dismissible) */}
-      {showStoryNudge ? (
-        <div
-          role="region"
-          aria-label="My Story reminder"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: 10,
-            marginBottom: 12,
-            border: "1px solid #99f6e4",
-            background: "#ecfeff",
-            borderRadius: 10,
-          }}
-        >
-          <div style={{ fontSize: 14 }}>
-            Haven’t told your story yet? It helps others understand the patterns.
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Link
-              href="/questionnaire"
-              onClick={markQuestionnaireVisited}
-              style={{
-                textDecoration: "none",
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #0f766e",
-                background: "#14b8a6",
-                color: "white",
-                fontWeight: 600,
-                whiteSpace: "nowrap",
-                fontSize: 12,
-              }}
-              aria-label="Go to My Story"
-              title="Go to My Story"
-            >
-              Go to My Story
-            </Link>
-            <button
-              onClick={dismissStoryNudge}
-              aria-label="Dismiss My Story reminder"
-              title="Dismiss"
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #cbd5e1",
-                background: "#f8fafc",
-                cursor: "pointer",
-                fontWeight: 600,
-                fontSize: 12,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {/* Top links + right cluster */}
       <div
         style={{
@@ -896,7 +825,7 @@ export default function HomePage() {
           <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
             Go to Uploads
           </Link>
-          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }} onClick={markQuestionnaireVisited}>
+          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }}>
             Go to My Story
           </Link>
         </div>
@@ -944,14 +873,10 @@ export default function HomePage() {
           {firstName ? `Welcome to Your Profile, ${firstName}` : "Welcome to Your Profile"}
         </h1>
       </header>
-      {/* Thin divider under header */}
-      <div
-        role="separator"
-        aria-hidden="true"
-        style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }}
-      />
 
-      {/* Profile form */}
+      <div role="separator" aria-hidden="true" style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }} />
+
+      {/* Profile form – SINGLE COLUMN (aside removed) */}
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -1058,16 +983,15 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* Grid with named areas; RIGHT column uses a fixed placeholder box */}
         <div
           data-profile-grid
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
-            gridTemplateAreas: `"fields fields"
-                                "role aside"
-                                "contact aside"
-                                "save aside"`,
+            gridTemplateColumns: "1fr",
+            gridTemplateAreas: `"fields"
+                                "role"
+                                "contact"
+                                "save"`,
             gap: 12,
             alignItems: "start",
           }}
@@ -1175,7 +1099,7 @@ export default function HomePage() {
                 />
               </div>
 
-              {/* State dropdown */}
+              {/* State */}
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
                   State (US)
@@ -1268,37 +1192,10 @@ export default function HomePage() {
               {profileStatus}
             </span>
           </div>
-
-          {/* RIGHT: PLACEHOLDER (no image allowed) */}
-          <aside
-            role="complementary"
-            aria-label="Profile image area"
-            style={{
-              gridArea: "aside",
-              marginTop: 16,        // aligned below the one-line fields
-              alignSelf: "start",   // fixed height box; does not stretch
-              border: "1px dashed #cbd5e1",
-              background: "#ffffff",
-              borderRadius: 10,
-              padding: 0,
-              width: 315,
-              height: 429,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#64748b",
-              fontSize: 12,
-              textAlign: "center",
-              overflow: "hidden",
-            }}
-            title="Placeholder"
-          >
-            Your image placeholder
-          </aside>
         </div>
       </form>
 
-      {/* Gallery header row: title left; total (top) with CSV beneath on right */}
+      {/* Gallery header row */}
       <div
         role="region"
         aria-label="Gallery header"
@@ -1318,12 +1215,7 @@ export default function HomePage() {
         </h2>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <div
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            style={{ fontSize: 12, opacity: 0.85 }}
-          >
+          <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.85 }}>
             Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
           </div>
 
@@ -1473,18 +1365,8 @@ export default function HomePage() {
         </div>
       ) : null}
 
-      {/* Unified input tone + consistent heights/radii + chip hover (scoped) */}
+      {/* Unified input tone + responsive stack */}
       <style jsx global>{`
-        /* BROAD KILL-SWITCH: hide any image (or background image) inside the profile aside,
-           regardless of src, tag, or query string. This neutralizes stale bundles. */
-        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside img,
-        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside picture,
-        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside [style*="background-image"],
-        main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] > aside [class*="next-image"] {
-          display: none !important;
-          background: none !important;
-        }
-
         main[data-index-build="${INDEX_BUILD}"] input,
         main[data-index-build="${INDEX_BUILD}"] select {
           border-color: #cbd5e1 !important;
@@ -1507,24 +1389,7 @@ export default function HomePage() {
         main[data-index-build="${INDEX_BUILD}"] button {
           border-radius: 8px;
         }
-        main[data-index-build="${INDEX_BUILD}"] [data-chip] {
-          background: #f9fafb;
-          border: 1px solid #cbd5e1;
-        }
-        main[data-index-build="${INDEX_BUILD}"] [data-chip][data-active="1"] {
-          background: #14b8a6;
-          border-color: #0f766e;
-          color: #fff;
-        }
-        main[data-index-build="${INDEX_BUILD}"] [data-chip]:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        }
-        main[data-index-build="${INDEX_BUILD}"] [data-chip][data-active="1"]:hover {
-          box-shadow: 0 2px 6px rgba(20,184,166,0.28);
-        }
 
-        /* Responsive stack for the profile grid on smaller screens */
         @media (max-width: 880px) {
           main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] {
             grid-template-columns: 1fr !important;
@@ -1532,8 +1397,7 @@ export default function HomePage() {
               "fields"
               "role"
               "contact"
-              "save"
-              "aside" !important;
+              "save" !important;
           }
         }
       `}</style>
