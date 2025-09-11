@@ -1,8 +1,7 @@
-﻿// pages/index.js
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+// pages/index.js
 // Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
 // Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
-
-import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -1407,8 +1406,6 @@ export default function HomePage() {
 // pages/index.js
 // Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
 // Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
-
-import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -2806,3 +2803,4 @@ export default function HomePage() {
     </main>
   );
 }
+
