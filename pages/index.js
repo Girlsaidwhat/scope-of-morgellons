@@ -1,11 +1,15 @@
 ﻿// pages/index.js
 // Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
-// Logged-in: Home (Welcome + Profile + Gallery + CSV) with a right-hand 315x429 image panel.
+// Logged-in: Home (Welcome + Profile + Gallery + CSV) with a right-hand 315x429 image panel (bundled import).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
+
+// ✅ Bundle the image into the build (bypasses any /public URL serving quirks)
+import ProfilePlaceholder from "../public/fill_in_your_story.jpg";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,7 +18,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.703";
+const INDEX_BUILD = "idx-36.710";
 
 function prettyDate(s) {
   try {
@@ -171,33 +175,6 @@ async function resolveUrlsInBackground(setItems, startIndex, batchRows, bucketGu
 
 function nonEmpty(v) {
   return typeof v === "string" && v.trim().length > 0;
-}
-
-// Tolerant bulk update: push profile fields to all of the user's images.
-async function updateImageMetadataForUserProfile(userId, fields) {
-  if (!userId) return;
-  try {
-    const { error } = await supabase.from("image_metadata").update(fields).eq("user_id", userId);
-    if (error) throw error;
-  } catch (err) {
-    const entries = Object.entries(fields);
-    for (const [col, val] of entries) {
-      try {
-        const { error } = await supabase.from("image_metadata").update({ [col]: val }).eq("user_id", userId);
-        if (error) {
-          const raw = error.message || "";
-          const msg = raw.toLowerCase();
-          const ignorable =
-            msg.includes("does not exist") ||
-            msg.includes("could not find") ||
-            msg.includes("schema cache") ||
-            (msg.includes("unknown") && msg.includes("column")) ||
-            (msg.includes("column") && msg.includes("not found"));
-          if (!ignorable) throw error;
-        }
-      } catch {}
-    }
-  }
 }
 
 // -------------- US state list (abbr) --------------
@@ -501,7 +478,7 @@ export default function HomePage() {
 
       setCity(cityVal || "");
       setStateAbbr(typeof stateVal === "string" ? stateVal.toUpperCase() : "");
-      setCountry(countryVal || ""); // <-- fixed missing parenthesis
+      setCountry(countryVal || "");
 
       // Role (schema tolerant)
       const roleGuess = d.role ?? d.user_role ?? d.uploader_role ?? "";
@@ -1206,7 +1183,7 @@ export default function HomePage() {
           </div>
         </form>
 
-        {/* Right-hand image aside – fixed 315x429 */}
+        {/* Right-hand image aside – fixed 315x429, object-fit: contain */}
         <aside
           aria-label="Profile placeholder image"
           style={{
@@ -1233,13 +1210,13 @@ export default function HomePage() {
               background: "#f8fafc",
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/fill_in_your_story.jpg"
+            <Image
+              src={ProfilePlaceholder}
               alt="Fill in your story placeholder"
               width={315}
               height={429}
-              style={{ width: 315, height: 429, display: "block" }}
+              style={{ width: 315, height: 429, objectFit: "contain", display: "block" }}
+              priority
             />
           </div>
         </aside>
