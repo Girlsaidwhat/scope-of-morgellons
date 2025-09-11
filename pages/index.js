@@ -222,7 +222,7 @@ export default function HomePage() {
           }}
         >
           <img
-            src="/fill_in_your_story.jpg"
+            src="/story_placeholder-idx36704.jpg"
             alt="Fill in your story"
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
@@ -231,3 +231,4 @@ export default function HomePage() {
     </main>
   );
 }
+
