@@ -1,6 +1,6 @@
 ﻿// pages/index.js
 // Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
-// Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
+// Logged-in: Home (Welcome + Profile + Gallery + CSV) with a right-hand 315x429 image panel.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.700";
+const INDEX_BUILD = "idx-36.703";
 
 function prettyDate(s) {
   try {
@@ -501,7 +501,7 @@ export default function HomePage() {
 
       setCity(cityVal || "");
       setStateAbbr(typeof stateVal === "string" ? stateVal.toUpperCase() : "");
-      setCountry(countryVal || "");
+      setCountry(countryVal || ""); // <-- fixed missing parenthesis
 
       // Role (schema tolerant)
       const roleGuess = d.role ?? d.user_role ?? d.uploader_role ?? "";
@@ -729,7 +729,7 @@ export default function HomePage() {
     return <Landing />;
   }
 
-  // Helpers for the “chip” look
+  // Helpers for the chip look
   function Chip({ active, children }) {
     return (
       <span
@@ -771,7 +771,7 @@ export default function HomePage() {
     );
   }
 
-  // Map “who can contact” → legacy contact_preference for back-compat
+  // Map who can contact to legacy contact_preference for back-compat
   function legacyPrefFromWho(who) {
     if (who === "members") return "members_only";
     if (who === "researchers") return "researchers_only";
@@ -876,324 +876,374 @@ export default function HomePage() {
 
       <div role="separator" aria-hidden="true" style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }} />
 
-      {/* Profile form – SINGLE COLUMN (aside removed) */}
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!user?.id) return;
-          setProfileStatus("Saving...");
-
-          try {
-            await supabase
-              .from("user_profile")
-              .upsert({ user_id: user.id }, { onConflict: "user_id" });
-
-            const metaPayload = {
-              first_name: nonEmpty(firstNameField) ? firstNameField : null,
-              last_name: nonEmpty(lastNameField) ? lastNameField : null,
-            };
-            const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
-            if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
-
-            const ageVal =
-              age === "" || age === null || typeof age === "undefined"
-                ? null
-                : Number(age);
-
-            const compositeLoc = formatCompositeLocation(city, stateAbbr, country);
-
-            const legacyPref = legacyPrefFromWho(contactWho);
-            setContactPref(legacyPref);
-            const researchersAllowed = contactWho === "researchers" || contactWho === "all";
-
-            const updates = [
-              ["uploader_initials", initials || null],
-              ["initials", initials || null],
-              ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
-              ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
-              ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
-              ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
-              ["uploader_age", ageVal],
-              ["age", ageVal],
-
-              ["uploader_location", nonEmpty(compositeLoc) ? compositeLoc : null],
-              ["location", nonEmpty(compositeLoc) ? compositeLoc : null],
-
-              ["uploader_city", nonEmpty(city) ? city : null],
-              ["city", nonEmpty(city) ? city : null],
-              ["uploader_state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
-              ["state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
-              ["uploader_country", nonEmpty(country) ? country : null],
-              ["country", nonEmpty(country) ? country : null],
-
-              ["role", role || null],
-              ["user_role", role || null],
-              ["uploader_role", role || null],
-              ["is_patient", role === "patient" ? true : role ? false : null],
-              ["is_doctor", role === "doctor" ? true : role ? false : null],
-              ["is_researcher", role === "researcher" ? true : role ? false : null],
-              ["is_journalist", role === "journalist" ? true : role ? false : null],
-
-              ["contact_who", contactWho],
-              ["contactable_by", contactWho],
-              ["contact_preference", legacyPref],
-              ["uploader_contact_opt_in", researchersAllowed],
-              ["contact_opt_in", researchersAllowed],
-            ];
-
-            for (const [col, val] of updates) {
-              const { error } = await supabase
-                .from("user_profile")
-                .update({ [col]: val })
-                .eq("user_id", user.id);
-              if (error) {
-                const raw = error.message || "";
-                const msg = raw.toLowerCase();
-                const ignorable =
-                  msg.includes("does not exist") ||
-                  msg.includes("could not find") ||
-                  msg.includes("schema cache") ||
-                  (msg.includes("unknown") && msg.includes("column")) ||
-                  (msg.includes("column") && msg.includes("not found"));
-                if (!ignorable) throw error;
-              }
-            }
-
-            await updateImageMetadataForUserProfile(user.id, {
-              uploader_initials: initials || null,
-              uploader_age: ageVal,
-              uploader_location: nonEmpty(compositeLoc) ? compositeLoc : null,
-              uploader_contact_opt_in: researchersAllowed,
-            });
-
-            setProfileStatus("Profile saved.");
-            showToast("Saved");
-            setTimeout(() => setProfileStatus(""), 1500);
-          } catch (err) {
-            setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
-          }
-        }}
-        aria-label="Profile form"
+      {/* Profile + Aside layout */}
+      <div
+        data-profile-shell
         style={{
-          padding: 18,
-          border: "1px solid #e2e8f0",
-          borderRadius: 10,
-          background: "#fff",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-          margin: "8px 0 24px",
+          display: "grid",
+          gridTemplateColumns: "1fr 340px",
+          alignItems: "start",
+          gap: 16,
         }}
+        aria-label="Profile with image aside"
       >
-        <div
-          data-profile-grid
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr",
-            gridTemplateAreas: `"fields"
-                                "role"
-                                "contact"
-                                "save"`,
-            gap: 12,
-            alignItems: "start",
+        {/* Profile form – left column */}
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!user?.id) return;
+            setProfileStatus("Saving...");
+
+            try {
+              await supabase
+                .from("user_profile")
+                .upsert({ user_id: user.id }, { onConflict: "user_id" });
+
+              const metaPayload = {
+                first_name: nonEmpty(firstNameField) ? firstNameField : null,
+                last_name: nonEmpty(lastNameField) ? lastNameField : null,
+              };
+              const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
+              if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
+
+              const ageVal =
+                age === "" || age === null || typeof age === "undefined"
+                  ? null
+                  : Number(age);
+
+              const compositeLoc = formatCompositeLocation(city, stateAbbr, country);
+
+              const legacyPref = legacyPrefFromWho(contactWho);
+              setContactPref(legacyPref);
+              const researchersAllowed = contactWho === "researchers" || contactWho === "all";
+
+              const updates = [
+                ["uploader_initials", initials || null],
+                ["initials", initials || null],
+                ["first_name", nonEmpty(firstNameField) ? firstNameField : null],
+                ["uploader_first_name", nonEmpty(firstNameField) ? firstNameField : null],
+                ["last_name", nonEmpty(lastNameField) ? lastNameField : null],
+                ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
+                ["uploader_age", ageVal],
+                ["age", ageVal],
+
+                ["uploader_location", nonEmpty(compositeLoc) ? compositeLoc : null],
+                ["location", nonEmpty(compositeLoc) ? compositeLoc : null],
+
+                ["uploader_city", nonEmpty(city) ? city : null],
+                ["city", nonEmpty(city) ? city : null],
+                ["uploader_state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
+                ["state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
+                ["uploader_country", nonEmpty(country) ? country : null],
+                ["country", nonEmpty(country) ? country : null],
+
+                ["role", role || null],
+                ["user_role", role || null],
+                ["uploader_role", role || null],
+                ["is_patient", role === "patient" ? true : role ? false : null],
+                ["is_doctor", role === "doctor" ? true : role ? false : null],
+                ["is_researcher", role === "researcher" ? true : role ? false : null],
+                ["is_journalist", role === "journalist" ? true : role ? false : null],
+
+                ["contact_who", contactWho],
+                ["contactable_by", contactWho],
+                ["contact_preference", legacyPref],
+                ["uploader_contact_opt_in", researchersAllowed],
+                ["contact_opt_in", researchersAllowed],
+              ];
+
+              for (const [col, val] of updates) {
+                const { error } = await supabase
+                  .from("user_profile")
+                  .update({ [col]: val })
+                  .eq("user_id", user.id);
+                if (error) {
+                  const raw = error.message || "";
+                  const msg = raw.toLowerCase();
+                  const ignorable =
+                    msg.includes("does not exist") ||
+                    msg.includes("could not find") ||
+                    msg.includes("schema cache") ||
+                    (msg.includes("unknown") && msg.includes("column")) ||
+                    (msg.includes("column") && msg.includes("not found"));
+                  if (!ignorable) throw error;
+                }
+              }
+
+              await updateImageMetadataForUserProfile(user.id, {
+                uploader_initials: initials || null,
+                uploader_age: ageVal,
+                uploader_location: nonEmpty(compositeLoc) ? compositeLoc : null,
+                uploader_contact_opt_in: researchersAllowed,
+              });
+
+              setProfileStatus("Profile saved.");
+              showToast("Saved");
+              setTimeout(() => setProfileStatus(""), 1500);
+            } catch (err) {
+              setProfileStatus(`Save error: ${err?.message || "Unknown error"}`);
+            }
           }}
-          aria-label="Profile layout"
+          aria-label="Profile form"
+          style={{
+            padding: 18,
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            background: "#fff",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+            margin: "8px 0 24px",
+          }}
         >
-          {/* BASIC FIELDS ROW */}
-          <div style={{ gridArea: "fields" }}>
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                alignItems: "flex-end",
-                whiteSpace: "nowrap",
-                overflowX: "auto",
-                paddingBottom: 2,
-                marginBottom: 16,
-              }}
-              aria-label="Basic profile fields"
+          <div
+            data-profile-grid
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr",
+              gridTemplateAreas: `"fields"
+                                  "role"
+                                  "contact"
+                                  "save"`,
+              gap: 12,
+              alignItems: "start",
+            }}
+            aria-label="Profile layout"
+          >
+            {/* BASIC FIELDS ROW */}
+            <div style={{ gridArea: "fields" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "flex-end",
+                  whiteSpace: "nowrap",
+                  overflowX: "auto",
+                  paddingBottom: 2,
+                  marginBottom: 16,
+                }}
+                aria-label="Basic profile fields"
+              >
+                {/* First name */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    First name
+                  </label>
+                  <input
+                    id="first_name"
+                    value={firstNameField}
+                    onChange={(e) => setFirstNameField(e.target.value)}
+                    style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
+                  />
+                </div>
+
+                {/* Last name */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    Last name
+                  </label>
+                  <input
+                    id="last_name"
+                    value={lastNameField}
+                    onChange={(e) => setLastNameField(e.target.value)}
+                    style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
+                  />
+                </div>
+
+                {/* Initials */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    Initials
+                  </label>
+                  <input
+                    id="initials"
+                    value={initials}
+                    maxLength={3}
+                    onChange={(e) => {
+                      initialsTouchedRef.current = true;
+                      setInitials(e.target.value.toUpperCase());
+                    }}
+                    title="Your initials (auto-fills from First + Last)"
+                    style={{
+                      padding: 8,
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 8,
+                      width: "8ch",
+                      minWidth: "8ch",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  />
+                </div>
+
+                {/* Age */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    Age
+                  </label>
+                  <input
+                    id="age"
+                    type="number"
+                    inputMode="numeric"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    title="Age"
+                    style={{
+                      padding: 8,
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 8,
+                      width: "8ch",
+                      minWidth: "8ch",
+                      textAlign: "center",
+                    }}
+                  />
+                </div>
+
+                {/* City */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    City
+                  </label>
+                  <input
+                    id="city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 90, maxWidth: 140 }}
+                  />
+                </div>
+
+                {/* State */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    State (US)
+                  </label>
+                  <select
+                    id="state"
+                    value={stateAbbr}
+                    onChange={(e) => setStateAbbr(e.target.value)}
+                    title="State (US)"
+                    style={{
+                      padding: 8,
+                      border: "1px solid #cbd5e1",
+                      borderRadius: 8,
+                      minWidth: 80,
+                      height: 34,
+                    }}
+                  >
+                    <option value="">State</option>
+                    {US_STATES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Country */}
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
+                    Country
+                  </label>
+                  <input
+                    id="country"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 100 }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ROLE FIELDSET */}
+            <fieldset
+              aria-label="I am a"
+              style={{ gridArea: "role", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
             >
-              {/* First name */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="first_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  First name
-                </label>
-                <input
-                  id="first_name"
-                  value={firstNameField}
-                  onChange={(e) => setFirstNameField(e.target.value)}
-                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
-                />
+              <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
+                <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
+                <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
+                <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
+                <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
               </div>
+            </fieldset>
 
-              {/* Last name */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="last_name" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  Last name
-                </label>
-                <input
-                  id="last_name"
-                  value={lastNameField}
-                  onChange={(e) => setLastNameField(e.target.value)}
-                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 120 }}
-                />
+            {/* CONTACT FIELDSET */}
+            <fieldset
+              aria-label="Who can contact me"
+              style={{ gridArea: "contact", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
+            >
+              <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
+                <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
+                <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
+                <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
+                <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
               </div>
+            </fieldset>
 
-              {/* Initials */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="initials" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  Initials
-                </label>
-                <input
-                  id="initials"
-                  value={initials}
-                  maxLength={3}
-                  onChange={(e) => {
-                    initialsTouchedRef.current = true;
-                    setInitials(e.target.value.toUpperCase());
-                  }}
-                  title="Your initials (auto-fills from First + Last)"
-                  style={{
-                    padding: 8,
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 8,
-                    width: "8ch",
-                    minWidth: "8ch",
-                    textTransform: "uppercase",
-                    textAlign: "center",
-                  }}
-                />
-              </div>
-
-              {/* Age */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="age" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  Age
-                </label>
-                <input
-                  id="age"
-                  type="number"
-                  inputMode="numeric"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  title="Age"
-                  style={{
-                    padding: 8,
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 8,
-                    width: "8ch",
-                    minWidth: "8ch",
-                    textAlign: "center",
-                  }}
-                />
-              </div>
-
-              {/* City */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="city" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  City
-                </label>
-                <input
-                  id="city"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 90, maxWidth: 140 }}
-                />
-              </div>
-
-              {/* State */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="state" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  State (US)
-                </label>
-                <select
-                  id="state"
-                  value={stateAbbr}
-                  onChange={(e) => setStateAbbr(e.target.value)}
-                  title="State (US)"
-                  style={{
-                    padding: 8,
-                    border: "1px solid #cbd5e1",
-                    borderRadius: 8,
-                    minWidth: 80,
-                    height: 34,
-                  }}
-                >
-                  <option value="">State</option>
-                  {US_STATES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Country */}
-              <div style={{ display: "flex", flexDirection: "column" }}>
-                <label htmlFor="country" style={{ fontSize: 12, marginBottom: 4, opacity: 0.8 }}>
-                  Country
-                </label>
-                <input
-                  id="country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  style={{ padding: 8, border: "1px solid #cbd5e1", borderRadius: 8, minWidth: 100 }}
-                />
-              </div>
+            {/* SAVE ROW */}
+            <div style={{ gridArea: "save", display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
+              <button
+                type="submit"
+                aria-label="Save profile"
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #0f766e",
+                  background: "#14b8a6",
+                  color: "white",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontSize: 12,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Save Profile
+              </button>
+              <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
+                {profileStatus}
+              </span>
             </div>
           </div>
+        </form>
 
-          {/* ROLE FIELDSET */}
-          <fieldset
-            aria-label="I am a"
-            style={{ gridArea: "role", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
+        {/* Right-hand image aside – fixed 315x429 */}
+        <aside
+          aria-label="Profile placeholder image"
+          style={{
+            marginTop: 8,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            background: "#fff",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+            padding: 12,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              width: 315,
+              height: 429,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#f8fafc",
+            }}
           >
-            <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a…</legend>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
-              <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
-              <RadioChip name="user_role" value="researcher" checked={role === "researcher"} onChange={setRole} label="Researcher" />
-              <RadioChip name="user_role" value="journalist" checked={role === "journalist"} onChange={setRole} label="Journalist" />
-              <RadioChip name="user_role" value="other" checked={role === "other"} onChange={setRole} label="Other" />
-            </div>
-          </fieldset>
-
-          {/* CONTACT FIELDSET */}
-          <fieldset
-            aria-label="Who can contact me"
-            style={{ gridArea: "contact", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
-          >
-            <legend style={{ fontSize: 12, padding: "0 6px" }}>Who can contact me</legend>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <RadioChip name="contact_who" value="members" checked={contactWho === "members"} onChange={setContactWho} label="Other members" />
-              <RadioChip name="contact_who" value="doctors" checked={contactWho === "doctors"} onChange={setContactWho} label="Doctors" />
-              <RadioChip name="contact_who" value="researchers" checked={contactWho === "researchers"} onChange={setContactWho} label="Researchers" />
-              <RadioChip name="contact_who" value="journalists" checked={contactWho === "journalists"} onChange={setContactWho} label="Journalists" />
-              <RadioChip name="contact_who" value="all" checked={contactWho === "all"} onChange={setContactWho} label="All" />
-            </div>
-          </fieldset>
-
-          {/* SAVE ROW */}
-          <div style={{ gridArea: "save", display: "flex", alignItems: "center", gap: 8, marginTop: 16 }}>
-            <button
-              type="submit"
-              aria-label="Save profile"
-              style={{
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: "1px solid #0f766e",
-                background: "#14b8a6",
-                color: "white",
-                fontWeight: 600,
-                cursor: "pointer",
-                fontSize: 12,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Save Profile
-            </button>
-            <span role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.8 }}>
-              {profileStatus}
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/fill_in_your_story.jpg"
+              alt="Fill in your story placeholder"
+              width={315}
+              height={429}
+              style={{ width: 315, height: 429, display: "block" }}
+            />
           </div>
-        </div>
-      </form>
+        </aside>
+      </div>
 
       {/* Gallery header row */}
       <div
@@ -1204,7 +1254,7 @@ export default function HomePage() {
           justifyContent: "space-between",
           alignItems: "flex-start",
           padding: "6px 0",
-          margin: "8px 0 10px",
+          margin: "18px 0 10px",
           borderBottom: "1px solid #e5e7eb",
           gap: 12,
           flexWrap: "wrap",
@@ -1390,14 +1440,10 @@ export default function HomePage() {
           border-radius: 8px;
         }
 
+        /* Responsive: stack aside below form on narrow screens */
         @media (max-width: 880px) {
-          main[data-index-build="${INDEX_BUILD}"] [data-profile-grid] {
+          main[data-index-build="${INDEX_BUILD}"] [data-profile-shell] {
             grid-template-columns: 1fr !important;
-            grid-template-areas:
-              "fields"
-              "role"
-              "contact"
-              "save" !important;
           }
         }
       `}</style>
