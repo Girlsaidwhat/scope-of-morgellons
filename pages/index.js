@@ -1,5 +1,4 @@
-﻿powershell -Command "@'
-import { useEffect, useMemo, useState } from \"react\";
+﻿import { useEffect, useMemo, useState } from \"react\";
 import Link from \"next/link\";
 import { useRouter } from \"next/router\";
 import { createClient } from \"@supabase/supabase-js\";
