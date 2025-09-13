@@ -106,3 +106,6 @@ main[data-index-build='idx-36.240'] [aria-label='Profile portrait'] img { width:
 main [aria-label='Profile image placeholder'] img, main [aria-label='Profile portrait'] img { width:315px !important; height:439px !important; object-fit:contain !important; display:block !important; }
 main [aria-label='Profile image placeholder'] , main [aria-label='Profile portrait']  { width:315px !important; height:439px !important; }
 main [aria-label='Profile image placeholder']{ background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; }
+
+/* Lock the Profile portrait to 315x439 without touching other images */
+main img[src='/fill_in_my_story.jpg']{width:315px !important;height:439px !important;max-width:315px !important;max-height:439px !important;object-fit:contain !important;display:block !important;}
