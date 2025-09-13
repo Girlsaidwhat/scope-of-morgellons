@@ -2,7 +2,8 @@
 // Logged-out: Landing (public, anonymized tiles + simple nav + Sign in button).
 // Logged-in: Home (Welcome + Profile + Gallery + CSV). Placeholder removed; fixed 315×439 portrait instead.
 
-import { useEffect, useMemo, useRef, useState } from "react";`r`nimport Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -1438,7 +1439,12 @@ export default function HomePage() {
               "aside" !important;
           }
         }
-      `}</style>
+      
+/* Portrait exact size (wins cascade) */
+main [aria-label="Profile image placeholder"], main [aria-label="Profile portrait"] { background:transparent!important; border:none!important; box-shadow:none!important; padding:0!important; }
+main [aria-label="Profile image placeholder"] > div, main [aria-label="Profile portrait"] > div { width:315px!important; height:439px!important; }
+main [aria-label="Profile image placeholder"] img, main [aria-label="Profile portrait"] img { width:315px!important; height:439px!important; object-fit:contain!important; display:block!important; }
+`}</style>
     </main>
   );
 }
