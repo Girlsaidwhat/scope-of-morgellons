@@ -110,3 +110,8 @@ main a[href*="/image/"]:has(> img):focus-visible {
 /* profile slot image v4 - force fixed box + center */
 [aria-label='Profile image placeholder'],[title='Profile image placeholder']{position:relative !important; width:315px !important; height:429px !important; min-width:315px !important; min-height:429px !important; max-width:315px !important; max-height:429px !important; box-sizing:border-box !important; overflow:hidden !important; background-image:url('/fill_in_my_story.jpg') !important; background-repeat:no-repeat !important; background-position:center !important; background-size:contain !important; border-radius:12px !important; place-self:start center !important;}
 [aria-label='Profile image placeholder'] > *,[title='Profile image placeholder'] > *{display:none !important;}
+
+/* profile slot image v5 - fixed overlay 315x429 */
+[aria-label='Profile image placeholder'],[title='Profile image placeholder']{position:relative !important; overflow:hidden !important;}
+[aria-label='Profile image placeholder'] *,[title='Profile image placeholder'] *{display:none !important;}
+[aria-label='Profile image placeholder']::before,[title='Profile image placeholder']::before{content:""; position:absolute; width:315px; height:429px; left:50%; top:0; transform:translateX(-50%); background-image:url('/fill_in_my_story.jpg'); background-repeat:no-repeat; background-position:center; background-size:contain; border-radius:12px;}
