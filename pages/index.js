@@ -96,7 +96,9 @@ export default function Home() {
           aria-label="Profile image placeholder"
           title="Profile image placeholder"
           /* your existing classes/area names can remain if you had them */
-        >\n        <div style={{ width: 315, height: 429, position: "relative", overflow: "hidden", borderRadius: 12, margin: "0 auto" }}><img src="/fill_in_my_story.jpg" alt="Profile image" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 12 }}/></div>\n      </aside>
+        >
+  <div style={{ width: 315, height: 429, position: 'relative', overflow: 'hidden', borderRadius: 12, margin: '0 auto' }}>    <img src="/fill_in_my_story.jpg" alt="Profile image" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', borderRadius: 12 }} />  </div>  
+</aside>
 
         {/* Rest of your signed-in page content continues below (unchanged) */}
         {/* … */}
