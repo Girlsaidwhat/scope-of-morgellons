@@ -106,3 +106,7 @@ main a[href*="/image/"]:has(> img):focus-visible {
 [aria-label='Profile image placeholder'],[title='Profile image placeholder']{position:relative !important; display:block !important; min-width:315px; min-height:429px;}
 [aria-label='Profile image placeholder']:before,[title='Profile image placeholder']:before{content:""; position:absolute; inset:0; background-image:url('/fill_in_my_story.jpg'); background-repeat:no-repeat; background-position:center; background-size:contain; border-radius:12px; pointer-events:none;}
 [aria-label='Profile image placeholder'] > *,[title='Profile image placeholder'] > *{visibility:hidden !important;}
+
+/* profile slot image v4 - force fixed box + center */
+[aria-label='Profile image placeholder'],[title='Profile image placeholder']{position:relative !important; width:315px !important; height:429px !important; min-width:315px !important; min-height:429px !important; max-width:315px !important; max-height:429px !important; box-sizing:border-box !important; overflow:hidden !important; background-image:url('/fill_in_my_story.jpg') !important; background-repeat:no-repeat !important; background-position:center !important; background-size:contain !important; border-radius:12px !important; place-self:start center !important;}
+[aria-label='Profile image placeholder'] > *,[title='Profile image placeholder'] > *{display:none !important;}
