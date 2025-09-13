@@ -1270,33 +1270,11 @@ export default function HomePage() {
           </div>
 
           {/* RIGHT: image placeholder */}
-          <aside
-            role="complementary"
-            aria-label="Profile image placeholder"
-            style={{
-              gridArea: "aside",
-              marginTop: 16,
-              alignSelf: "stretch",
-              height: "100%",
-              border: "1px dashed #cbd5e1",
-              background: "#f8fafc",
-              borderRadius: 10,
-              padding: 12,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-            }}
-            title="Profile image placeholder"
-          >
-          <div style={{ width: 315, height: 429, position: "relative", overflow: "hidden", borderRadius: 12, margin: "0 auto" }}>
-            <img
-              src="/fill_in_my_story.jpg"
-              alt="Profile image"
-              style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 12 }}
-            />
-          </div>
-        </aside>
+          <aside role="complementary" aria-label="Profile image placeholder" title="Profile image placeholder" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }}>
+  <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto", borderRadius: 12, overflow: "hidden" }}>
+    <img src="/fill_in_my_story.jpg" alt="Profile image" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 12 }} />
+  </div>
+</aside>
         </div>
       </form>
 
