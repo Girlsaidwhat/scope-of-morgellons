@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.209";
+const INDEX_BUILD = "idx-36.210";
 
 function prettyDate(s) {
   try {
@@ -1269,12 +1269,22 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* RIGHT: image placeholder */}
-          <aside role="complementary" aria-label="Profile image placeholder" title="Profile image placeholder" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }}>
-  <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto", borderRadius: 12, overflow: "hidden" }}>
-    <img src="/fill_in_my_story.jpg" alt="Profile image" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 12 }} />
-  </div>
-</aside>
+          {/* RIGHT: image placeholder — fixed 315×439, no frame */}
+          <aside
+            role="complementary"
+            aria-label="Profile image placeholder"
+            title="Profile image placeholder"
+            style={{ gridArea: "aside", marginTop: 16, alignSelf: "start", background: "transparent", border: "none", boxShadow: "none", padding: 0 }}
+          >
+            <div style={{ position: "relative", width: 315, height: 439, margin: "0 auto", borderRadius: 12, overflow: "hidden" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/fill_in_my_story.jpg"
+                alt="Profile image"
+                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 12 }}
+              />
+            </div>
+          </aside>
         </div>
       </form>
 
