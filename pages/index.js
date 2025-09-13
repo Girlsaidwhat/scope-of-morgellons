@@ -2,7 +2,7 @@
 // Logged-out: Landing (public, anonymized tiles + simple nav + Sign in button).
 // Logged-in: Home (Welcome + Profile + Gallery + CSV). Placeholder removed; fixed 315×439 portrait instead.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";`r`nimport Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
