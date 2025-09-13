@@ -93,3 +93,9 @@ main a[href*="/image/"]:has(> img):focus-visible {
 }
 
 
+
+/* Profile placeholder hard size (enforced) */
+[aria-label='Profile image placeholder']{background:transparent !important;border:none !important;box-shadow:none !important;padding:0 !important;}
+[aria-label='Profile image placeholder']>div{width:315px !important;height:439px !important;}
+[aria-label='Profile image placeholder'] img{width:315px !important;height:439px !important;object-fit:contain !important;display:block !important;}
+[aria-label='Profile image placeholder'] img{width:315px !important;height:439px !important;object-fit:contain !important;display:block !important;}
