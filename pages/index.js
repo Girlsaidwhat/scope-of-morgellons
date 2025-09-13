@@ -702,7 +702,7 @@ export default function HomePage() {
       <aside role="complementary" aria-label="Profile portrait" title="Profile portrait" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }}>
         <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/fill_in_my_story.jpg" alt="Profile image" width="315" height="429" style={{ width:315, height:429, maxWidth:315, maxHeight:429, objectFit:"contain", display:"block", margin:"0 auto", borderRadius:12 }} />
+          <img src="/portrait315x429.jpg" alt="Profile image" width="315" height="429" style={{ width:315, height:429, maxWidth:315, maxHeight:429, objectFit:"contain", display:"block", margin:"0 auto", borderRadius:12 }} />
         </div>
       </aside>
     );
