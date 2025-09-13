@@ -96,34 +96,7 @@ export default function Home() {
           aria-label="Profile image placeholder"
           title="Profile image placeholder"
           /* your existing classes/area names can remain if you had them */
-        >
-          {/* 
-            FIX: Replace the malformed/HTML-style <img> with valid JSX.
-            Fixed-size wrapper 315×429, object-fit: contain.
-          */}
-          <div
-            style={{
-              width: 315,
-              height: 429,
-              position: "relative",
-              overflow: "hidden",
-              borderRadius: 12,
-              margin: "0 auto",
-            }}
-          >
-            <img
-              src="/fill_in_my_story.jpg"
-              alt="Profile image"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                display: "block",
-                borderRadius: 12,
-              }}
-            />
-          </div>
-        </aside>
+        >\n        <div style={{ width: 315, height: 429, position: "relative", overflow: "hidden", borderRadius: 12, margin: "0 auto" }}><img src="/fill_in_my_story.jpg" alt="Profile image" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", borderRadius: 12 }}/></div>\n      </aside>
 
         {/* Rest of your signed-in page content continues below (unchanged) */}
         {/* … */}
