@@ -700,7 +700,7 @@ export default function HomePage() {
   function ProfilePortrait() {
     return (
       <aside role="complementary" aria-label="Profile portrait" title="Profile portrait" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }}>
-        <div style={{ position: "relative", width: 315, height: 439, margin: "0 auto" }}>
+        <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/fill_in_my_story.jpg"
@@ -1448,3 +1448,4 @@ main [aria-label="Profile image placeholder"] img, main [aria-label="Profile por
     </main>
   );
 }
+
