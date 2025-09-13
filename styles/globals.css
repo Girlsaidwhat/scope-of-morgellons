@@ -98,3 +98,7 @@ main a[href*="/image/"]:has(> img):focus-visible {
 [aria-label='Profile image placeholder'],[title='Profile image placeholder']{background:none !important;border:0 !important;box-shadow:none !important;padding:0 !important;margin:0 !important;place-self:start center !important;}
 [aria-label='Profile image placeholder'] > div,[title='Profile image placeholder'] > div{width:315px !important;height:429px !important;display:block !important;margin:0 auto !important;}
 [aria-label='Profile image placeholder'] img[src*='fill_in_my_story.jpg'],[title='Profile image placeholder'] img[src*='fill_in_my_story.jpg']{width:315px !important;height:429px !important;object-fit:contain !important;display:block !important;border-radius:12px !important;margin:0 auto !important;}
+
+/* profile slot hard lock v7 - exact target + !important */
+aside[aria-label='Profile image placeholder'] img[src='/fill_in_my_story.jpg'],aside[title='Profile image placeholder'] img[src='/fill_in_my_story.jpg']{width:315px !important;height:429px !important;max-width:315px !important;max-height:429px !important;object-fit:contain !important;display:block !important;margin:0 auto !important;border-radius:12px !important;}
+aside[aria-label='Profile image placeholder'],aside[title='Profile image placeholder']{width:315px !important;height:429px !important;max-width:315px !important;max-height:429px !important;padding:0 !important;border:0 !important;background:none !important;box-shadow:none !important;place-self:start center !important;overflow:hidden !important;}
