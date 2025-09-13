@@ -93,3 +93,8 @@ main a[href*="/image/"]:has(> img):focus-visible {
 }
 
 
+
+/* profile slot hard lock + no frame */
+[aria-label='Profile image placeholder'],[title='Profile image placeholder']{background:none !important;border:0 !important;box-shadow:none !important;padding:0 !important;margin:0 !important;place-self:start center !important;}
+[aria-label='Profile image placeholder'] > div,[title='Profile image placeholder'] > div{width:315px !important;height:429px !important;display:block !important;margin:0 auto !important;}
+[aria-label='Profile image placeholder'] img[src*='fill_in_my_story.jpg'],[title='Profile image placeholder'] img[src*='fill_in_my_story.jpg']{width:315px !important;height:429px !important;object-fit:contain !important;display:block !important;border-radius:12px !important;margin:0 auto !important;}
