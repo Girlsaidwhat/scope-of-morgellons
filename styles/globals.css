@@ -93,3 +93,8 @@ main a[href*="/image/"]:has(> img):focus-visible {
 }
 
 
+
+/* Profile image hard size (315x439) */
+[aria-label="Profile image placeholder"]{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important;}
+[aria-label="Profile image placeholder"] div{width:315px!important;height:439px!important;margin:0 auto!important;border-radius:12px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;padding:0!important;}
+[aria-label="Profile image placeholder"] img{width:315px!important;height:439px!important;object-fit:contain!important;display:block!important;border-radius:12px!important;}
