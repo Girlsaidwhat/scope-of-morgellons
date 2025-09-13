@@ -1295,7 +1295,7 @@ export default function HomePage() {
               style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4, fontSize: 13 }}
             >
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Profile image</div>
-              <img src="/fill_in_my_story.jpg" alt="Profile image" width="315" height="429" style="object-fit:contain;border-radius:12px" />
+              <div>Placeholder (right column)</div>
             </div>
           </aside>
         </div>
