@@ -93,3 +93,7 @@ main a[href*="/image/"]:has(> img):focus-visible {
 }
 
 
+
+/* profile slot image */
+[aria-label='Profile image placeholder']{background-image:url('/fill_in_my_story.jpg');background-repeat:no-repeat;background-position:center;background-size:contain;min-width:315px;min-height:429px;border-radius:12px}
+[aria-label='Profile image placeholder']>div{display:none}
