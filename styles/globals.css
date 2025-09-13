@@ -1,4 +1,4 @@
-/* Roboto global font (400/500/700) */
+﻿/* Roboto global font (400/500/700) */
 @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap");
 
 /* Apply everywhere, including form controls; override any inline fallback */
@@ -95,17 +95,6 @@ main a[href*="/image/"]:has(> img):focus-visible {
 
 
 /* Profile image hard size (315x439) */
-[aria-label="Profile image placeholder"]{background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important;}
-[aria-label="Profile image placeholder"] div{width:315px!important;height:439px!important;margin:0 auto!important;border-radius:12px!important;overflow:hidden!important;border:none!important;box-shadow:none!important;padding:0!important;}
-[aria-label="Profile image placeholder"] img{width:315px!important;height:439px!important;object-fit:contain!important;display:block!important;border-radius:12px!important;}
 
-/* Profile portrait hard-size (scoped to this build) */
-main[data-index-build='idx-36.240'] [aria-label='Profile portrait'] img { width:315px !important; height:439px !important; object-fit:contain !important; display:block !important; }
 
-/* Profile portrait hard-size (label-scoped, no build token dependency) */
-main [aria-label='Profile image placeholder'] img, main [aria-label='Profile portrait'] img { width:315px !important; height:439px !important; object-fit:contain !important; display:block !important; }
-main [aria-label='Profile image placeholder'] , main [aria-label='Profile portrait']  { width:315px !important; height:439px !important; }
-main [aria-label='Profile image placeholder']{ background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; }
 
-/* Lock the Profile portrait to 315x439 without touching other images */
-main img[src='/fill_in_my_story.jpg']{width:315px !important;height:439px !important;max-width:315px !important;max-height:439px !important;object-fit:contain !important;display:block !important;}
