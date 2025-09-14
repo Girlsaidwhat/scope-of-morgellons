@@ -699,7 +699,7 @@ export default function HomePage() {
   // ✅ NEW: Self-contained portrait (no external CSS), exact 315×439
   function ProfilePortrait() {
     return (
-     <aside role="complementary" aria-label="Profile portrait" title="Profile portrait" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }}>
+     <aside role="complementary" aria-label="Profile portrait" title="Profile portrait" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }} id=profile-portrait-slot> <span id=portrait-proof>PPROOF</span>
   <div style={{ width: 315, height: 429, margin: "0 auto", borderRadius: 12, background: "#ff0033", color: "#fff",
                 display: "grid", placeItems: "center", fontWeight: 700 }}>
     DIAG 315×429
@@ -1436,4 +1436,5 @@ main [aria-label="Profile image placeholder"] img, main [aria-label="Profile por
     </main>
   );
 }
+
 
