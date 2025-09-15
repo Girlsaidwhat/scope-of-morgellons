@@ -18,16 +18,10 @@ body {
 }
 
 /* Reserved space so the fixed build badge never overlaps content */
-:root {
-  --build-badge-safe-space: 120px;
-}
-body {
-  padding-bottom: var(--build-badge-safe-space) !important;
-}
+:root { --build-badge-safe-space: 120px; }
+body { padding-bottom: var(--build-badge-safe-space) !important; }
 /* For pages that use <main id="main"> */
-#main {
-  padding-bottom: var(--build-badge-safe-space);
-}
+#main { padding-bottom: var(--build-badge-safe-space); }
 
 /* Accessibility utility, harmless if unused */
 .visually-hidden {
@@ -35,18 +29,18 @@ body {
   height: 1px; width: 1px;
   overflow: hidden; clip: rect(1px,1px,1px,1px);
   white-space: nowrap; border: 0; padding: 0; margin: -1px;
-}/* Microburst: gallery card affordance + a11y focus */
+}
+
+/* Microburst: gallery card affordance + a11y focus */
 :where(.gallery-card, .image-card, .card):has(img) {
   transition: transform 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
   transform: translateZ(0); /* avoid layout shift on hover */
   will-change: transform;
 }
-
 :where(.gallery-card, .image-card, .card):has(img):hover {
   transform: scale(1.012);
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
 }
-
 :where(.gallery-card, .image-card, .card):has(img):focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 3px;
@@ -60,7 +54,9 @@ body {
   :where(.gallery-card, .image-card, .card):has(img):hover {
     transform: none;
   }
-}/* Microburst fix: hover + focus for gallery anchors that wrap images */
+}
+
+/* Microburst fix: hover + focus for gallery anchors that wrap images */
 main a[href^="/image/"]:has(> img),
 main a[href*="/image/"]:has(> img) {
   display: inline-block;
@@ -68,19 +64,16 @@ main a[href*="/image/"]:has(> img) {
   transform: translateZ(0);
   will-change: transform;
 }
-
 main a[href^="/image/"]:has(> img):hover,
 main a[href*="/image/"]:has(> img):hover {
   transform: scale(1.012);
   box-shadow: 0 8px 24px rgba(0,0,0,0.15);
 }
-
 main a[href^="/image/"]:has(> img):focus-visible,
 main a[href*="/image/"]:has(> img):focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
-
 @media (prefers-reduced-motion: reduce) {
   main a[href^="/image/"]:has(> img),
   main a[href*="/image/"]:has(> img) {
@@ -92,10 +85,4 @@ main a[href*="/image/"]:has(> img):focus-visible {
   }
 }
 
-
-
-/* Profile image hard size (315x439) */
-
-
-
-/* PORTRAIT LOCK - idx-20250913-2219 */`n/* Lock the CONTAINER that holds the portrait, kill frame */`naside:has(img[src*="fill_in_my_story.jpg"]), div:has(img[src*="fill_in_my_story.jpg"]), aside:has(img[src*="url=%2Ffill_in_my_story.jpg"]), div:has(img[src*="url=%2Ffill_in_my_story.jpg"]) { width:315px !important; height:429px !important; border:none !important; box-shadow:none !important; background:transparent !important; }`n/* Lock the IMAGE itself to 315×429 and prevent stretch */`nimg[src*="fill_in_my_story.jpg"], img[src*="url=%2Ffill_in_my_story.jpg"] { width:315px !important; height:429px !important; max-width:none !important; max-height:none !important; object-fit:contain !important; display:block !important; }`n/* Visual proof marker so we know these rules are live */`naside:has(img[src*="fill_in_my_story.jpg"])::after, div:has(img[src*="fill_in_my_story.jpg"])::after, aside:has(img[src*="url=%2Ffill_in_my_story.jpg"])::after, div:has(img[src*="url=%2Ffill_in_my_story.jpg"])::after { content:"PPROOF"; font-size:10px; line-height:1; }
+/* (Portrait sizing rules live in pages/index.js via id-scoped styled-JSX) */
