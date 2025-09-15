@@ -1,20 +1,24 @@
 // pages/signin.js
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
+// Create a browser-side Supabase client with session persistence
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: "sb-scope-auth", // custom key to avoid collisions
+    },
+  }
+);
+
 export default function SignIn() {
   const router = useRouter();
-
-  // Create supabase client only in the browser
-  const supabase = useMemo(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !anon) return null;
-    return createClient(url, anon, { auth: { persistSession: true, autoRefreshToken: true } });
-  }, []);
-
-  // Refs = better for password managers than controlled inputs
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const [busy, setBusy] = useState(false);
@@ -22,43 +26,44 @@ export default function SignIn() {
 
   // If already signed in, bounce to home
   useEffect(() => {
-    if (!supabase) return;
     let mounted = true;
-    supabase.auth.getSession().then(({ data }) => {
+    (async () => {
+      const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      if (data?.session?.user) router.replace("/");
+      if (data?.session) {
+        router.replace("/");
+      }
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
+      if (sess) router.replace("/");
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-      if (session?.user) router.replace("/");
-    });
-    return () => sub?.subscription?.unsubscribe?.();
-  }, [supabase, router]);
+    return () => sub.subscription?.unsubscribe?.();
+  }, [router]);
 
   async function onSubmit(e) {
     e.preventDefault();
-    if (!supabase) {
-      setMsg("Auth is not ready. Missing environment variables.");
-      return;
-    }
-    const email = emailRef.current?.value?.trim() || "";
-    const password = passwordRef.current?.value || "";
-    if (!email || !password) {
-      setMsg("Please enter your email and password.");
-      return;
-    }
+    if (busy) return;
+    setMsg("");
+    setBusy(true);
     try {
-      setBusy(true);
-      setMsg("");
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setMsg(error.message || "Sign-in failed.");
-        setBusy(false);
+      const email = (emailRef.current?.value || "").trim();
+      const password = passwordRef.current?.value || "";
+      if (!email || !password) {
+        setMsg("Please enter your email and password.");
         return;
       }
-      // Success: redirect happens via onAuthStateChange, but do it eagerly too
-      router.replace("/");
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setMsg(error.message || "Sign-in failed.");
+        return;
+      }
+      if (data?.user) {
+        setMsg("Signed in.");
+        router.replace("/");
+      }
     } catch (err) {
       setMsg(err?.message || "Unexpected error.");
+    } finally {
       setBusy(false);
     }
   }
@@ -68,75 +73,106 @@ export default function SignIn() {
       id="main"
       tabIndex={-1}
       style={{
-        maxWidth: 520,
+        maxWidth: 440,
         margin: "40px auto",
         padding: 24,
         border: "1px solid #e2e8f0",
         borderRadius: 12,
-        background: "#fff",
+        background: "#ffffff",
       }}
     >
-      <h1 style={{ marginTop: 0, marginBottom: 12, fontSize: 24, textAlign: "left" }}>Sign in</h1>
+      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 24, fontWeight: 800, textAlign: "left" }}>
+        Sign in
+      </h1>
 
       <form onSubmit={onSubmit} autoComplete="on" style={{ textAlign: "left" }}>
-        <div style={{ display: "grid", gap: 12 }}>
-          <label htmlFor="email" style={{ fontSize: 12, opacity: 0.9 }}>
+        {/* Email */}
+        <div style={{ marginBottom: 12 }}>
+          <label
+            htmlFor="email"
+            style={{ display: "block", fontSize: 12, opacity: 0.9, marginBottom: 6, textAlign: "left" }}
+          >
             Email
           </label>
           <input
             id="email"
             name="email"
             type="email"
-            autoComplete="email"
-            inputMode="email"
             ref={emailRef}
+            // For Chrome/Google Password Manager, "username" works best for login forms
+            autoComplete="username"
+            inputMode="email"
+            autoCapitalize="off"
+            spellCheck={false}
+            placeholder="you@example.com"
             required
-            style={{ padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              textAlign: "left",
+            }}
           />
+        </div>
 
-          <label htmlFor="current-password" style={{ fontSize: 12, opacity: 0.9 }}>
+        {/* Password */}
+        <div style={{ marginBottom: 4 }}>
+          <label
+            htmlFor="current-password"
+            style={{ display: "block", fontSize: 12, opacity: 0.9, marginBottom: 6, textAlign: "left" }}
+          >
             Password
           </label>
           <input
             id="current-password"
             name="password"
             type="password"
-            autoComplete="current-password"
             ref={passwordRef}
+            autoComplete="current-password"
+            placeholder="••••••••"
             required
-            style={{ padding: 10, border: "1px solid #cbd5e1", borderRadius: 8 }}
+            style={{
+              width: "100%",
+              padding: "10px 12px",
+              border: "1px solid #cbd5e1",
+              borderRadius: 8,
+              textAlign: "left",
+            }}
           />
+        </div>
 
+        {/* Actions */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
           <button
             type="submit"
             disabled={busy}
             aria-busy={busy ? "true" : "false"}
             style={{
-              marginTop: 6,
-              padding: "10px 14px",
+              padding: "8px 12px",
               borderRadius: 8,
               border: "1px solid #0f766e",
-              background: busy ? "#8dd3cd" : "#14b8a6",
+              background: "#14b8a6",
               color: "white",
               fontWeight: 700,
-              cursor: busy ? "not-allowed" : "pointer",
+              cursor: busy ? "wait" : "pointer",
             }}
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
 
-          {msg ? (
-            <div role="status" aria-live="polite" style={{ fontSize: 12, color: "#b91c1c" }}>
-              {msg}
-            </div>
-          ) : null}
-
           <a
             href="/auth/reset"
-            style={{ fontSize: 12, color: "#334155", textDecoration: "underline", marginTop: 4, width: "fit-content" }}
+            style={{ fontSize: 12, textDecoration: "underline", color: "#334155" }}
+            title="Forgot password?"
           >
             Forgot password?
           </a>
+        </div>
+
+        {/* Status */}
+        <div role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 10, fontSize: 12, color: "#7f1d1d" }}>
+          {msg}
         </div>
       </form>
     </main>
