@@ -1,10 +1,10 @@
 // pages/signin.js
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
-// One client, persisted session
-export const supabase = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   {
@@ -12,7 +12,8 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-    },
+      storageKey: "scope-of-morgellons-auth"
+    }
   }
 );
 
@@ -23,43 +24,84 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  // If already signed in, skip this page
+  // If already signed in, bounce to home
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      if (data?.session) router.replace("/");
+      if (data?.session?.user) {
+        router.replace("/");
+      }
     })();
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
-      if (sess) router.replace("/");
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
+      if (session?.user) router.replace("/");
     });
-    return () => sub.subscription?.unsubscribe?.();
+    return () => {
+      mounted = false;
+      sub?.subscription?.unsubscribe?.();
+    };
   }, [router]);
 
   async function onSubmit(e) {
     e.preventDefault();
-    setBusy(true);
     setErr("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setErr(error.message);
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setErr(error.message || "Sign in failed");
+        return;
+      }
+      // Success path handled by onAuthStateChange → redirect
+    } catch (ex) {
+      setErr(ex?.message || "Unexpected error");
+    } finally {
       setBusy(false);
-      return;
     }
-    router.replace("/");
   }
 
-  return (
-    <main style={{ maxWidth: 420, margin: "40px auto", padding: 24 }}>
-      <h1 style={{ margin: 0, marginBottom: 16, textAlign: "left" }}>Sign in</h1>
+  const box = useMemo(
+    () => ({
+      label: { display: "block", fontSize: 12, marginBottom: 6, opacity: 0.85, textAlign: "left" },
+      input: {
+        width: "100%",
+        padding: "10px 12px",
+        border: "1px solid #cbd5e1",
+        borderRadius: 8,
+        textAlign: "left", // force left alignment even if globals try to center
+        background: "#fff"
+      },
+      btn: {
+        padding: "10px 14px",
+        borderRadius: 8,
+        border: "1px solid #0f766e",
+        background: busy ? "#8dd3cd" : "#14b8a6",
+        color: "#fff",
+        fontWeight: 700,
+        cursor: busy ? "wait" : "pointer",
+        width: "100%"
+      }
+    }),
+    [busy]
+  );
 
-      <form method="post" autoComplete="on" onSubmit={onSubmit}>
+  return (
+    <main style={{ maxWidth: 420, margin: "40px auto", padding: 20 }}>
+      <h1 style={{ marginTop: 0, marginBottom: 12, fontSize: 26 }}>Sign in</h1>
+      <p style={{ marginTop: 0, marginBottom: 16, color: "#475569", fontSize: 14 }}>
+        Use the email and password you created. (Password managers should autofill automatically.)
+      </p>
+
+      {err ? (
+        <div role="alert" style={{ border: "1px solid #fca5a5", background: "#fef2f2", padding: 10, borderRadius: 8, marginBottom: 12 }}>
+          {err}
+        </div>
+      ) : null}
+
+      <form onSubmit={onSubmit} autoComplete="on" spellCheck={false}>
         <div style={{ marginBottom: 12 }}>
-          <label
-            htmlFor="email"
-            style={{ display: "block", textAlign: "left", fontWeight: 600, marginBottom: 6 }}
-          >
+          <label htmlFor="email" style={box.label}>
             Email
           </label>
           <input
@@ -67,73 +109,39 @@ export default function SignIn() {
             name="email"
             type="email"
             inputMode="email"
-            autoComplete="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            required
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-            }}
+            style={box.input}
+            required
           />
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <label
-            htmlFor="password"
-            style={{ display: "block", textAlign: "left", fontWeight: 600, marginBottom: 6 }}
-          >
+        <div style={{ marginBottom: 6 }}>
+          <label htmlFor="current-password" style={box.label}>
             Password
           </label>
           <input
-            id="password"
+            id="current-password"
             name="password"
             type="password"
             autoComplete="current-password"
-            required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #cbd5e1",
-            }}
+            style={box.input}
+            required
           />
         </div>
 
-        {err ? (
-          <div role="alert" style={{ color: "#b91c1c", marginBottom: 12 }}>
-            {err}
-          </div>
-        ) : null}
+        <div style={{ textAlign: "right", marginBottom: 16 }}>
+          <Link href="/auth/reset" style={{ fontSize: 12, color: "#0ea5e9", textDecoration: "underline" }}>
+            Forgot password?
+          </Link>
+        </div>
 
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "1px solid #0f766e",
-            background: "#14b8a6",
-            color: "white",
-            fontWeight: 700,
-            cursor: busy ? "wait" : "pointer",
-          }}
-        >
+        <button type="submit" disabled={busy} aria-busy={busy ? "true" : "false"} style={box.btn}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
-
-        <div style={{ marginTop: 12, textAlign: "left" }}>
-          <a href="/auth/reset" style={{ textDecoration: "underline", color: "#334155" }}>
-            Forgot your password?
-          </a>
-        </div>
       </form>
     </main>
   );
