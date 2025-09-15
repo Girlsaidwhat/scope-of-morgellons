@@ -1,68 +1,54 @@
 // pages/signin.js
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
 
-// Create a browser-side Supabase client with session persistence
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: "sb-scope-auth", // custom key to avoid collisions
-    },
+const SIGNIN_BUILD = "si-1.03";
+
+// Safe: runtime-only use. If env vars are missing, we show a friendly error.
+let supabase = null;
+try {
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    );
   }
-);
+} catch {
+  // ignore; handled at submit time
+}
 
 export default function SignIn() {
   const router = useRouter();
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-
-  // If already signed in, bounce to home
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      if (data?.session) {
-        router.replace("/");
-      }
-    })();
-    const { data: sub } = supabase.auth.onAuthStateChange((_evt, sess) => {
-      if (sess) router.replace("/");
-    });
-    return () => sub.subscription?.unsubscribe?.();
-  }, [router]);
+  const [err, setErr] = useState("");
 
   async function onSubmit(e) {
     e.preventDefault();
-    if (busy) return;
-    setMsg("");
+    setErr("");
+    if (!supabase) {
+      setErr("Sign-in not configured: missing Supabase env vars.");
+      return;
+    }
+    const email = emailRef.current?.value?.trim() || "";
+    const password = passwordRef.current?.value || "";
+    if (!email || !password) {
+      setErr("Please enter your email and password.");
+      return;
+    }
     setBusy(true);
     try {
-      const email = (emailRef.current?.value || "").trim();
-      const password = passwordRef.current?.value || "";
-      if (!email || !password) {
-        setMsg("Please enter your email and password.");
-        return;
-      }
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        setMsg(error.message || "Sign-in failed.");
+        setErr(error.message || "Sign-in failed.");
         return;
       }
-      if (data?.user) {
-        setMsg("Signed in.");
-        router.replace("/");
-      }
-    } catch (err) {
-      setMsg(err?.message || "Unexpected error.");
+      // Success → go home
+      router.push("/");
+    } catch (ex) {
+      setErr(ex?.message || "Unexpected error.");
     } finally {
       setBusy(false);
     }
@@ -70,111 +56,103 @@ export default function SignIn() {
 
   return (
     <main
-      id="main"
-      tabIndex={-1}
-      style={{
-        maxWidth: 440,
-        margin: "40px auto",
-        padding: 24,
-        border: "1px solid #e2e8f0",
-        borderRadius: 12,
-        background: "#ffffff",
-      }}
+      data-signin-build={SIGNIN_BUILD}
+      style={{ maxWidth: 420, margin: "40px auto", padding: 16 }}
     >
-      <h1 style={{ margin: 0, marginBottom: 12, fontSize: 24, fontWeight: 800, textAlign: "left" }}>
-        Sign in
-      </h1>
+      <h1 style={{ margin: "0 0 12px", textAlign: "left" }}>Sign in</h1>
+
+      {err ? (
+        <div
+          role="alert"
+          style={{
+            border: "1px solid #fecaca",
+            background: "#fee2e2",
+            color: "#991b1b",
+            borderRadius: 8,
+            padding: 10,
+            marginBottom: 12,
+            fontSize: 14,
+          }}
+        >
+          {err}
+        </div>
+      ) : null}
 
       <form onSubmit={onSubmit} autoComplete="on" style={{ textAlign: "left" }}>
-        {/* Email */}
-        <div style={{ marginBottom: 12 }}>
-          <label
-            htmlFor="email"
-            style={{ display: "block", fontSize: 12, opacity: 0.9, marginBottom: 6, textAlign: "left" }}
-          >
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            ref={emailRef}
-            // For Chrome/Google Password Manager, "username" works best for login forms
-            autoComplete="username"
-            inputMode="email"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder="you@example.com"
-            required
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              textAlign: "left",
-            }}
-          />
-        </div>
+        <label
+          htmlFor="email"
+          style={{ display: "block", fontSize: 12, opacity: 0.9, marginBottom: 4 }}
+        >
+          Email
+        </label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="username"
+          inputMode="email"
+          ref={emailRef}
+          required
+          style={{
+            width: "100%",
+            padding: 10,
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            marginBottom: 12,
+            fontSize: 14,
+          }}
+        />
 
-        {/* Password */}
-        <div style={{ marginBottom: 4 }}>
-          <label
-            htmlFor="current-password"
-            style={{ display: "block", fontSize: 12, opacity: 0.9, marginBottom: 6, textAlign: "left" }}
-          >
-            Password
-          </label>
-          <input
-            id="current-password"
-            name="password"
-            type="password"
-            ref={passwordRef}
-            autoComplete="current-password"
-            placeholder="••••••••"
-            required
-            style={{
-              width: "100%",
-              padding: "10px 12px",
-              border: "1px solid #cbd5e1",
-              borderRadius: 8,
-              textAlign: "left",
-            }}
-          />
-        </div>
+        <label
+          htmlFor="password"
+          style={{ display: "block", fontSize: 12, opacity: 0.9, marginBottom: 4 }}
+        >
+          Password
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          ref={passwordRef}
+          required
+          style={{
+            width: "100%",
+            padding: 10,
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            marginBottom: 12,
+            fontSize: 14,
+          }}
+        />
 
-        {/* Actions */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button
             type="submit"
             disabled={busy}
-            aria-busy={busy ? "true" : "false"}
             style={{
               padding: "8px 12px",
               borderRadius: 8,
               border: "1px solid #0f766e",
               background: "#14b8a6",
-              color: "white",
-              fontWeight: 700,
+              color: "#fff",
+              fontWeight: 600,
               cursor: busy ? "wait" : "pointer",
+              fontSize: 14,
             }}
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>
 
-          <a
-            href="/auth/reset"
-            style={{ fontSize: 12, textDecoration: "underline", color: "#334155" }}
-            title="Forgot password?"
-          >
+          <a href="/auth/reset" style={{ fontSize: 12, textDecoration: "underline" }}>
             Forgot password?
           </a>
         </div>
-
-        {/* Status */}
-        <div role="status" aria-live="polite" aria-atomic="true" style={{ marginTop: 10, fontSize: 12, color: "#7f1d1d" }}>
-          {msg}
-        </div>
       </form>
+
+      <div style={{ fontSize: 10, opacity: 0.6, marginTop: 10 }}>
+        BUILD: {SIGNIN_BUILD}
+      </div>
     </main>
   );
 }
