@@ -1,11 +1,9 @@
-﻿
-
-
-// pages/index.js
+﻿// pages/index.js
 // Logged-out: Landing (public, anonymized tiles + simple nav + Sign in button).
-// Logged-in: Home (Welcome + Profile + Gallery + CSV). Placeholder removed; fixed 315×429 portrait instead.
+// Logged-in: Home (Welcome + Profile + Gallery + CSV). Placeholder removed; fixed 315×439 portrait instead.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -17,7 +15,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.241";
+const INDEX_BUILD = "idx-36.240";
 
 function prettyDate(s) {
   try {
@@ -610,7 +608,7 @@ export default function HomePage() {
     if (csvGateRef.current || csvBusy) return;
     csvGateRef.current = true;
     setCsvBusy(true);
-    const csvStartRef = { current: performance.now() };
+    setCsvStartRef.current = performance.now();
 
     try {
       const { data, error } = await supabase
@@ -656,11 +654,37 @@ export default function HomePage() {
       URL.revokeObjectURL(url);
     } finally {
       const elapsed = performance.now() - csvStartRef.current;
-      const remaining = Math.max(0, 1000 - elapsed);
+      const remaining = Math.max(0, MIN_BUSY_MS - elapsed);
       setTimeout(() => {
         setCsvBusy(false);
         csvGateRef.current = false;
       }, remaining);
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => {
+        setCopiedMap((m) => {
+          const n = { ...m };
+          delete n[id];
+          return n;
+        });
+      }, 1000);
+    } catch {
+      alert("Copy failed.");
     }
   }
 
@@ -672,28 +696,14 @@ export default function HomePage() {
     }
   }
 
-  // ✅ NEW: Self-contained portrait with exact 315×429 (no frame), proof tokens
+  // ✅ NEW: Self-contained portrait (no external CSS), exact 315×439
   function ProfilePortrait() {
     return (
-      <aside
-        id="profile-portrait-slot"
-        role="complementary"
-        aria-label="Profile portrait"
-        title="Profile portrait"
-        style={{ gridArea: "aside", marginTop: 16, alignSelf: "start", background: "transparent", border: "none", boxShadow: "none", padding: 0 }}
-      >
-        <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto", borderRadius: 12, overflow: "hidden" }}>
+      <aside role="complementary" aria-label="Profile portrait" title="Profile portrait" style={{ gridArea: "aside", marginTop: 16, alignSelf: "start" }}>
+        <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/fill_in_my_story.jpg"
-            alt="Profile image"
-            width={315}
-            height={429}
-            style={{ display: "block", width: 315, height: 429, maxWidth: "none", maxHeight: "none", objectFit: "contain", borderRadius: 12 }}
-          />
+          <img src="/fill_in_my_story.jpg" alt="Profile image" width="315" height="429" style={{ width:315, height:429, maxWidth:315, maxHeight:429, objectFit:"contain", display:"block", margin:"0 auto", borderRadius:12 }} />
         </div>
-        <span id="portrait-proof" style={{ fontSize: 10, opacity: 0.6, display: "block", marginTop: 4 }}>PPROOF</span>
-        <span id="build-proof" style={{ fontSize: 10, opacity: 0.6, display: "block" }}>BUILD:{INDEX_BUILD}</span>
       </aside>
     );
   }
@@ -787,6 +797,9 @@ export default function HomePage() {
           {toast}
         </div>
       ) : null}
+
+      {/* My Story nudge (dismissible) */}
+      {/* ...unchanged... */}
 
       {/* Top links + right cluster */}
       <div
@@ -1232,7 +1245,7 @@ export default function HomePage() {
             gap: 12,
           }}
         >
-          {items.map((row) => {
+          {items.map((row, i) => {
             const url = row.display_url || "";
             const copied = !!copiedMap[row.id];
             return (
@@ -1258,6 +1271,7 @@ export default function HomePage() {
                     src={url}
                     alt={row.filename || row.storage_path || "image"}
                     style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
+                    onError={() => handleImgError(row.id, i, row.storage_path, row.filename, row.user_id)}
                   />
                 ) : (
                   <div
@@ -1288,7 +1302,7 @@ export default function HomePage() {
                   {url ? (
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                       <button
-                        onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(url); }}
+                        onClick={(e) => handleCopy(e, url, row.id)}
                         aria-label={`Copy public link for ${row.filename || row.id}`}
                         style={{
                           padding: "6px 10px",
@@ -1304,7 +1318,7 @@ export default function HomePage() {
                         {copied ? "Link copied!" : "Copy image link"}
                       </button>
                       <button
-                        onClick={(e) => { e.preventDefault(); window.open(url, "_blank", "noopener"); }}
+                        onClick={(e) => handleOpen(e, url)}
                         aria-label={`Open ${row.filename || row.id} in a new tab`}
                         style={{
                           padding: "6px 10px",
@@ -1412,12 +1426,12 @@ export default function HomePage() {
               "aside" !important;
           }
         }
-
-        /* Portrait exact size (wins cascade via id) */
-        #profile-portrait-slot { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
-        #profile-portrait-slot > div { width: 315px !important; height: 429px !important; margin: 0 auto !important; border-radius: 12px !important; overflow: hidden !important; }
-        #profile-portrait-slot img { width: 315px !important; height: 429px !important; max-width: none !important; max-height: none !important; object-fit: contain !important; display: block !important; border-radius: 12px !important; }
-      `}</style>
+      
+/* Portrait exact size (wins cascade) */
+main [aria-label="Profile image placeholder"], main [aria-label="Profile portrait"] { background:transparent!important; border:none!important; box-shadow:none!important; padding:0!important; }
+main [aria-label="Profile image placeholder"] > div, main [aria-label="Profile portrait"] > div { width:315px!important; height:439px!important; }
+main [aria-label="Profile image placeholder"] img, main [aria-label="Profile portrait"] img { width:315px!important; height:439px!important; object-fit:contain!important; display:block!important; }
+`}</style>
     </main>
   );
 }

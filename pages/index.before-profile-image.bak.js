@@ -1,9 +1,6 @@
-﻿
-
-
-// pages/index.js
-// Logged-out: Landing (public, anonymized tiles + simple nav + Sign in button).
-// Logged-in: Home (Welcome + Profile + Gallery + CSV). Placeholder removed; fixed 315×429 portrait instead.
+﻿// pages/index.js
+// Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
+// Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -17,7 +14,7 @@ const supabase = createClient(
 
 const PAGE_SIZE = 24;
 // Cache-bust marker for a fresh JS chunk
-const INDEX_BUILD = "idx-36.241";
+const INDEX_BUILD = "idx-36.209";
 
 function prettyDate(s) {
   try {
@@ -610,7 +607,7 @@ export default function HomePage() {
     if (csvGateRef.current || csvBusy) return;
     csvGateRef.current = true;
     setCsvBusy(true);
-    const csvStartRef = { current: performance.now() };
+    csvStartRef.current = performance.now();
 
     try {
       const { data, error } = await supabase
@@ -656,11 +653,37 @@ export default function HomePage() {
       URL.revokeObjectURL(url);
     } finally {
       const elapsed = performance.now() - csvStartRef.current;
-      const remaining = Math.max(0, 1000 - elapsed);
+      const remaining = Math.max(0, MIN_BUSY_MS - elapsed);
       setTimeout(() => {
         setCsvBusy(false);
         csvGateRef.current = false;
       }, remaining);
+    }
+  }
+
+  function handleOpen(e, url) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      window.open(url, "_blank", "noopener");
+    } catch {}
+  }
+
+  async function handleCopy(e, url, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedMap((m) => ({ ...m, [id]: true }));
+      setTimeout(() => {
+        setCopiedMap((m) => {
+          const n = { ...m };
+          delete n[id];
+          return n;
+        });
+      }, 1000);
+    } catch {
+      alert("Copy failed.");
     }
   }
 
@@ -672,30 +695,28 @@ export default function HomePage() {
     }
   }
 
-  // ✅ NEW: Self-contained portrait with exact 315×429 (no frame), proof tokens
-  function ProfilePortrait() {
-    return (
-      <aside
-        id="profile-portrait-slot"
-        role="complementary"
-        aria-label="Profile portrait"
-        title="Profile portrait"
-        style={{ gridArea: "aside", marginTop: 16, alignSelf: "start", background: "transparent", border: "none", boxShadow: "none", padding: 0 }}
-      >
-        <div style={{ position: "relative", width: 315, height: 429, margin: "0 auto", borderRadius: 12, overflow: "hidden" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/fill_in_my_story.jpg"
-            alt="Profile image"
-            width={315}
-            height={429}
-            style={{ display: "block", width: 315, height: 429, maxWidth: "none", maxHeight: "none", objectFit: "contain", borderRadius: 12 }}
-          />
-        </div>
-        <span id="portrait-proof" style={{ fontSize: 10, opacity: 0.6, display: "block", marginTop: 4 }}>PPROOF</span>
-        <span id="build-proof" style={{ fontSize: 10, opacity: 0.6, display: "block" }}>BUILD:{INDEX_BUILD}</span>
-      </aside>
-    );
+  async function handleImgError(rowId, absIndex, storagePath, filename, rowUserId) {
+    try {
+      if (!rowId && rowId !== 0) return;
+      const tried = retrySetRef.current;
+      if (tried.has(rowId)) return;
+      tried.add(rowId);
+
+      const bucket = "images";
+      const primary = normalizePath(storagePath || "");
+      const alt = filename ? normalizePath(`${rowUserId || user?.id || ""}/${filename}`) : "";
+
+      let newUrl = "";
+
+      if (!newUrl && primary) newUrl = await singleSignedUrl(bucket, primary);
+      if (!newUrl && alt)     newUrl = await singleSignedUrl(bucket, alt);
+      if (!newUrl && alt)     newUrl = publicUrl(bucket, alt);
+      if (!newUrl && primary) newUrl = publicUrl(bucket, primary);
+      if (!newUrl && primary) newUrl = await downloadToBlobUrl(bucket, primary);
+      if (!newUrl && alt)     newUrl = await downloadToBlobUrl(bucket, alt);
+
+      if (newUrl) setItemUrl(setItems, absIndex, newUrl);
+    } catch {}
   }
 
   // ----- Render gating to avoid Landing flash for signed-in users -----
@@ -709,6 +730,16 @@ export default function HomePage() {
   }
 
   // ---------- Logged-in Home ----------
+  const srOnly = {
+    position: "absolute",
+    left: -9999,
+    top: "auto",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+  };
+
+  // Helpers for the “chip” look
   function Chip({ active, children }) {
     return (
       <span
@@ -750,10 +781,11 @@ export default function HomePage() {
     );
   }
 
+  // Map “who can contact” → legacy contact_preference for back-compat
   function legacyPrefFromWho(who) {
     if (who === "members") return "members_only";
     if (who === "researchers") return "researchers_only";
-    return "researchers_and_members";
+    return "researchers_and_members"; // widest legacy set
   }
 
   return (
@@ -788,6 +820,67 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {/* My Story nudge (dismissible) */}
+      {showStoryNudge ? (
+        <div
+          role="region"
+          aria-label="My Story reminder"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: 10,
+            marginBottom: 12,
+            border: "1px solid #99f6e4",
+            background: "#ecfeff",
+            borderRadius: 10,
+          }}
+        >
+          <div style={{ fontSize: 14 }}>
+            Haven’t told your story yet? It helps others understand the patterns.
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link
+              href="/questionnaire"
+              onClick={markQuestionnaireVisited}
+              style={{
+                textDecoration: "none",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #0f766e",
+                background: "#14b8a6",
+                color: "white",
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+                fontSize: 12,
+              }}
+              aria-label="Go to My Story"
+              title="Go to My Story"
+            >
+              Go to My Story
+            </Link>
+            <button
+              onClick={dismissStoryNudge}
+              aria-label="Dismiss My Story reminder"
+              title="Dismiss"
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #cbd5e1",
+                background: "#f8fafc",
+                cursor: "pointer",
+                fontWeight: 600,
+                fontSize: 12,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Top links + right cluster */}
       <div
         style={{
@@ -803,12 +896,12 @@ export default function HomePage() {
           <Link href="/upload" style={{ textDecoration: "none", fontWeight: 600 }}>
             Go to Uploads
           </Link>
-          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }}>
+          <Link href="/questionnaire" style={{ textDecoration: "none", fontWeight: 600 }} onClick={markQuestionnaireVisited}>
             Go to My Story
           </Link>
         </div>
 
-        {/* feedback ABOVE sign out */}
+        {/* RE-ORDERED: feedback ABOVE sign out */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <a
             href={`mailto:girlsaidwhat@gmail.com?subject=${encodeURIComponent("Profile Page Issue")}&body=${encodeURIComponent(
@@ -851,8 +944,12 @@ export default function HomePage() {
           {firstName ? `Welcome to Your Profile, ${firstName}` : "Welcome to Your Profile"}
         </h1>
       </header>
-
-      <div role="separator" aria-hidden="true" style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }} />
+      {/* Thin divider under header */}
+      <div
+        role="separator"
+        aria-hidden="true"
+        style={{ height: 1, background: "#e5e7eb", margin: "6px 0 12px" }}
+      />
 
       {/* Profile form */}
       <form
@@ -862,7 +959,9 @@ export default function HomePage() {
           setProfileStatus("Saving...");
 
           try {
-            await supabase.from("user_profile").upsert({ user_id: user.id }, { onConflict: "user_id" });
+            await supabase
+              .from("user_profile")
+              .upsert({ user_id: user.id }, { onConflict: "user_id" });
 
             const metaPayload = {
               first_name: nonEmpty(firstNameField) ? firstNameField : null,
@@ -871,7 +970,11 @@ export default function HomePage() {
             const { error: metaErr } = await supabase.auth.updateUser({ data: metaPayload });
             if (metaErr) console.warn("auth.updateUser error:", metaErr?.message);
 
-            const ageVal = age === "" || age === null || typeof age === "undefined" ? null : Number(age);
+            const ageVal =
+              age === "" || age === null || typeof age === "undefined"
+                ? null
+                : Number(age);
+
             const compositeLoc = formatCompositeLocation(city, stateAbbr, country);
 
             const legacyPref = legacyPrefFromWho(contactWho);
@@ -887,14 +990,17 @@ export default function HomePage() {
               ["uploader_last_name", nonEmpty(lastNameField) ? lastNameField : null],
               ["uploader_age", ageVal],
               ["age", ageVal],
+
               ["uploader_location", nonEmpty(compositeLoc) ? compositeLoc : null],
               ["location", nonEmpty(compositeLoc) ? compositeLoc : null],
+
               ["uploader_city", nonEmpty(city) ? city : null],
               ["city", nonEmpty(city) ? city : null],
               ["uploader_state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
               ["state", nonEmpty(stateAbbr) ? stateAbbr.toUpperCase() : null],
               ["uploader_country", nonEmpty(country) ? country : null],
               ["country", nonEmpty(country) ? country : null],
+
               ["role", role || null],
               ["user_role", role || null],
               ["uploader_role", role || null],
@@ -902,6 +1008,7 @@ export default function HomePage() {
               ["is_doctor", role === "doctor" ? true : role ? false : null],
               ["is_researcher", role === "researcher" ? true : role ? false : null],
               ["is_journalist", role === "journalist" ? true : role ? false : null],
+
               ["contact_who", contactWho],
               ["contactable_by", contactWho],
               ["contact_preference", legacyPref],
@@ -910,7 +1017,10 @@ export default function HomePage() {
             ];
 
             for (const [col, val] of updates) {
-              const { error } = await supabase.from("user_profile").update({ [col]: val }).eq("user_id", user.id);
+              const { error } = await supabase
+                .from("user_profile")
+                .update({ [col]: val })
+                .eq("user_id", user.id);
               if (error) {
                 const raw = error.message || "";
                 const msg = raw.toLowerCase();
@@ -948,7 +1058,7 @@ export default function HomePage() {
           margin: "8px 0 24px",
         }}
       >
-        {/* Grid with named areas. RIGHT column now uses <ProfilePortrait /> */}
+        {/* Grid with named areas to control where the placeholder starts/ends */}
         <div
           data-profile-grid
           style={{
@@ -1159,12 +1269,39 @@ export default function HomePage() {
             </span>
           </div>
 
-          {/* RIGHT: portrait (clean) */}
-          <ProfilePortrait />
+          {/* RIGHT: image placeholder */}
+          <aside
+            role="complementary"
+            aria-label="Profile image placeholder"
+            style={{
+              gridArea: "aside",
+              marginTop: 16,
+              alignSelf: "stretch",
+              height: "100%",
+              border: "1px dashed #cbd5e1",
+              background: "#f8fafc",
+              borderRadius: 10,
+              padding: 12,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "hidden",
+            }}
+            title="Profile image placeholder"
+          >
+            <div
+              role="img"
+              aria-label="Profile image coming soon"
+              style={{ textAlign: "center", color: "#64748b", lineHeight: 1.4, fontSize: 13 }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>Profile image</div>
+              <div>Placeholder (right column)</div>
+            </div>
+          </aside>
         </div>
       </form>
 
-      {/* Gallery header row */}
+      {/* Gallery header row: title left; total (top) with CSV beneath on right */}
       <div
         role="region"
         aria-label="Gallery header"
@@ -1184,7 +1321,12 @@ export default function HomePage() {
         </h2>
 
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-          <div role="status" aria-live="polite" aria-atomic="true" style={{ fontSize: 12, opacity: 0.85 }}>
+          <div
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            style={{ fontSize: 12, opacity: 0.85 }}
+          >
             Total items: <strong>{typeof count === "number" ? count : "…"}</strong>
           </div>
 
@@ -1216,7 +1358,12 @@ export default function HomePage() {
 
       {/* Gallery status (initial) */}
       {galleryStatus && items.length === 0 ? (
-        <div role="status" aria-live="polite" aria-atomic="true" style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, marginBottom: 12 }}>
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, marginBottom: 12 }}
+        >
           {galleryStatus}
         </div>
       ) : null}
@@ -1232,7 +1379,7 @@ export default function HomePage() {
             gap: 12,
           }}
         >
-          {items.map((row) => {
+          {items.map((row, i) => {
             const url = row.display_url || "";
             const copied = !!copiedMap[row.id];
             return (
@@ -1258,6 +1405,7 @@ export default function HomePage() {
                     src={url}
                     alt={row.filename || row.storage_path || "image"}
                     style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
+                    onError={() => handleImgError(row.id, i, row.storage_path, row.filename, row.user_id)}
                   />
                 ) : (
                   <div
@@ -1288,7 +1436,7 @@ export default function HomePage() {
                   {url ? (
                     <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                       <button
-                        onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(url); }}
+                        onClick={(e) => handleCopy(e, url, row.id)}
                         aria-label={`Copy public link for ${row.filename || row.id}`}
                         style={{
                           padding: "6px 10px",
@@ -1304,7 +1452,7 @@ export default function HomePage() {
                         {copied ? "Link copied!" : "Copy image link"}
                       </button>
                       <button
-                        onClick={(e) => { e.preventDefault(); window.open(url, "_blank", "noopener"); }}
+                        onClick={(e) => handleOpen(e, url)}
                         aria-label={`Open ${row.filename || row.id} in a new tab`}
                         style={{
                           padding: "6px 10px",
@@ -1359,7 +1507,7 @@ export default function HomePage() {
         ) : null}
       </div>
 
-      {/* Unified input tone + chip hover (scoped) */}
+      {/* Unified input tone + consistent heights/radii + chip hover (scoped) */}
       <style jsx global>{`
         main[data-index-build="${INDEX_BUILD}"] input,
         main[data-index-build="${INDEX_BUILD}"] select {
@@ -1412,13 +1560,7 @@ export default function HomePage() {
               "aside" !important;
           }
         }
-
-        /* Portrait exact size (wins cascade via id) */
-        #profile-portrait-slot { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
-        #profile-portrait-slot > div { width: 315px !important; height: 429px !important; margin: 0 auto !important; border-radius: 12px !important; overflow: hidden !important; }
-        #profile-portrait-slot img { width: 315px !important; height: 429px !important; max-width: none !important; max-height: none !important; object-fit: contain !important; display: block !important; border-radius: 12px !important; }
       `}</style>
     </main>
   );
 }
-

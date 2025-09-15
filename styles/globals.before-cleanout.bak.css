@@ -1,0 +1,100 @@
+﻿/* Roboto global font (400/500/700) */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap");
+
+/* Apply everywhere, including form controls; override any inline fallback */
+:root, html, body, #__next, main, nav, header, section, footer, a, p, h1, h2, h3, h4, h5, h6,
+button, input, select, textarea, label, small, strong, span, div {
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif !important;
+}
+/* styles/globals.css */
+
+/* Keep layout predictable */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #__next { min-height: 100%; }
+
+/* Do not change site fonts here. Font updates will be a separate microburst. */
+body {
+  margin: 0;
+}
+
+/* Reserved space so the fixed build badge never overlaps content */
+:root {
+  --build-badge-safe-space: 120px;
+}
+body {
+  padding-bottom: var(--build-badge-safe-space) !important;
+}
+/* For pages that use <main id="main"> */
+#main {
+  padding-bottom: var(--build-badge-safe-space);
+}
+
+/* Accessibility utility, harmless if unused */
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden; clip: rect(1px,1px,1px,1px);
+  white-space: nowrap; border: 0; padding: 0; margin: -1px;
+}/* Microburst: gallery card affordance + a11y focus */
+:where(.gallery-card, .image-card, .card):has(img) {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
+  transform: translateZ(0); /* avoid layout shift on hover */
+  will-change: transform;
+}
+
+:where(.gallery-card, .image-card, .card):has(img):hover {
+  transform: scale(1.012);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+:where(.gallery-card, .image-card, .card):has(img):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :where(.gallery-card, .image-card, .card):has(img) {
+    transition: box-shadow 0.2s ease, outline-color 0.2s ease;
+  }
+  :where(.gallery-card, .image-card, .card):has(img):hover {
+    transform: none;
+  }
+}/* Microburst fix: hover + focus for gallery anchors that wrap images */
+main a[href^="/image/"]:has(> img),
+main a[href*="/image/"]:has(> img) {
+  display: inline-block;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+main a[href^="/image/"]:has(> img):hover,
+main a[href*="/image/"]:has(> img):hover {
+  transform: scale(1.012);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+}
+
+main a[href^="/image/"]:has(> img):focus-visible,
+main a[href*="/image/"]:has(> img):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main a[href^="/image/"]:has(> img),
+  main a[href*="/image/"]:has(> img) {
+    transition: box-shadow 0.2s ease, outline-color 0.2s ease;
+  }
+  main a[href^="/image/"]:has(> img):hover,
+  main a[href*="/image/"]:has(> img):hover {
+    transform: none;
+  }
+}
+
+
+
+/* Profile image hard size (315x439) */
+
+
+
