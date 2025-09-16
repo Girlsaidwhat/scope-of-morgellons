@@ -1,4 +1,4 @@
-Ôªø// pages/index.js
+// pages/index.js
 // Logged-out: Landing view (public, anonymized tiles + simple nav + Sign in button).
 // Logged-in: Home (Welcome + Profile + Gallery + CSV, unchanged behavior).
 
@@ -382,7 +382,7 @@ export default function HomePage() {
     setTimeout(() => setToast(""), 2000);
   }
 
-  // Gentle ‚ÄúMy Story‚Äù nudge (dismissible)
+  // Gentle ìMy Storyî nudge (dismissible)
   const [showStoryNudge, setShowStoryNudge] = useState(false);
   useEffect(() => {
     try {
@@ -411,7 +411,7 @@ export default function HomePage() {
     router.replace({ pathname: router.pathname, query: newQuery }, undefined, { shallow: true });
   }, [router.isReady, router.query?.deleted, router.pathname]);
 
-  // Load user (session) ‚Äî gate rendering until checked
+  // Load user (session) ó gate rendering until checked
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -739,7 +739,7 @@ export default function HomePage() {
     overflow: "hidden",
   };
 
-  // Helpers for the ‚Äúchip‚Äù look
+  // Helpers for the ìchipî look
   function Chip({ active, children }) {
     return (
       <span
@@ -781,7 +781,7 @@ export default function HomePage() {
     );
   }
 
-  // Map ‚Äúwho can contact‚Äù ‚Üí legacy contact_preference for back-compat
+  // Map ìwho can contactî ? legacy contact_preference for back-compat
   function legacyPrefFromWho(who) {
     if (who === "members") return "members_only";
     if (who === "researchers") return "researchers_only";
@@ -838,7 +838,7 @@ export default function HomePage() {
           }}
         >
           <div style={{ fontSize: 14 }}>
-            Haven‚Äôt told your story yet? It helps others understand the patterns.
+            Havenít told your story yet? It helps others understand the patterns.
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <Link
@@ -1220,7 +1220,7 @@ export default function HomePage() {
             aria-label="I am a"
             style={{ gridArea: "role", border: "1px solid #e5e5e5", borderRadius: 8, padding: 10, marginTop: 16 }}
           >
-            <legend style={{ fontSize: 12, padding: "0 6px" }}>I am a‚Ä¶</legend>
+            <legend style={{ fontSize: 12, padding: "0 6px" }}>I am aÖ</legend>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <RadioChip name="user_role" value="patient" checked={role === "patient"} onChange={setRole} label="Someone who has Morgellons" />
               <RadioChip name="user_role" value="doctor" checked={role === "doctor"} onChange={setRole} label="Doctor" />
@@ -1327,7 +1327,7 @@ export default function HomePage() {
             aria-atomic="true"
             style={{ fontSize: 12, opacity: 0.85 }}
           >
-            Total items: <strong>{typeof count === "number" ? count : "‚Ä¶"}</strong>
+            Total items: <strong>{typeof count === "number" ? count : "Ö"}</strong>
           </div>
 
           <button
@@ -1336,7 +1336,7 @@ export default function HomePage() {
             aria-busy={csvBusy ? "true" : "false"}
             aria-disabled={csvBusy ? "true" : "false"}
             disabled={csvBusy}
-            title="Download a CSV of your gallery‚Äôs details (filenames, categories, notes, and more)."
+            title="Download a CSV of your galleryís details (filenames, categories, notes, and more)."
             style={{
               padding: "6px 10px",
               borderRadius: 8,
@@ -1351,7 +1351,7 @@ export default function HomePage() {
               opacity: csvBusy ? 0.9 : 1,
             }}
           >
-            {csvBusy ? "Preparing‚Ä¶" : "Export CSV"}
+            {csvBusy ? "PreparingÖ" : "Export CSV"}
           </button>
         </div>
       </div>
@@ -1420,7 +1420,7 @@ export default function HomePage() {
                       fontSize: 12,
                     }}
                   >
-                    Preview loading‚Ä¶
+                    Preview loadingÖ
                   </div>
                 )}
                 <div style={{ padding: 10, borderTop: "1px solid #f3f4f6" }}>
