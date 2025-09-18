@@ -1,4 +1,4 @@
-// pages/signin.js
+﻿// pages/signin.js
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { createClient } from "@supabase/supabase-js";
@@ -23,7 +23,7 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
-  // 🔧 Kill any Service Worker so old JS can’t override this page
+  // ðŸ”§ Kill any Service Worker so old JS canâ€™t override this page
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.getRegistrations?.().then((regs) => {
@@ -139,7 +139,7 @@ export default function SignIn() {
                 fontSize: 14,
               }}
             >
-              {busy ? "Signing in…" : "Sign in"}
+              {busy ? "Signing inâ€¦" : "Sign in"}
             </button>
 
             <a href="/auth/reset" style={{ fontSize: 12, textDecoration: "underline" }}>
