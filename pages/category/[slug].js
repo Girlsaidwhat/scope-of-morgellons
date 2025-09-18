@@ -1,334 +1,64 @@
-// Build: 36.12_2025-08-20
-// Category a11y: main landmark, aria-live statuses, labeled buttons. Keeps pagination and filters.
-
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/router";
+import React from "react";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-const PAGE_SIZE = 24;
-
-const SLUG_TO_CATEGORY = {
-  clear_to_brown_blebs: "Blebs (clear to brown)",
-  biofilm: "Biofilm",
-  fiber_bundles: "Fiber Bundles",
-  fibers: "Fibers",
-  hexagons: "Hexagons",
-  crystalline_structures: "Crystalline Structures",
-  feathers: "Feathers",
-  miscellaneous: "Miscellaneous",
-  hairs: "Hairs",
-  skin: "Skin",
-  wounds: "Wounds",
-};
-
-function prettyDate(s) {
-  try {
-    const d = new Date(s);
-    return d.toLocaleString();
-  } catch {
-    return s || "";
-  }
-}
-
-function Badge({ children }) {
+export default function CategoryPage({ slug, items, error }) {
   return (
-    <span style={{ fontSize: 12, padding: "2px 8px", border: "1px solid #ddd", borderRadius: 999 }}>
-      {children}
-    </span>
-  );
-}
-
-export default function CategoryPage() {
-  const router = useRouter();
-  const { slug } = router.query;
-  const urlColor = typeof router.query?.color === "string" ? router.query.color : "";
-
-  const [user, setUser] = useState(null);
-  const [count, setCount] = useState(null);
-  const [items, setItems] = useState([]);
-  const [offset, setOffset] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
-
-  const [copiedMap, setCopiedMap] = useState({});
-
-  const categoryLabel = useMemo(() => SLUG_TO_CATEGORY[slug] || "", [slug]);
-
-  const colorColumn = useMemo(() => {
-    if (!categoryLabel) return null;
-    if (categoryLabel === "Blebs (clear to brown)") return "bleb_color";
-    if (categoryLabel === "Fiber Bundles") return "fiber_bundles_color";
-    if (categoryLabel === "Fibers") return "fibers_color";
-    return null;
-  }, [categoryLabel]);
-
-  // Auth
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!mounted) return;
-      setUser(data?.user ?? null);
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  // Reset on change
-  useEffect(() => {
-    setItems([]);
-    setOffset(0);
-    setCount(null);
-    setStatus("");
-    setCopiedMap({});
-  }, [categoryLabel, urlColor]);
-
-  // Count
-  useEffect(() => {
-    if (!user?.id || !categoryLabel) return;
-    let canceled = false;
-    (async () => {
-      const base = supabase
-        .from("image_metadata")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("category", categoryLabel);
-
-      const q = colorColumn && urlColor ? base.eq(colorColumn, urlColor) : base;
-      const { count: total, error } = await q;
-
-      if (canceled) return;
-      if (error) {
-        setCount(null);
-        return;
-      }
-      setCount(typeof total === "number" ? total : null);
-    })();
-    return () => { canceled = true; };
-  }, [user?.id, categoryLabel, colorColumn, urlColor]);
-
-  // Load page
-  async function loadMore() {
-    if (!user?.id || !categoryLabel) return;
-    setLoading(true);
-    setStatus(items.length === 0 ? "Loading..." : "");
-
-    let q = supabase
-      .from("image_metadata")
-      .select(
-        "id, path, filename, category, bleb_color, fiber_bundles_color, fibers_color, created_at",
-        { count: "exact" }
-      )
-      .eq("user_id", user.id)
-      .eq("category", categoryLabel)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1);
-
-    if (colorColumn && urlColor) q = q.eq(colorColumn, urlColor);
-
-    const { data, error } = await q;
-
-    if (error) {
-      setStatus(`Load error: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    const batch = data || [];
-    setItems((prev) => [...prev, ...batch]);
-    setOffset((prev) => prev + batch.length);
-    setLoading(false);
-    setStatus("");
-  }
-
-  // Initial
-  useEffect(() => {
-    if (user?.id && categoryLabel && offset === 0 && items.length === 0) {
-      loadMore();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, categoryLabel, colorColumn, urlColor]);
-
-  const hasMore = useMemo(() => {
-    if (loading) return false;
-    if (items.length === 0) return false;
-    if (typeof count === "number") return items.length < count;
-    return items.length % PAGE_SIZE === 0;
-  }, [items.length, count, loading]);
-
-  function cardColorBadge(row) {
-    if (row.category === "Blebs (clear to brown)" && row.bleb_color) return <Badge>Color: {row.bleb_color}</Badge>;
-    if (row.category === "Fiber Bundles" && row.fiber_bundles_color) return <Badge>Color: {row.fiber_bundles_color}</Badge>;
-    if (row.category === "Fibers" && row.fibers_color) return <Badge>Color: {row.fibers_color}</Badge>;
-    return null;
-  }
-
-  async function handleCopy(e, url, id) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopiedMap((m) => ({ ...m, [id]: true }));
-      setTimeout(() => setCopiedMap((m) => {
-        const n = { ...m };
-        delete n[id];
-        return n;
-      }), 1000);
-    } catch {
-      alert("Copy failed.");
-    }
-  }
-
-  function handleOpen(e, url) {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      window.open(url, "_blank", "noopener");
-    } catch {}
-  }
-
-  return (
-    <main id="main" tabIndex={-1} style={{ maxWidth: 1100, margin: "0 auto", padding: 24 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-        <h1 style={{ fontSize: 24, margin: 0 }}>
-          {categoryLabel || "Category"}
-          {colorColumn && urlColor ? (
-            <span style={{ fontSize: 14, fontWeight: 400, marginLeft: 8, opacity: 0.8 }}>(filtered: {urlColor})</span>
-          ) : null}
-        </h1>
-        {/* Global badge is the source of truth. */}
-      </header>
-
-      {!user ? (
-        <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>Please sign in to view this page.</div>
+    <main style={ maxWidth: 900, margin: "0 auto", padding: 24 }>
+      <h1 style={ margin: 0, fontSize: 28}>Category: {slug}</h1>
+      {error ? (
+        <p style={{ marginTop: 12, color: "#b91c1c" }}>
+          Temporarily unavailable. {typeof error === "string" ? error : ""}
+        </p>
+      ) : null}
+      {Array.isArray(items) && items.length > 0 ? (
+        <ul style={ { marginTop: 16, lineHeight: 1.8 } }>
+          {items.map((it) => (
+            <li key={it.id}>
+              <strong>{it.category || "Uncategorized"}</strong> {"}
+              {it.filename || it.id}
+            </li>
+          ))
+          </ul>
       ) : (
-        <>
-          <div style={{ marginBottom: 12, fontSize: 14 }}>
-            Total in this category{colorColumn && urlColor ? " (filtered)" : ""}:{" "}
-            <strong>{typeof count === "number" ? count : "…"}</strong>
-          </div>
-
-          <div role="status" aria-live="polite" aria-atomic="true" style={{ marginBottom: 12 }}>
-            {status && items.length === 0 ? (
-              <div style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>{status}</div>
-            ) : null}
-          </div>
-
-          {/* Grid */}
-          <div
-            role="list"
-            aria-label={`${categoryLabel || "Category"} images`}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {items.map((row) => {
-              const { data: pub } = supabase.storage.from("images").getPublicUrl(row.path);
-              const url = pub?.publicUrl || "";
-              const copied = !!copiedMap[row.id];
-              return (
-                <a
-                  role="listitem"
-                  key={row.id}
-                  href={`/image/${row.id}`}
-                  aria-label={`Open details for ${row.filename}`}
-                  style={{
-                    display: "block",
-                    textDecoration: "none",
-                    color: "inherit",
-                    border: "1px solid #e5e5e5",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    background: "#fff",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={row.filename}
-                    style={{ width: "100%", height: 160, objectFit: "cover", display: "block" }}
-                  />
-                  <div style={{ padding: 10 }}>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}>
-                      <Badge>{row.category}</Badge>
-                      {cardColorBadge(row)}
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>{prettyDate(row.created_at)}</div>
-
-                    {/* Card actions */}
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                      <button
-                        onClick={(e) => handleCopy(e, url, row.id)}
-                        aria-label={`Copy public link for ${row.filename}`}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #cbd5e1",
-                          background: "#f8fafc",
-                          cursor: "pointer",
-                          fontSize: 12,
-                          fontWeight: 600,
-                        }}
-                        title="Copy image link"
-                      >
-                        {copied ? "Link copied!" : "Copy image link"}
-                      </button>
-                      <button
-                        onClick={(e) => handleOpen(e, url)}
-                        aria-label={`Open ${row.filename} in a new tab`}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "1px solid #cbd5e1",
-                          background: "#f8fafc",
-                          cursor: "pointer",
-                          fontSize: 12,
-                          fontWeight: 600,
-                        }}
-                        title="Open image in new tab"
-                      >
-                        Open image
-                      </button>
-                    </div>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
-
-          {/* Load more / end-of-list */}
-          <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-            {hasMore ? (
-              <button
-                onClick={loadMore}
-                disabled={loading}
-                aria-label="Load more images"
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #0f766e",
-                  background: loading ? "#8dd3cd" : "#14b8a6",
-                  color: "white",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                {loading ? "Loading..." : "Load more"}
-              </button>
-            ) : items.length > 0 ? (
-              <div style={{ fontSize: 12, opacity: 0.7 }}>No more items.</div>
-            ) : null}
-          </div>
-        </>
+        <p style={{ marginTop: 12, opacity: 0.8 }}>No items in this category yet.</p>
       )}
     </main>
   );
 }
 
 
+export async function getServerSideProps({ params }) {
+  const slug = params?.slug || "";
 
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // If env vars are missing, on't crash the build — just render empty.
+  if (!url || !key) {
+    return {
+      props: { slug, items: [], error: "missing-env" },
+    };
+  }
+
+  // Query at request time on the server (has access to env).
+  const supabase = createClient(url, key);
+
+  try {
+    // Adjust this query to your schema. This is intentionally cautious.
+    const { data, error } = await supabase
+      .from("image_metadata")
+      .select("id, filename, category, bleb_color, created_at")
+      // If you have a slug column, replace below with .eq("category_slug", slug)
+      .ilike("category", slug.replace(/-/g, " ") + "%")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      return { props: { slug, items: [], error: error.message } };
+    }
+
+    return { props: { slug, items: data || [], error: null } };
+  } catch (err) {
+    return { props: { slug, items: [], error: String(err?.message || err) } };
+  }
+}
